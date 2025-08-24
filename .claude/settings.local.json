@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm search:*)",
+      "Bash(claude mcp:*)",
+      "Bash(npx enhanced-postgres-mcp-server:*)",
+      "Bash(flutter pub:*)",
+      "Bash(find:*)",
+      "Bash(flutter analyze:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
