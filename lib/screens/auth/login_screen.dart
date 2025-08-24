@@ -28,26 +28,29 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _login() async {
-    // Bypass validation - just login directly
-    setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-    // Add a small delay to simulate loading
-    await Future.delayed(const Duration(seconds: 1));
+    setState(() => _isLoading = true);
 
     try {
       final authProvider = context.read<AuthProvider>();
-      // Login with dummy credentials - always succeeds
       final success = await authProvider.login(
-        'demo@example.com',
-        'password123',
+        _emailController.text.trim(),
+        _passwordController.text,
       );
 
       if (success && mounted) {
-        if (context.mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-          );
-        }
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+        );
+      } else if (mounted) {
+        final error = authProvider.lastError ?? 'Login failed';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -66,14 +69,22 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: MediaQuery.of(context).size.height - 
+                    MediaQuery.of(context).padding.top - 
+                    MediaQuery.of(context).padding.bottom - 48,
+              ),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                 const SizedBox(height: 60),
                 // Logo and title
                 Center(
@@ -125,25 +136,33 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 48),
                 
-                // Email field (optional)
+                // Email field
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
-                    labelText: 'Email (optional)',
+                    labelText: 'Email',
                     prefixIcon: Icon(Icons.email_outlined),
-                    hintText: 'Enter your email or leave blank',
+                    hintText: 'Enter your email',
                   ),
-                  // No validation - optional field
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your email';
+                    }
+                    if (!value.contains('@')) {
+                      return 'Please enter a valid email';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
                 
-                // Password field (optional)
+                // Password field
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
-                    labelText: 'Password (optional)',
+                    labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       onPressed: () {
@@ -153,9 +172,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
                       ),
                     ),
-                    hintText: 'Enter your password or leave blank',
+                    hintText: 'Enter your password',
                   ),
-                  // No validation - optional field
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter your password';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
                 
@@ -184,7 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
                 
-                // Login button (always enabled)
+                // Login button
                 SizedBox(
                   height: 56,
                   child: ElevatedButton(
@@ -199,7 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text(
-                            'Sign In (No credentials needed)',
+                            'Sign In',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
                   ),
@@ -231,7 +255,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),

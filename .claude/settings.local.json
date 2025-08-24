@@ -7,7 +7,9 @@
       "Bash(npx enhanced-postgres-mcp-server:*)",
       "Bash(flutter pub:*)",
       "Bash(find:*)",
-      "Bash(flutter analyze:*)"
+      "Bash(flutter analyze:*)",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__execute_sql"
     ],
     "deny": [],
     "ask": []

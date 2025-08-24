@@ -240,14 +240,16 @@ class ProfileScreen extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              authProvider.logout();
-              Navigator.of(context).pop();
-              // Navigate back to login screen
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/login',
-                (route) => false,
-              );
+            onPressed: () async {
+              await authProvider.logout();
+              if (context.mounted) {
+                Navigator.of(context).pop(); // Close dialog
+                // Navigate back to splash screen which will redirect to login
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/',
+                  (route) => false,
+                );
+              }
             },
             child: const Text(
               'Logout',

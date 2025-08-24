@@ -43,19 +43,33 @@ class _SplashScreenState extends State<SplashScreen>
 
     _animationController.forward();
     
-    // Navigate to appropriate screen after animation
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        final authProvider = context.read<AuthProvider>();
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => authProvider.isAuthenticated 
-                ? const MainScreen()
-                : const LoginScreen(),
-          ),
-        );
-      }
-    });
+    // Check authentication and navigate after animation
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Wait for animation to complete
+    await Future.delayed(const Duration(seconds: 4));
+    
+    if (!mounted) return;
+    
+    final authProvider = context.read<AuthProvider>();
+    
+    // Wait for auth provider to initialize
+    while (!authProvider.isInitialized && mounted) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    
+    if (!mounted) return;
+    
+    // Check if user is authenticated
+    final isAuthenticated = authProvider.isAuthenticated && authProvider.currentUser != null;
+    
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => isAuthenticated ? const MainScreen() : const LoginScreen(),
+      ),
+    );
   }
 
   @override

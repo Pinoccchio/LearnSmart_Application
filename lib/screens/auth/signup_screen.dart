@@ -49,6 +49,14 @@ class _SignupScreenState extends State<SignupScreen> {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const MainScreen()),
         );
+      } else if (mounted) {
+        final error = authProvider.lastError ?? 'Signup failed';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -67,13 +75,14 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Form(
             key: _formKey,
@@ -137,20 +146,23 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Role selection
-                DropdownButtonFormField<String>(
-                  value: _selectedRole,
-                  decoration: const InputDecoration(
+                // Role field (read-only, defaults to Student)
+                TextFormField(
+                  enabled: false,
+                  initialValue: 'Student',
+                  decoration: InputDecoration(
                     labelText: 'Role',
-                    prefixIcon: Icon(Icons.work_outline),
+                    prefixIcon: Icon(Icons.work_outline, color: Colors.grey[400]),
+                    labelStyle: TextStyle(color: Colors.grey[600]),
+                    disabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'student', child: Text('Student')),
-                    DropdownMenuItem(value: 'instructor', child: Text('Instructor')),
-                  ],
-                  onChanged: (value) {
-                    setState(() => _selectedRole = value!);
-                  },
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 
