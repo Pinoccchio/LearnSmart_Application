@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import '../models/course_models.dart';
@@ -13,7 +14,7 @@ class GeminiAIService {
   
   GeminiAIService() {
     _model = GenerativeModel(
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.0-flash',
       apiKey: _apiKey,
     );
     _pdfExtractor = PdfExtractionService();
@@ -156,31 +157,47 @@ Important rules:
     
     switch (material.fileType.toLowerCase()) {
       case 'pdf':
-        // Extract actual PDF content
+        // Try direct PDF upload to Gemini 2.0 Flash first (processes ALL pages)
         if (_pdfExtractor.isPdfUrl(material.fileUrl)) {
           try {
-            print('📄 [CONTENT EXTRACTION] Processing PDF: ${material.title}');
-            final pdfContent = await _pdfExtractor.extractTextFromPdfUrl(material.fileUrl);
+            print('🚀 [CONTENT EXTRACTION] Trying Gemini 2.0 Flash direct PDF upload: ${material.title}');
+            final fullPdfContent = await _processFullPdfWithGemini(material.fileUrl, material.title);
             
-            if (pdfContent.isNotEmpty && pdfContent != 'No readable text content found in this PDF document.') {
-              // Use actual PDF content
-              final preview = _pdfExtractor.getSampleContent(pdfContent, sampleLength: 150);
-              contentContext = '''PDF Document: "${material.title}"
+            contentContext = '''PDF Document: "${material.title}"
 
-Key Content:
+Complete Document Analysis (ALL pages processed by Gemini 2.0 Flash):
+$fullPdfContent
+
+Summary: This PDF contains comprehensive educational material. All pages have been analyzed for complete coverage.''';
+              
+            print('✅ [CONTENT EXTRACTION] Successfully processed full PDF via Gemini upload (${fullPdfContent.length} chars)');
+            
+          } catch (e) {
+            print('⚠️ [CONTENT EXTRACTION] Gemini direct upload failed, falling back to Syncfusion: $e');
+            
+            // Fallback to original Syncfusion extraction (limited to ~41 pages)
+            try {
+              final pdfContent = await _pdfExtractor.extractTextFromPdfUrl(material.fileUrl);
+              
+              if (pdfContent.isNotEmpty && pdfContent != 'No readable text content found in this PDF document.') {
+                final preview = _pdfExtractor.getSampleContent(pdfContent, sampleLength: 150);
+                contentContext = '''PDF Document: "${material.title}"
+
+Key Content (Syncfusion extraction - limited pages):
 $pdfContent
 
-Summary: This PDF contains educational material covering concepts related to ${material.title}.''';
-              
-              print('✅ [CONTENT EXTRACTION] Successfully extracted PDF content (${pdfContent.length} chars)');
-              print('📖 [CONTENT PREVIEW] ${preview}');
-            } else {
-              contentContext = 'PDF document "${material.title}" - content extraction was attempted but no readable text was found. This may be an image-based or encrypted PDF.';
-              print('⚠️ [CONTENT EXTRACTION] No text found in PDF: ${material.title}');
+Summary: This PDF contains educational material covering concepts related to ${material.title}. Note: Content may be incomplete due to extraction limitations.''';
+                
+                print('✅ [CONTENT EXTRACTION] Fallback: Syncfusion extracted PDF content (${pdfContent.length} chars)');
+                print('📖 [CONTENT PREVIEW] ${preview}');
+              } else {
+                contentContext = 'PDF document "${material.title}" - content extraction was attempted but no readable text was found. This may be an image-based or encrypted PDF.';
+                print('⚠️ [CONTENT EXTRACTION] No text found in PDF: ${material.title}');
+              }
+            } catch (syncfusionError) {
+              print('❌ [CONTENT EXTRACTION] Both methods failed for ${material.title}: $syncfusionError');
+              contentContext = 'PDF document "${material.title}" containing detailed information about the topic. (All extraction methods failed, using metadata only)';
             }
-          } catch (e) {
-            print('❌ [CONTENT EXTRACTION] PDF extraction failed for ${material.title}: $e');
-            contentContext = 'PDF document "${material.title}" containing detailed information about the topic. (Content extraction failed, using metadata only)';
           }
         } else {
           contentContext = 'PDF document "${material.title}" containing detailed information about the topic.';
@@ -213,6 +230,87 @@ Summary: This PDF contains educational material covering concepts related to ${m
     }
     
     return contentContext;
+  }
+
+  /// Process full PDF directly with Gemini 2.0 Flash via file upload
+  Future<String> _processFullPdfWithGemini(String pdfUrl, String materialTitle) async {
+    try {
+      print('🚀 [GEMINI PDF UPLOAD] Starting direct PDF processing: $materialTitle');
+      
+      // Download PDF bytes directly
+      final pdfBytes = await _downloadPdfBytes(pdfUrl);
+      
+      if (pdfBytes == null) {
+        throw Exception('Failed to download PDF file for direct processing');
+      }
+      
+      print('📁 [GEMINI PDF UPLOAD] Downloaded ${pdfBytes.length} bytes, uploading to Gemini 2.0 Flash...');
+      
+      // Create comprehensive prompt for flashcard generation
+      final prompt = '''
+Analyze this complete PDF document titled "$materialTitle" and extract ALL educational content for comprehensive flashcard generation.
+
+Please provide a detailed content summary that captures:
+1. All major concepts, theories, and principles
+2. Key definitions and terminology  
+3. Important formulas, processes, or methodologies
+4. Critical examples and case studies
+5. Essential facts and data points
+6. Learning objectives and takeaways
+
+Focus on educational content that would be valuable for active recall and spaced repetition learning. Include content from ALL pages of the document, not just the beginning.
+
+Provide the response as a comprehensive text summary covering the entire document.
+''';
+
+      // Send PDF directly to Gemini 2.0 Flash
+      final response = await _model.generateContent([
+        Content.multi([
+          TextPart(prompt),
+          DataPart('application/pdf', pdfBytes),
+        ])
+      ]);
+      
+      final fullContent = response.text;
+      
+      if (fullContent == null || fullContent.trim().isEmpty) {
+        throw Exception('Gemini returned empty response for PDF processing');
+      }
+      
+      print('✅ [GEMINI PDF UPLOAD] Successfully processed full PDF (${fullContent.length} chars)');
+      print('📊 [GEMINI PDF UPLOAD] Content preview: ${fullContent.substring(0, 200)}...');
+      
+      return fullContent;
+      
+    } catch (e) {
+      print('❌ [GEMINI PDF UPLOAD] Direct PDF processing failed: $e');
+      rethrow;
+    }
+  }
+
+  /// Download PDF file as bytes for direct Gemini upload
+  Future<Uint8List?> _downloadPdfBytes(String url) async {
+    try {
+      print('📥 [PDF DOWNLOAD] Downloading PDF from: ${url.substring(0, 50)}...');
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'User-Agent': 'LearnSmart-App/1.0',
+          'Accept': 'application/pdf',
+        },
+      ).timeout(const Duration(seconds: 30));
+      
+      if (response.statusCode == 200) {
+        print('✅ [PDF DOWNLOAD] Downloaded ${response.bodyBytes.length} bytes for Gemini upload');
+        return response.bodyBytes;
+      } else {
+        throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+      }
+    } catch (e) {
+      print('❌ [PDF DOWNLOAD] Download failed: $e');
+      return null;
+    }
   }
 
   List<ActiveRecallFlashcard> _getFallbackFlashcards(CourseMaterial material) {

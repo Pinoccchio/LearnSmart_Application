@@ -13,7 +13,9 @@
       "mcp__supabase__list_projects",
       "mcp__supabase__get_anon_key",
       "mcp__supabase__apply_migration",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:medium.com)"
     ],
     "deny": [],
     "ask": []
