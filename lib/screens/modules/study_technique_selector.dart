@@ -6,10 +6,12 @@ import '../../models/course_models.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;
+  final Module module;
 
   const StudyTechniqueSelector({
     super.key,
     required this.course,
+    required this.module,
   });
 
   @override
@@ -54,9 +56,19 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  widget.course.title,
+                  widget.module.title,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'from ${widget.course.title}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 12,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -68,13 +80,35 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
           Expanded(
             child: Consumer<AppProvider>(
               builder: (context, appProvider, child) {
-                final techniques = appProvider.studyTechniques;
+                final allTechniques = appProvider.studyTechniques;
+                
+                // Filter techniques based on module's available techniques
+                final availableTechniques = widget.module.availableTechniques.isNotEmpty
+                    ? allTechniques.where((technique) => 
+                        widget.module.availableTechniques.contains(technique.id)).toList()
+                    : allTechniques;
+                
+                if (availableTechniques.isEmpty) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'No study techniques available for this module.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
                 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: techniques.length,
+                  itemCount: availableTechniques.length,
                   itemBuilder: (context, index) {
-                    final technique = techniques[index];
+                    final technique = availableTechniques[index];
                     final isSelected = selectedTechnique == technique.id;
                     
                     return Container(
@@ -204,7 +238,7 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Study Session Started'),
-        content: Text('Starting ${widget.course.title} with selected technique!'),
+        content: Text('Starting "${widget.module.title}" from ${widget.course.title} with selected technique!'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

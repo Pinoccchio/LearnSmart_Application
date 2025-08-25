@@ -3,7 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../constants/app_colors.dart';
 import '../../models/course_models.dart';
 import '../../services/supabase_service.dart';
-import 'study_technique_selector.dart';
+import 'course_overview_screen.dart';
 
 class MyCoursesScreen extends StatefulWidget {
   final Function(VoidCallback)? onRegisterRefresh;
@@ -94,7 +94,7 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> with AutomaticKeepAli
                         return CourseCard(
                           course: course,
                           onTap: () {
-                            _showStudyTechniqueSelector(context, course);
+                            _navigateToCourseOverview(context, course);
                           },
                         );
                       },
@@ -104,12 +104,11 @@ class _MyCoursesScreenState extends State<MyCoursesScreen> with AutomaticKeepAli
     );
   }
 
-  void _showStudyTechniqueSelector(BuildContext context, Course course) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StudyTechniqueSelector(course: course),
+  void _navigateToCourseOverview(BuildContext context, Course course) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CourseOverviewScreen(course: course),
+      ),
     );
   }
 }

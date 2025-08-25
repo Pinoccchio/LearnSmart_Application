@@ -405,4 +405,115 @@ class SupabaseService {
       return 0.0;
     }
   }
+
+  // Get course with full module and material details
+  static Future<Course?> getCourseWithModulesAndMaterials(String courseId) async {
+    print('🔍 [SUPABASE] Getting course with modules and materials for course: $courseId');
+    final startTime = DateTime.now();
+    
+    try {
+      const query = '''
+        *,
+        modules (
+          *,
+          course_materials (*)
+        ),
+        instructor:users!courses_instructor_id_fkey (
+          id, name, email
+        )
+      ''';
+      
+      print('📤 [QUERY] courses.select($query).eq(id, $courseId).single()');
+      
+      final response = await client
+          .from('courses')
+          .select(query)
+          .eq('id', courseId)
+          .single();
+
+      final duration = DateTime.now().difference(startTime);
+      print('📥 [RESPONSE] Received course data in ${duration.inMilliseconds}ms');
+
+      final course = Course.fromJson(response);
+      print('📖 [COURSE] ${course.title} with ${course.modules.length} modules');
+      
+      return course;
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [ERROR] getCourseWithModulesAndMaterials failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      return null;
+    }
+  }
+
+  // Get module with materials
+  static Future<Module?> getModuleWithMaterials(String moduleId) async {
+    print('🔍 [SUPABASE] Getting module with materials for module: $moduleId');
+    final startTime = DateTime.now();
+    
+    try {
+      const query = '''
+        *,
+        course_materials (*)
+      ''';
+      
+      print('📤 [QUERY] modules.select($query).eq(id, $moduleId).single()');
+      
+      final response = await client
+          .from('modules')
+          .select(query)
+          .eq('id', moduleId)
+          .single();
+
+      final duration = DateTime.now().difference(startTime);
+      print('📥 [RESPONSE] Received module data in ${duration.inMilliseconds}ms');
+
+      final module = Module.fromJson(response);
+      print('📚 [MODULE] ${module.title} with ${module.materials.length} materials');
+      
+      return module;
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [ERROR] getModuleWithMaterials failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      return null;
+    }
+  }
+
+  // Check module prerequisites
+  static Future<bool> checkModulePrerequisites(String moduleId, String userId) async {
+    print('🔍 [SUPABASE] Checking prerequisites for module: $moduleId, user: $userId');
+    final startTime = DateTime.now();
+    
+    try {
+      print('📤 [QUERY] modules.select(prerequisite_module_id).eq(id, $moduleId).single()');
+      
+      final response = await client
+          .from('modules')
+          .select('prerequisite_module_id')
+          .eq('id', moduleId)
+          .single();
+
+      final duration = DateTime.now().difference(startTime);
+      print('📥 [RESPONSE] Received prerequisite data in ${duration.inMilliseconds}ms');
+
+      final prerequisiteModuleId = response['prerequisite_module_id'];
+      
+      if (prerequisiteModuleId == null) {
+        print('✅ [PREREQ] No prerequisites required for module $moduleId');
+        return true;
+      }
+
+      // TODO: Check if prerequisite module is completed by user
+      // For now, return true (no prerequisites enforced)
+      print('⚠️ [TODO] Prerequisite checking not implemented yet');
+      
+      return true;
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [ERROR] checkModulePrerequisites failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      return false;
+    }
+  }
 }
