@@ -13,17 +13,25 @@ class PomodoroService extends ChangeNotifier {
   static const int _defaultLongBreakDuration = 15; // minutes
   static const int _defaultTotalCycles = 4;
 
+  // Callbacks
+  final VoidCallback? onWorkCycleComplete;
+
   // Timer state
   Timer? _timer;
   Duration _remainingTime = Duration.zero;
   Duration _totalTime = Duration.zero;
   bool _isRunning = false;
+  bool _awaitingFocusScore = false;
   
   // Session state
   PomodoroSession? _currentSession;
   PomodoroCycle? _currentCycle;
   List<PomodoroNote> _sessionNotes = [];
   StudySessionAnalytics? _sessionAnalytics;
+
+  PomodoroService({
+    this.onWorkCycleComplete,
+  });
   
   // Getters
   PomodoroSession? get currentSession => _currentSession;
@@ -34,6 +42,7 @@ class PomodoroService extends ChangeNotifier {
   Duration get totalTime => _totalTime;
   bool get isRunning => _isRunning;
   bool get isPaused => _currentSession != null && !_isRunning && _remainingTime.inSeconds > 0;
+  bool get isAwaitingFocusScore => _awaitingFocusScore;
   
   double get progress {
     if (_totalTime.inSeconds == 0) return 0.0;
@@ -324,6 +333,38 @@ class PomodoroService extends ChangeNotifier {
   /// Handle timer completion
   Future<void> _onTimerComplete() async {
     _stopTimer();
+    
+    // Check if this is a work cycle completion that needs focus scoring
+    final isWorkCycle = _currentCycle?.type == PomodoroCycleType.work;
+    
+    if (isWorkCycle && onWorkCycleComplete != null) {
+      // Work cycle completed - pause progression for focus scoring
+      _awaitingFocusScore = true;
+      notifyListeners();
+      
+      // Trigger the focus scoring dialog
+      onWorkCycleComplete!();
+      
+      // Don't continue cycle progression here - wait for continueCycleProgression()
+      return;
+    }
+    
+    // Continue with normal cycle progression (for breaks or when no callback)
+    await _continueCycleProgression();
+  }
+  
+  /// Continue cycle progression after focus scoring is complete
+  Future<void> continueCycleProgression() async {
+    if (!_awaitingFocusScore) return;
+    
+    _awaitingFocusScore = false;
+    notifyListeners();
+    
+    await _continueCycleProgression();
+  }
+  
+  /// Internal method to handle the actual cycle progression logic
+  Future<void> _continueCycleProgression() async {
     await _completeCurrent();
     
     if (_currentSession!.status == PomodoroSessionStatus.active) {

@@ -45,7 +45,9 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     
-    _pomodoroService = PomodoroService();
+    _pomodoroService = PomodoroService(
+      onWorkCycleComplete: _onWorkCycleComplete,
+    );
     _initializeSession();
   }
 
@@ -123,75 +125,6 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     }
   }
 
-  Future<void> _skipCycle() async {
-    final currentStatus = _pomodoroService.currentSession?.status;
-    final isWorkCycle = currentStatus == PomodoroSessionStatus.active;
-    
-    // Show confirmation dialog
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(LucideIcons.skipForward, color: Colors.orange, size: 24),
-            const SizedBox(width: 12),
-            const Text('Skip Cycle'),
-          ],
-        ),
-        content: Text(
-          isWorkCycle
-              ? 'Are you sure you want to skip this work cycle? It will be marked as incomplete and you\'ll move to the next cycle.'
-              : 'Are you sure you want to skip this break? Breaks are important for maintaining focus, but you\'ll move to the next work cycle.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-            child: const Text('Skip Cycle'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        // If it's a work cycle, show focus score first (optional but recommended)
-        if (isWorkCycle) {
-          // Give option to rate focus before skipping
-          _showFocusScoreDialog();
-        }
-        
-        // Skip the cycle using the service method
-        await _pomodoroService.skipCycle();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(isWorkCycle ? 'Work cycle skipped' : 'Break skipped'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-        
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to skip cycle: $e'),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      }
-    }
-  }
 
   Future<void> _stopSession() async {
     try {
@@ -217,6 +150,16 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     setState(() {
       _showFocusScore = false;
     });
+    
+    // If we're awaiting focus score from natural cycle completion, continue progression
+    if (_pomodoroService.isAwaitingFocusScore) {
+      _pomodoroService.continueCycleProgression();
+    }
+  }
+
+  void _onWorkCycleComplete() {
+    // Work cycle completed naturally - show focus score dialog
+    _showFocusScoreDialog();
   }
 
   Future<void> _onSessionComplete() async {
@@ -485,7 +428,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
                 pomodoroService: service,
                 onStartSession: _startSession,
                 onPauseResume: _pauseResumeSession,
-                onSkipCycle: _skipCycle,
+                onSkipCycle: null, // Skip functionality removed
                 onStopSession: _stopSession,
               ),
             ),

@@ -126,19 +126,6 @@ class _FocusScoreWidgetState extends State<FocusScoreWidget> {
             ),
           ),
           
-          const SizedBox(height: 12),
-          
-          // Skip option
-          TextButton(
-            onPressed: _isSubmitting ? null : _skipScore,
-            child: const Text(
-              'Skip for now',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -345,9 +332,6 @@ class _FocusScoreWidgetState extends State<FocusScoreWidget> {
     }
   }
 
-  void _skipScore() {
-    widget.onScoreSubmitted?.call();
-  }
 
   Color _getScoreColor(int score) {
     if (score <= 3) {
