@@ -1,49 +1,106 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../constants/app_colors.dart';
-import '../../providers/app_provider.dart';
-import '../../models/course.dart';
+import '../../models/course_models.dart';
+import '../../services/supabase_service.dart';
 import 'study_technique_selector.dart';
 
-class ModulesScreen extends StatelessWidget {
-  const ModulesScreen({super.key});
+class MyCoursesScreen extends StatefulWidget {
+  final Function(VoidCallback)? onRegisterRefresh;
+  
+  const MyCoursesScreen({super.key, this.onRegisterRefresh});
+
+  @override
+  State<MyCoursesScreen> createState() => _MyCoursesScreenState();
+}
+
+class _MyCoursesScreenState extends State<MyCoursesScreen> with AutomaticKeepAliveClientMixin {
+  List<Course> _enrolledCourses = [];
+  bool _loading = true;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadEnrolledCourses();
+    // Register the refresh callback with parent
+    widget.onRegisterRefresh?.call(_loadEnrolledCourses);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Simple refresh when tab becomes visible
+    _loadEnrolledCourses();
+  }
+
+  void refresh() {
+    _loadEnrolledCourses();
+  }
+
+  Future<void> _loadEnrolledCourses() async {
+    final currentUser = SupabaseService.currentAuthUser;
+    if (currentUser != null) {
+      final courses = await SupabaseService.getEnrolledCourses(currentUser.id);
+      setState(() {
+        _enrolledCourses = courses;
+        _loading = false;
+      });
+    } else {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Courses'),
+        title: const Text('My Courses'),
         backgroundColor: AppColors.bgSecondary,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
       ),
-      body: Consumer<AppProvider>(
-        builder: (context, appProvider, child) {
-          final courses = appProvider.courses;
-          
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: GridView.builder(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 1,
-                childAspectRatio: 2.2, // Reduced from 2.5 to fix overflow
-                mainAxisSpacing: 16,
-              ),
-              itemCount: courses.length,
-              itemBuilder: (context, index) {
-                final course = courses[index];
-                return CourseCard(
-                  course: course,
-                  onTap: () {
-                    _showStudyTechniqueSelector(context, course);
-                  },
-                );
-              },
-            ),
-          );
-        },
-      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _enrolledCourses.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No enrolled courses yet.\nBrowse courses to get started!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadEnrolledCourses,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 1,
+                        childAspectRatio: 2.2,
+                        mainAxisSpacing: 16,
+                      ),
+                      itemCount: _enrolledCourses.length,
+                      itemBuilder: (context, index) {
+                        final course = _enrolledCourses[index];
+                        return CourseCard(
+                          course: course,
+                          onTap: () {
+                            _showStudyTechniqueSelector(context, course);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
     );
   }
 
@@ -93,12 +150,12 @@ class CourseCard extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: course.color.withOpacity(0.1),
+                    color: Colors.blue.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     LucideIcons.bookOpen,
-                    color: course.color,
+                    color: Colors.blue,
                     size: 24,
                   ),
                 ),
@@ -125,6 +182,17 @@ class CourseCard extends StatelessWidget {
                           color: AppColors.textSecondary,
                         ),
                       ),
+                      if (course.instructorName != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Instructor: ${course.instructorName}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -151,7 +219,7 @@ class CourseCard extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: course.progress,
                           backgroundColor: AppColors.grey200,
-                          valueColor: AlwaysStoppedAnimation<Color>(course.color),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                           minHeight: 6,
                         ),
                       ),
@@ -164,7 +232,7 @@ class CourseCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: course.color,
+                    color: Colors.blue,
                   ),
                 ),
               ],

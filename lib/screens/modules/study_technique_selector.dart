@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../providers/app_provider.dart';
-import '../../models/course.dart';
+import '../../models/course_models.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;

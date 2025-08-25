@@ -4,13 +4,29 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../constants/app_colors.dart';
 import '../providers/app_provider.dart';
 import 'home/home_screen.dart';
-import 'modules/modules_screen.dart';
+import 'modules/my_courses_screen.dart';
+import 'course_catalog/course_catalog_screen.dart';
 import 'tracker/tracker_screen.dart';
 import 'activities/activities_screen.dart';
 import 'profile/profile_screen.dart';
 
-class MainScreen extends StatelessWidget {
+class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  VoidCallback? _refreshMyCoursesCallback;
+
+  void _setMyCoursesRefreshCallback(VoidCallback callback) {
+    _refreshMyCoursesCallback = callback;
+  }
+
+  void _refreshMyCourses() {
+    _refreshMyCoursesCallback?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,12 +35,15 @@ class MainScreen extends StatelessWidget {
         return Scaffold(
           body: IndexedStack(
             index: appProvider.currentIndex,
-            children: const [
-              HomeScreen(),
-              ModulesScreen(),
-              TrackerScreen(),
-              ActivitiesScreen(),
-              ProfileScreen(),
+            children: [
+              const HomeScreen(),
+              MyCoursesScreen(
+                onRegisterRefresh: _setMyCoursesRefreshCallback,
+              ),
+              CourseCatalogScreen(onCourseEnrolled: _refreshMyCourses),
+              const TrackerScreen(),
+              const ActivitiesScreen(),
+              const ProfileScreen(),
             ],
           ),
           bottomNavigationBar: Container(
@@ -56,7 +75,12 @@ class MainScreen extends StatelessWidget {
                 BottomNavigationBarItem(
                   icon: Icon(LucideIcons.bookOpen),
                   activeIcon: Icon(LucideIcons.bookOpen),
-                  label: 'Modules',
+                  label: 'My Courses',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(LucideIcons.search),
+                  activeIcon: Icon(LucideIcons.search),
+                  label: 'Browse',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(LucideIcons.barChart3),
