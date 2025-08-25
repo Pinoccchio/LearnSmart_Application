@@ -15,6 +15,7 @@ enum StudySessionStatus {
   preStudy,
   studying,
   postStudy,
+  generatingAnalytics,
   completed,
   paused,
 }

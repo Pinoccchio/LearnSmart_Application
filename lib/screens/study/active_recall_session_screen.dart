@@ -6,12 +6,17 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
 import '../../models/course_models.dart';
 import '../../models/active_recall_models.dart';
+import '../../models/study_analytics_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/gemini_ai_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/study_analytics_service.dart';
 import '../../widgets/flashcard/flashcard_widget.dart';
 import '../../widgets/flashcard/flashcard_result_widget.dart';
-import '../modules/module_details_screen.dart';
+import '../../widgets/analytics/performance_chart_widget.dart';
+import '../../widgets/analytics/insights_widget.dart';
+import '../../widgets/analytics/recommendations_widget.dart';
+import '../../widgets/analytics/study_plan_widget.dart';
 
 class ActiveRecallSessionScreen extends StatefulWidget {
   final Course course;
@@ -29,6 +34,7 @@ class ActiveRecallSessionScreen extends StatefulWidget {
 
 class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   late final GeminiAIService _geminiService;
+  late final StudyAnalyticsService _analyticsService;
   late final PageController _pageController;
   
   StudySessionStatus _currentStatus = StudySessionStatus.preparing;
@@ -41,10 +47,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   String? _errorMessage;
   String? _sessionId;
   
+  // Analytics data
+  StudySessionAnalytics? _sessionAnalytics;
+  
   @override
   void initState() {
     super.initState();
     _geminiService = GeminiAIService();
+    _analyticsService = StudyAnalyticsService();
     _pageController = PageController();
     _initializeSession();
   }
@@ -225,9 +235,9 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
       });
       _showStudyMaterialsScreen();
     } else if (_currentStatus == StudySessionStatus.postStudy) {
-      // Complete session
+      // Start analytics generation phase
       setState(() {
-        _currentStatus = StudySessionStatus.completed;
+        _currentStatus = StudySessionStatus.generatingAnalytics;
       });
       _showSessionResults();
     }
@@ -614,8 +624,8 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
     });
   }
 
-  void _showSessionResults() {
-    print('🏁 [SESSION COMPLETE] Calculating results...');
+  Future<void> _showSessionResults() async {
+    print('🏁 [SESSION COMPLETE] Calculating results and generating analytics...');
     print('📊 [DEBUG] Pre-study attempts: ${_preStudyAttempts.length}');
     print('📊 [DEBUG] Post-study attempts: ${_postStudyAttempts.length}');
     
@@ -638,12 +648,635 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
     // Update session as completed in database
     _updateSessionStatus(StudySessionStatus.completed);
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: _buildResultsDialog(results),
+    // Generate comprehensive analytics first, then show dialog
+    await _generateSessionAnalytics(results);
+
+    // Now that analytics are ready, move to completed state and show dialog
+    if (mounted) {
+      setState(() {
+        _currentStatus = StudySessionStatus.completed;
+      });
+      
+      // Small delay to allow UI to update before showing dialog
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: _buildEnhancedResultsDialog(results),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildEnhancedResultsDialog(StudySessionResults results) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+        maxWidth: MediaQuery.of(context).size.width * 0.95,
+      ),
+      child: DefaultTabController(
+        length: 4,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with close button
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: results.improvementPercentage > 0 
+                          ? Colors.green.withOpacity(0.1)
+                          : Colors.blue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      results.improvementPercentage > 0 
+                          ? LucideIcons.trendingUp
+                          : LucideIcons.brain,
+                      color: results.improvementPercentage > 0 
+                          ? Colors.green
+                          : Colors.blue,
+                      size: 28,
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Session Complete!',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Comprehensive learning analysis',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(LucideIcons.x),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Tab bar
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: TabBar(
+                indicator: BoxDecoration(
+                  color: AppColors.bgPrimary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelColor: Colors.white,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                tabs: const [
+                  Tab(
+                    icon: Icon(LucideIcons.barChart3, size: 16),
+                    text: 'Performance',
+                  ),
+                  Tab(
+                    icon: Icon(LucideIcons.pieChart, size: 16),
+                    text: 'Descriptive Analytics',
+                  ),
+                  Tab(
+                    icon: Icon(LucideIcons.target, size: 16),
+                    text: 'Prescriptive Analytics',
+                  ),
+                  Tab(
+                    icon: Icon(LucideIcons.calendar, size: 16),
+                    text: 'Study Plan',
+                  ),
+                ],
+              ),
+            ),
+            
+            // Tab content
+            Flexible(
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                child: TabBarView(
+                  children: [
+                    // Performance Tab
+                    _buildPerformanceTab(results),
+                    
+                    // Descriptive Analytics Tab
+                    _buildDescriptiveAnalyticsTab(),
+                    
+                    // Prescriptive Analytics Tab
+                    _buildPrescriptiveAnalyticsTab(),
+                    
+                    // Study Plan Tab
+                    _buildStudyPlanTab(),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Action buttons
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        Navigator.of(context).pop(); // Go back to module details
+                      },
+                      icon: const Icon(LucideIcons.arrowLeft, size: 16),
+                      label: const Text('Back to Module'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close dialog
+                        _initializeSession(); // Restart session
+                      },
+                      icon: const Icon(LucideIcons.repeat, size: 16),
+                      label: const Text('Study Again'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.bgPrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPerformanceTab(StudySessionResults results) {
+    if (_sessionAnalytics != null) {
+      return SingleChildScrollView(
+        child: PerformanceChartWidget(
+          performanceMetrics: _sessionAnalytics!.performanceMetrics,
+          showDetails: true,
+        ),
+      );
+    }
+    
+    // Fallback to basic results
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildBasicPerformanceCard(results),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBasicPerformanceCard(StudySessionResults results) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Session Results',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  'Pre-Study',
+                  '${results.preStudyCorrect}/${results.totalFlashcards}',
+                  Colors.orange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  'Post-Study',
+                  '${results.postStudyCorrect}/${results.totalFlashcards}',
+                  Colors.green,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          _buildStatCard(
+            'Improvement',
+            results.improvementPercentage > 0 
+                ? '+${results.improvementPercentage.toStringAsFixed(1)}%'
+                : '${results.improvementPercentage.toStringAsFixed(1)}%',
+            results.improvementPercentage > 0 ? Colors.green : Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDescriptiveAnalyticsTab() {
+    // Show comprehensive descriptive analytics if available
+    if (_sessionAnalytics != null) {
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            // Behavior Analysis Section
+            _buildDescriptiveSection(
+              title: 'Behavior Analysis',
+              icon: LucideIcons.activity,
+              content: _buildBehaviorAnalysisContent(),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Cognitive Analysis Section
+            _buildDescriptiveSection(
+              title: 'Cognitive Analysis',
+              icon: LucideIcons.brain,
+              content: _buildCognitiveAnalysisContent(),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Learning Patterns Section
+            _buildDescriptiveSection(
+              title: 'Learning Patterns',
+              icon: LucideIcons.trendingUp,
+              content: _buildLearningPatternsContent(),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return _buildEmptyTab(
+      'Descriptive Analytics Unavailable',
+      'Unable to generate detailed learning analytics for this session.',
+      LucideIcons.pieChart,
+    );
+  }
+
+  Widget _buildPrescriptiveAnalyticsTab() {
+    // Show prescriptive analytics: recommendations and insights
+    if (_sessionAnalytics != null) {
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            // AI Insights Section
+            if (_sessionAnalytics!.insights.isNotEmpty) ...[
+              _buildPrescriptiveSection(
+                title: 'AI-Generated Insights',
+                icon: LucideIcons.lightbulb,
+                content: InsightsWidget(
+                  insights: _sessionAnalytics!.insights,
+                  showAll: true,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            
+            // Personalized Recommendations Section
+            if (_sessionAnalytics!.recommendations.isNotEmpty) ...[
+              _buildPrescriptiveSection(
+                title: 'Personalized Recommendations',
+                icon: LucideIcons.target,
+                content: RecommendationsWidget(
+                  recommendations: _sessionAnalytics!.recommendations,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    
+    return _buildEmptyTab(
+      'Prescriptive Analytics Unavailable',
+      'Unable to generate actionable recommendations for this session.',
+      LucideIcons.target,
+    );
+  }
+
+  Widget _buildStudyPlanTab() {
+    // Always show study plan if analytics exist, even if AI generation partially failed
+    if (_sessionAnalytics?.suggestedStudyPlan != null) {
+      return SingleChildScrollView(
+        child: StudyPlanWidget(
+          studyPlan: _sessionAnalytics!.suggestedStudyPlan,
+          onStartStudyPlan: null, // Remove button functionality
+        ),
+      );
+    }
+    
+    return _buildEmptyTab(
+      'Study Plan Unavailable',
+      'Unable to create a study plan for this session.',
+      LucideIcons.calendar,
+    );
+  }
+
+  Widget _buildLoadingTab(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyTab(String title, String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods for building descriptive analytics content
+  Widget _buildDescriptiveSection({
+    required String title,
+    required IconData icon,
+    required Widget content,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: AppColors.bgPrimary),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrescriptiveSection({
+    required String title,
+    required IconData icon,
+    required Widget content,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: Colors.green),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBehaviorAnalysisContent() {
+    final behavior = _sessionAnalytics!.behaviorAnalysis;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAnalyticsRow('Study Time', '${behavior.totalStudyTime.inMinutes} minutes'),
+        _buildAnalyticsRow('Persistence Score', '${behavior.persistenceScore.toStringAsFixed(1)}/100'),
+        _buildAnalyticsRow('Engagement Level', '${behavior.engagementLevel.toStringAsFixed(1)}/100'),
+        if (behavior.commonErrorTypes.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Common Error Patterns:',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          ...behavior.commonErrorTypes.map((error) => Text(
+            '• $error',
+            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCognitiveAnalysisContent() {
+    final cognitive = _sessionAnalytics!.cognitiveAnalysis;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAnalyticsRow('Processing Speed', '${cognitive.processingSpeed.toStringAsFixed(1)}/100'),
+        _buildAnalyticsRow('Cognitive Load', '${cognitive.cognitiveLoadScore.toStringAsFixed(1)}/100'),
+        _buildAnalyticsRow('Attention Span', '${cognitive.attentionSpan.toStringAsFixed(1)}/100'),
+        if (cognitive.cognitiveStrengths.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Cognitive Strengths:',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.green),
+          ),
+          const SizedBox(height: 4),
+          ...cognitive.cognitiveStrengths.map((strength) => Text(
+            '• $strength',
+            style: const TextStyle(fontSize: 12, color: Colors.green),
+          )),
+        ],
+        if (cognitive.cognitiveWeaknesses.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Areas for Improvement:',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.orange),
+          ),
+          const SizedBox(height: 4),
+          ...cognitive.cognitiveWeaknesses.map((weakness) => Text(
+            '• $weakness',
+            style: const TextStyle(fontSize: 12, color: Colors.orange),
+          )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildLearningPatternsContent() {
+    final patterns = _sessionAnalytics!.learningPatterns;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAnalyticsRow('Learning Pattern', patterns.patternType.name),
+        _buildAnalyticsRow('Learning Velocity', '${patterns.learningVelocity.toStringAsFixed(2)}/question'),
+        if (patterns.strongConcepts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Strong Concepts:',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.green),
+          ),
+          const SizedBox(height: 4),
+          ...patterns.strongConcepts.map((concept) => Text(
+            '• $concept',
+            style: const TextStyle(fontSize: 12, color: Colors.green),
+          )),
+        ],
+        if (patterns.weakConcepts.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Weak Concepts:',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.red),
+          ),
+          const SizedBox(height: 4),
+          ...patterns.weakConcepts.map((concept) => Text(
+            '• $concept',
+            style: const TextStyle(fontSize: 12, color: Colors.red),
+          )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAnalyticsRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -823,6 +1456,8 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
         return 'Study Materials';
       case StudySessionStatus.postStudy:
         return 'Memory Test';
+      case StudySessionStatus.generatingAnalytics:
+        return 'Analyzing Performance...';
       case StudySessionStatus.completed:
         return 'Session Complete';
       case StudySessionStatus.paused:
@@ -840,6 +1475,8 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
         return 'Review the materials carefully';
       case StudySessionStatus.postStudy:
         return 'Test your memory after studying';
+      case StudySessionStatus.generatingAnalytics:
+        return 'AI is analyzing your learning patterns and generating personalized insights...';
       case StudySessionStatus.completed:
         return 'Great work! Review your results below';
       case StudySessionStatus.paused:
@@ -988,8 +1625,129 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
       );
     }
 
+    if (_currentStatus == StudySessionStatus.generatingAnalytics) {
+      return _buildAnalyticsLoadingScreen();
+    }
+
+    if (_currentStatus == StudySessionStatus.completed) {
+      // This state should only show briefly, as the dialog should appear
+      return _buildSessionCompleteScreen();
+    }
+
     return const Center(
       child: Text('Invalid session state'),
+    );
+  }
+
+  Widget _buildAnalyticsLoadingScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                LucideIcons.brain,
+                color: Colors.blue,
+                size: 40,
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            const Text(
+              'Analyzing Your Performance',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            
+            const SizedBox(height: 12),
+            
+            Text(
+              _getPhaseDescription(),
+              style: const TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            
+            const SizedBox(height: 32),
+            
+            const CircularProgressIndicator(),
+            
+            const SizedBox(height: 16),
+            
+            const Text(
+              'This may take a moment...',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSessionCompleteScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                LucideIcons.checkCircle,
+                color: Colors.green,
+                size: 40,
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            const Text(
+              'Session Complete!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            
+            const SizedBox(height: 12),
+            
+            const Text(
+              'Your detailed results are ready to view.',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1173,6 +1931,142 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
         print('⚠️ [DATABASE] RLS policy blocked session update - session may not belong to user');
       }
     }
+  }
+
+  /// Generate comprehensive session analytics
+  Future<void> _generateSessionAnalytics(StudySessionResults results) async {
+    if (_sessionId == null) {
+      print('⚠️ [ANALYTICS] No session ID available, skipping analytics generation');
+      return;
+    }
+    
+    try {
+      print('📊 [ANALYTICS] Starting comprehensive analytics generation...');
+      
+      final allAttempts = [..._preStudyAttempts.values, ..._postStudyAttempts.values];
+      
+      final analytics = await _analyticsService.generateSessionAnalytics(
+        sessionId: _sessionId!,
+        userId: Provider.of<AuthProvider>(context, listen: false).currentUser?.id ?? '',
+        moduleId: widget.module.id,
+        flashcards: _flashcards,
+        attempts: allAttempts,
+        course: widget.course,
+        module: widget.module,
+      );
+      
+      // Always set analytics, regardless of database save success
+      if (mounted) {
+        setState(() {
+          _sessionAnalytics = analytics;
+        });
+      }
+      
+      print('✅ [ANALYTICS] Analytics generation completed successfully');
+      
+    } catch (e) {
+      print('❌ [ANALYTICS] Failed to generate analytics: $e');
+      
+      // Set fallback analytics so tabs aren't completely empty
+      if (mounted) {
+        setState(() {
+          _sessionAnalytics = _generateFallbackAnalytics(results);
+        });
+      }
+    }
+  }
+
+  /// Generate fallback analytics when full generation fails
+  StudySessionAnalytics _generateFallbackAnalytics(StudySessionResults results) {
+    return StudySessionAnalytics(
+      id: '', // Database will generate UUID if saved
+      sessionId: _sessionId ?? 'fallback_session',
+      userId: Provider.of<AuthProvider>(context, listen: false).currentUser?.id ?? 'unknown',
+      moduleId: widget.module.id,
+      analyzedAt: DateTime.now(),
+      performanceMetrics: PerformanceMetrics(
+        preStudyAccuracy: (results.preStudyCorrect / results.totalFlashcards) * 100,
+        postStudyAccuracy: (results.postStudyCorrect / results.totalFlashcards) * 100,
+        improvementPercentage: results.improvementPercentage,
+        averageResponseTime: results.averageResponseTime.toDouble(),
+        accuracyByDifficulty: 0.0,
+        materialPerformance: {},
+        conceptMastery: {},
+        overallLevel: results.improvementPercentage > 20 ? PerformanceLevel.good : PerformanceLevel.average,
+      ),
+      learningPatterns: LearningPatterns(
+        patternType: LearningPatternType.steadyProgression,
+        learningVelocity: results.improvementPercentage / results.totalFlashcards,
+        strongConcepts: [],
+        weakConcepts: [],
+        retentionRates: {},
+        temporalPatterns: [],
+      ),
+      behaviorAnalysis: BehaviorAnalysis(
+        totalStudyTime: Duration(seconds: results.averageResponseTime * results.totalFlashcards),
+        hintUsageCount: 0,
+        hintEffectiveness: 0.0,
+        commonErrorTypes: ['Analysis unavailable'],
+        questionAttemptPatterns: {
+          'total': results.totalFlashcards,
+          'correct': results.postStudyCorrect,
+        },
+        persistenceScore: 75.0,
+        engagementLevel: results.improvementPercentage > 0 ? 80.0 : 60.0,
+      ),
+      cognitiveAnalysis: CognitiveAnalysis(
+        cognitiveLoadScore: 50.0,
+        memoryRetentionByType: {},
+        processingSpeed: 100 / results.averageResponseTime,
+        cognitiveStrengths: results.improvementPercentage > 20 ? ['Good learning improvement'] : [],
+        cognitiveWeaknesses: results.improvementPercentage < 10 ? ['May need more study time'] : [],
+        attentionSpan: 75.0,
+      ),
+      recommendations: [
+        PersonalizedRecommendation(
+          id: 'fallback_rec',
+          type: RecommendationType.studyTiming,
+          title: 'Continue Learning',
+          description: results.improvementPercentage > 0 
+              ? 'You showed good improvement in this session!'
+              : 'Focus on reviewing the material again.',
+          actionableAdvice: results.improvementPercentage > 20
+              ? 'Keep up the excellent work with your study routine.'
+              : 'Consider spending more time with the study materials before testing.',
+          priority: 1,
+          confidenceScore: 0.7,
+          reasons: ['Basic performance analysis'],
+        ),
+      ],
+      insights: [
+        AnalyticsInsight(
+          id: 'fallback_insight',
+          category: InsightCategory.performance,
+          title: 'Session Summary',
+          insight: 'You improved by ${results.improvementPercentage.toStringAsFixed(1)}% from pre-study to post-study testing.',
+          significance: 0.8,
+          supportingData: [
+            'Pre-study score: ${results.preStudyCorrect}/${results.totalFlashcards}',
+            'Post-study score: ${results.postStudyCorrect}/${results.totalFlashcards}',
+          ],
+        ),
+      ],
+      suggestedStudyPlan: StudyPlan(
+        id: 'fallback_plan',
+        activities: [
+          StudyActivity(
+            type: 'review',
+            description: 'Review the study materials again',
+            duration: const Duration(minutes: 30),
+            priority: 1,
+            materials: ['Course materials'],
+          ),
+        ],
+        estimatedDuration: const Duration(minutes: 30),
+        focusAreas: {'improvement': 'Focus on understanding key concepts'},
+        objectives: ['Improve retention', 'Build confidence'],
+      ),
+    );
   }
 
   // Database validation methods

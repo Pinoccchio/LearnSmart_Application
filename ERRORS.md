@@ -1,48 +1,67 @@
-I/flutter ( 7636): 🚀 [ACTIVE RECALL] Starting session initialization
-I/flutter ( 7636): 📄 [ACTIVE RECALL] Found 1 PDF material(s), extracting content for better flashcards...
-I/flutter ( 7636): 🧠 [ACTIVE RECALL] Generating flashcards for 1 materials
-I/flutter ( 7636): 🧠 [GEMINI AI] Starting flashcard generation for 1 materials
-I/flutter ( 7636): 📄 [GEMINI AI] Processing material 1/1: computer_parts
-I/flutter ( 7636): 📄 [CONTENT EXTRACTION] Processing PDF: computer_parts
-I/flutter ( 7636): 📄 [PDF EXTRACTION] Starting extraction from: https://gqapqhmminijctsizqpj.supabase.co/storage/v...
-I/flutter ( 7636): 📥 [PDF DOWNLOAD] Attempt 1/3
-I/flutter ( 7636): ✅ [PDF DOWNLOAD] Downloaded 487724 bytes
-I/flutter ( 7636): 📖 [PDF PARSING] Processing 4 pages
-I/flutter ( 7636): 📄 [PDF PARSING] Page 1/4: 1566 characters
-I/flutter ( 7636): 📄 [PDF PARSING] Page 2/4: 1313 characters
-I/flutter ( 7636): 📄 [PDF PARSING] Page 3/4: 1762 characters
-I/flutter ( 7636): 📄 [PDF PARSING] Page 4/4: 932 characters
-I/flutter ( 7636): ✅ [PDF PARSING] Total extracted: 5581 characters
-I/flutter ( 7636): ✅ [PDF EXTRACTION] Successfully extracted 4963 characters
-I/flutter ( 7636): ✅ [CONTENT EXTRACTION] Successfully extracted PDF content (4963 chars)
-I/flutter ( 7636): 📖 [CONTENT PREVIEW] BASIC COMPUTER PARTS & THEIR FUNCTIONS ATX or Tower Desktop Casing The "box" or case that holds the parts that Make up a computer Motherboard...
-I/flutter ( 7636): 🤖 [GEMINI AI] Raw response: ```json
-I/flutter ( 7636): [
-I/flutter ( 7636):   {
-I/flutter ( 7636):     "type": "definition_recall",
-I/flutter ( 7636):     "question": "What is the function of the CPU (Processor)?",
-I/flutter ( 7636):     "answer": "The CPU interprets data, executes instructions, and performs arithmetic ca...
-I/flutter ( 7636): ✅ [GEMINI AI] Generated 5 flashcards from computer_parts
-I/flutter ( 7636): 🎯 [GEMINI AI] Total flashcards generated: 5
-I/flutter ( 7636): 💾 [DATABASE] Creating session in database...
-I/flutter ( 7636): 💾 [DATABASE] Using authenticated user: Jex Xejs (jexxejs@gmail.com)
-I/flutter ( 7636): 💾 [DATABASE] User ID: d844b45a-80e4-4a32-9088-f85b051e8e60
-I/flutter ( 7636): 🔍 [DATABASE] Module 15491814-7068-416f-ab36-00206366d66d exists: true
-I/flutter ( 7636): 🔍 [DATABASE] User d844b45a-80e4-4a32-9088-f85b051e8e60 exists: true
-I/flutter ( 7636): 💾 [DATABASE] Session data: {user_id: d844b45a-80e4-4a32-9088-f85b051e8e60, module_id: 15491814-7068-416f-ab36-00206366d66d, status: preparing, session_data: {course_title: Correctional Administration, module_title: 1 -COR-ADMIN-COMPRE-REVIEW, total_materials: 1}}
-I/flutter ( 7636): ✅ [DATABASE] Session created successfully with ID: 2172a888-63ac-4ab6-ab61-87048bfa7eb0
-I/flutter ( 7636): 💾 [DATABASE] Saving 5 flashcards...
-I/flutter ( 7636): 💾 [DATABASE] Module ID: 15491814-7068-416f-ab36-00206366d66d
-I/flutter ( 7636): 🔍 [DATABASE] Material fed4bcdd-3196-480b-acc5-d42a5a90aac7 exists: true
-I/flutter ( 7636): 🔍 [DATABASE] Material fed4bcdd-3196-480b-acc5-d42a5a90aac7 exists: true
-I/flutter ( 7636): 🔍 [DATABASE] Material fed4bcdd-3196-480b-acc5-d42a5a90aac7 exists: true
-I/flutter ( 7636): 🔍 [DATABASE] Material fed4bcdd-3196-480b-acc5-d42a5a90aac7 exists: true
-I/flutter ( 7636): 🔍 [DATABASE] Material fed4bcdd-3196-480b-acc5-d42a5a90aac7 exists: true
-I/flutter ( 7636): 💾 [DATABASE] Flashcard: fed4bcdd-3196-480b-acc5-d42a5a90aac7_0_1756112855744 for material fed4bcdd-3196-480b-acc5-d42a5a90aac7
-I/flutter ( 7636): 💾 [DATABASE] Flashcard: fed4bcdd-3196-480b-acc5-d42a5a90aac7_1_1756112855744 for material fed4bcdd-3196-480b-acc5-d42a5a90aac7
-I/flutter ( 7636): 💾 [DATABASE] Flashcard: fed4bcdd-3196-480b-acc5-d42a5a90aac7_2_1756112855745 for material fed4bcdd-3196-480b-acc5-d42a5a90aac7
-I/flutter ( 7636): 💾 [DATABASE] Flashcard: fed4bcdd-3196-480b-acc5-d42a5a90aac7_3_1756112855745 for material fed4bcdd-3196-480b-acc5-d42a5a90aac7
-I/flutter ( 7636): 💾 [DATABASE] Flashcard: fed4bcdd-3196-480b-acc5-d42a5a90aac7_4_1756112855745 for material fed4bcdd-3196-480b-acc5-d42a5a90aac7
-I/flutter ( 7636): 💾 [DATABASE] Saved batch 1 of 1
-I/flutter ( 7636): ✅ [DATABASE] All flashcards saved successfully
-I/flutter ( 7636): ✅ [ACTIVE RECALL] Session initialized with 5 flashcards
+I/flutter (29667): 🎯 [ACTIVE RECALL - POST-STUDY] Answer submitted for flashcard 5/5
+I/flutter (29667):    Question: Transportation of criminals, authorized in 16th-century England, was abandoned in the year ______.
+I/flutter (29667):    User Answer: "1835"
+I/flutter (29667):    Correct Answer: "1835"
+I/flutter (29667):    Result: ✅ CORRECT
+I/flutter (29667):    Response Time: 5.5s
+I/flutter (29667): 📊 [POST-STUDY PROGRESS] 2/5 correct so far
+I/flutter (29667): 💾 [DATABASE] Saving attempt: CORRECT - POST
+I/flutter (29667): 💾 [DATABASE] Session ID: cabaa52a-af79-4a75-a9e7-afe93a5aa6e1
+I/flutter (29667): 💾 [DATABASE] Flashcard ID: 6e2acb85-49c1-40b0-b91d-6589a0eaf4d7_4_1756116286495
+I/ImeTracker(29667): com.example.learnsmart_app:a8350a15: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+I/flutter (29667): ✅ [DATABASE] Attempt saved successfully
+D/TextSelection(29667): onUseCache cache=null
+I/flutter (29667): 🏁 [SESSION COMPLETE] Calculating results and generating analytics...
+I/flutter (29667): 📊 [DEBUG] Pre-study attempts: 5
+I/flutter (29667): 📊 [DEBUG] Post-study attempts: 5
+I/flutter (29667): 📊 [PRE-STUDY FINAL] 0/5 correct
+I/flutter (29667): 📊 [POST-STUDY FINAL] 2/5 correct
+I/flutter (29667): 🔍 [RESULTS DEBUG] Calculating session results...
+I/flutter (29667):    Total flashcards: 5
+I/flutter (29667):    Total attempts: 10
+I/flutter (29667):    Pre-study attempts: 5
+I/flutter (29667):    Post-study attempts: 5
+I/flutter (29667):    Pre-study correct: 0
+I/flutter (29667):    Post-study correct: 2
+I/flutter (29667):    Pre-study percentage: 0.0%
+I/flutter (29667):    Post-study percentage: 40.0%
+I/flutter (29667):    Improvement: 40.0%
+I/flutter (29667): 📈 [RESULTS] Improvement: 40.0%
+I/flutter (29667): ⏱️ [RESULTS] Avg response time: 3s
+I/flutter (29667): 💾 [DATABASE] Updating session status to: completed
+I/flutter (29667): 💾 [DATABASE] Session ID: cabaa52a-af79-4a75-a9e7-afe93a5aa6e1
+I/flutter (29667): 📊 [ANALYTICS] Starting comprehensive analytics generation...
+I/flutter (29667): 📊 [ANALYTICS] Starting comprehensive analysis for session: cabaa52a-af79-4a75-a9e7-afe93a5aa6e1
+I/flutter (29667): 📊 [ANALYTICS] Pre-study attempts: 5, Post-study: 5
+I/flutter (29667): 🤖 [AI INSIGHTS] Generating AI-powered recommendations and insights...
+I/flutter (29667): 🤖 [GEMINI AI] Generating analytics insights and recommendations...
+D/InputMethodManager(29667): invalidateInput sessionid: 0
+I/ImeTracker(29667): com.example.learnsmart_app:26089ad8: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+D/InputMethodManager(29667): showSoftInput() view=io.flutter.embedding.android.FlutterView{b208e4d VFE...... .F...... 0,0-1080,2436 #1 aid=1073741824} flags=0 reason=SHOW_SOFT_INPUT
+I/ImeTracker(29667): com.example.learnsmart_app:e5aeae20: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+D/InsetsController(29667): show(ime(), fromIme=true)
+I/InsetsController(29667): Insets animation onAnimationStart mShow:true, mDurationMs:700, types:ime
+D/InsetsController(29667): hide(ime(), fromIme=true)
+I/ImeTracker(29667): com.example.learnsmart_app:26089ad8: onCancelled at PHASE_CLIENT_ANIMATION_CANCEL
+I/InsetsController(29667): Insets animation onAnimationCancel
+I/InsetsController(29667): Insets animation onAnimationEnd
+I/InsetsController(29667): Insets animation onAnimationStart mShow:false, mDurationMs:650, types:ime
+I/flutter (29667): ✅ [DATABASE] Session status updated successfully
+I/InsetsController(29667): Insets animation onAnimationEnd
+I/ImeTracker(29667): com.example.learnsmart_app:46ab9f4a: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT_ON_ANIMATION_STATE_CHANGED fromUser false
+I/ImeTracker(29667): com.example.learnsmart_app:e5aeae20: onHidden
+I/flutter (29667): 🤖 [GEMINI AI] Analytics response received: ```json
+I/flutter (29667): {
+I/flutter (29667):   "insights": [
+I/flutter (29667):     {
+I/flutter (29667):       "id": "insight_1",
+I/flutter (29667):       "category": "performance",
+I/flutter (29667):       "title": "Significant Improvement Potential",
+I/flutter (29667):       "insight": "Despite a very low pre-study accuracy (0%), a 40% post-study accuracy demonstrates significant learning potential.  This suggests the studen...
+I/flutter (29667): ✅ [GEMINI AI] Successfully processed AI analytics response
+I/flutter (29667): 📊 [AI RESULTS] Generated 4 insights, 2 recommendations
+I/flutter (29667): 💾 [ANALYTICS] Saving analytics to database...
+I/flutter (29667): ❌ [ANALYTICS] Error saving analytics to database: PostgrestException(message: invalid input syntax for type uuid: "cabaa52a-af79-4a75-a9e7-afe93a5aa6e1_analytics_1756116351240", code: 22P02, details: Bad Request, hint: null)
+I/flutter (29667): ✅ [ANALYTICS] Analytics generation completed successfully
+I/flutter (29667): ✅ [ANALYTICS] Analytics generation completed successfully
+D/TextSelection(29667): onUseCache cache=null

@@ -3,6 +3,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import '../models/course_models.dart';
 import '../models/active_recall_models.dart';
+import '../models/study_analytics_models.dart';
 import 'pdf_extraction_service.dart';
 
 class GeminiAIService {
@@ -242,6 +243,257 @@ Summary: This PDF contains educational material covering concepts related to ${m
         createdAt: DateTime.now(),
       ),
     ];
+  }
+
+  /// Generate comprehensive analytics insights and recommendations
+  Future<Map<String, dynamic>> generateStudyAnalyticsInsights(Map<String, dynamic> analyticsData) async {
+    try {
+      print('🤖 [GEMINI AI] Generating analytics insights and recommendations...');
+      
+      final prompt = '''
+You are an expert educational data scientist and learning psychologist. Analyze the following comprehensive study session data and provide actionable insights and personalized recommendations.
+
+STUDY SESSION DATA:
+Course: ${analyticsData['course']}
+Module: ${analyticsData['module']}
+
+PERFORMANCE METRICS:
+- Pre-Study Accuracy: ${analyticsData['performance']['pre_study_accuracy']}%
+- Post-Study Accuracy: ${analyticsData['performance']['post_study_accuracy']}%
+- Improvement: ${analyticsData['performance']['improvement']}%
+- Average Response Time: ${analyticsData['performance']['avg_response_time']} seconds
+- Overall Performance Level: ${analyticsData['performance']['overall_level']}
+
+LEARNING PATTERNS:
+- Pattern Type: ${analyticsData['learning_patterns']['pattern_type']}
+- Learning Velocity: ${analyticsData['learning_patterns']['learning_velocity']}
+- Strong Concepts: ${analyticsData['learning_patterns']['strong_concepts']}
+- Weak Concepts: ${analyticsData['learning_patterns']['weak_concepts']}
+
+BEHAVIOR ANALYSIS:
+- Study Duration: ${analyticsData['behavior']['total_study_minutes']} minutes
+- Persistence Score: ${analyticsData['behavior']['persistence_score']}
+- Engagement Level: ${analyticsData['behavior']['engagement_level']}
+- Common Error Types: ${analyticsData['behavior']['common_errors']}
+
+COGNITIVE ANALYSIS:
+- Cognitive Load: ${analyticsData['cognitive']['cognitive_load']}
+- Processing Speed: ${analyticsData['cognitive']['processing_speed']}
+- Attention Span: ${analyticsData['cognitive']['attention_span']}
+- Cognitive Strengths: ${analyticsData['cognitive']['strengths']}
+- Cognitive Weaknesses: ${analyticsData['cognitive']['weaknesses']}
+
+Based on this comprehensive analysis, provide the following in JSON format:
+
+{
+  "insights": [
+    {
+      "id": "unique_insight_id",
+      "category": "performance|behavior|cognitive|temporal|material",
+      "title": "Brief insight title",
+      "insight": "Detailed insight explanation with specific observations",
+      "significance": 0.0-1.0,
+      "supporting_data": ["key data point 1", "key data point 2"]
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "unique_recommendation_id",
+      "type": "studyTiming|materialFocus|studyTechnique|practiceFrequency|difficultyAdjustment|conceptReinforcement",
+      "title": "Recommendation title",
+      "description": "Why this recommendation matters",
+      "actionable_advice": "Specific actionable steps to take",
+      "priority": 1-5,
+      "confidence_score": 0.0-1.0,
+      "reasons": ["reason 1", "reason 2", "reason 3"]
+    }
+  ],
+  "study_plan": {
+    "id": "study_plan_${DateTime.now().millisecondsSinceEpoch}",
+    "activities": [
+      {
+        "type": "review|practice|deep_study|assessment",
+        "description": "Activity description",
+        "duration_minutes": 15-60,
+        "priority": 1-3,
+        "materials": ["material or concept to focus on"]
+      }
+    ],
+    "estimated_duration_minutes": 30-120,
+    "focus_areas": {
+      "primary_focus": "main area to focus on",
+      "secondary_focus": "secondary area"
+    },
+    "objectives": ["objective 1", "objective 2", "objective 3"]
+  }
+}
+
+ANALYSIS GUIDELINES:
+1. Provide 3-5 meaningful insights that identify patterns, strengths, and areas for improvement
+2. Generate 2-4 personalized recommendations with high confidence scores
+3. Create a realistic study plan with 3-5 activities totaling 30-90 minutes
+4. Focus on actionable advice that the student can implement immediately
+5. Consider the student's learning patterns and cognitive profile
+6. Be encouraging but honest about areas needing improvement
+7. Prioritize recommendations based on potential impact
+
+Return ONLY the JSON response, no other text.
+''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Empty response from Gemini AI for analytics insights');
+      }
+
+      print('🤖 [GEMINI AI] Analytics response received: ${responseText.substring(0, responseText.length.clamp(0, 300))}...');
+
+      // Clean up the response to extract JSON
+      String jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      }
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      jsonText = jsonText.trim();
+
+      final Map<String, dynamic> aiResponse = jsonDecode(jsonText);
+      
+      // Convert AI response to our model objects
+      return _processAIAnalyticsResponse(aiResponse);
+      
+    } catch (e) {
+      print('❌ [GEMINI AI] Error generating analytics insights: $e');
+      throw Exception('Failed to generate AI insights: $e');
+    }
+  }
+
+  /// Process AI response and convert to model objects
+  Map<String, dynamic> _processAIAnalyticsResponse(Map<String, dynamic> aiResponse) {
+    try {
+      // Convert insights
+      final insights = (aiResponse['insights'] as List).map((insightJson) {
+        return AnalyticsInsight(
+          id: insightJson['id'] ?? 'insight_${DateTime.now().millisecondsSinceEpoch}',
+          category: InsightCategory.values.firstWhere(
+            (cat) => cat.name == insightJson['category'],
+            orElse: () => InsightCategory.performance,
+          ),
+          title: insightJson['title'] ?? 'Learning Insight',
+          insight: insightJson['insight'] ?? 'Insight not available',
+          significance: (insightJson['significance'] as num?)?.toDouble() ?? 0.5,
+          supportingData: List<String>.from(insightJson['supporting_data'] ?? []),
+          visualizationData: insightJson['visualization_data'] ?? {},
+        );
+      }).toList();
+
+      // Convert recommendations
+      final recommendations = (aiResponse['recommendations'] as List).map((recJson) {
+        return PersonalizedRecommendation(
+          id: recJson['id'] ?? 'rec_${DateTime.now().millisecondsSinceEpoch}',
+          type: RecommendationType.values.firstWhere(
+            (type) => type.name == recJson['type'],
+            orElse: () => RecommendationType.studyTechnique,
+          ),
+          title: recJson['title'] ?? 'Study Recommendation',
+          description: recJson['description'] ?? 'Recommendation not available',
+          actionableAdvice: recJson['actionable_advice'] ?? 'Continue with current approach',
+          priority: recJson['priority'] ?? 3,
+          confidenceScore: (recJson['confidence_score'] as num?)?.toDouble() ?? 0.7,
+          reasons: List<String>.from(recJson['reasons'] ?? []),
+          parameters: recJson['parameters'] ?? {},
+        );
+      }).toList();
+
+      // Convert study plan
+      final studyPlanJson = aiResponse['study_plan'] as Map<String, dynamic>? ?? {};
+      final activities = (studyPlanJson['activities'] as List? ?? []).map((activityJson) {
+        return StudyActivity(
+          type: activityJson['type'] ?? 'review',
+          description: activityJson['description'] ?? 'Study activity',
+          duration: Duration(minutes: activityJson['duration_minutes'] ?? 30),
+          priority: activityJson['priority'] ?? 2,
+          materials: List<String>.from(activityJson['materials'] ?? []),
+        );
+      }).toList();
+
+      final studyPlan = StudyPlan(
+        id: studyPlanJson['id'] ?? 'plan_${DateTime.now().millisecondsSinceEpoch}',
+        activities: activities,
+        estimatedDuration: Duration(minutes: studyPlanJson['estimated_duration_minutes'] ?? 60),
+        focusAreas: Map<String, String>.from(studyPlanJson['focus_areas'] ?? {}),
+        objectives: List<String>.from(studyPlanJson['objectives'] ?? []),
+      );
+
+      print('✅ [GEMINI AI] Successfully processed AI analytics response');
+      print('📊 [AI RESULTS] Generated ${insights.length} insights, ${recommendations.length} recommendations');
+      
+      return {
+        'insights': insights,
+        'recommendations': recommendations,
+        'studyPlan': studyPlan,
+      };
+      
+    } catch (e) {
+      print('❌ [GEMINI AI] Error processing AI analytics response: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate study insights for a specific learning pattern
+  Future<List<String>> generateLearningPatternAdvice(String patternType, Map<String, dynamic> contextData) async {
+    try {
+      final prompt = '''
+As an educational expert, provide 3-5 specific, actionable study tips for a student with a "$patternType" learning pattern.
+
+Context: ${jsonEncode(contextData)}
+
+Focus on:
+1. Techniques that work well for this learning pattern
+2. Common pitfalls to avoid
+3. Optimal study scheduling
+4. Motivation and engagement strategies
+
+Return a JSON array of strings with specific advice:
+["tip 1", "tip 2", "tip 3", "tip 4", "tip 5"]
+''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        return ['Continue with your current approach', 'Focus on consistent practice'];
+      }
+
+      // Clean and parse JSON
+      String jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      }
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      jsonText = jsonText.trim();
+
+      final List<dynamic> tips = jsonDecode(jsonText);
+      return tips.cast<String>();
+      
+    } catch (e) {
+      print('❌ [GEMINI AI] Error generating pattern advice: $e');
+      return [
+        'Continue practicing regularly',
+        'Focus on your strong areas while improving weak ones',
+        'Take breaks to maintain focus',
+      ];
+    }
   }
 
   Future<bool> testConnection() async {
