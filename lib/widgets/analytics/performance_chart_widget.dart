@@ -381,7 +381,6 @@ class PerformanceChartWidget extends StatelessWidget {
           
           // Material performance bars
           ...performanceMetrics.materialPerformance.entries
-              .take(5) // Limit to top 5 materials
               .map((entry) => _buildMaterialPerformanceBar(entry.key, entry.value)),
         ],
       ),

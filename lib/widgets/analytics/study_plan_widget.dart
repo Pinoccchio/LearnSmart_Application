@@ -218,7 +218,7 @@ class StudyPlanWidget extends StatelessWidget {
           
           const SizedBox(height: 8),
           
-          ...studyPlan.objectives.take(3).map((objective) {
+          ...studyPlan.objectives.map((objective) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
@@ -377,7 +377,7 @@ class StudyPlanWidget extends StatelessWidget {
                   Wrap(
                     spacing: 4,
                     runSpacing: 2,
-                    children: activity.materials.take(2).map((material) {
+                    children: activity.materials.map((material) {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(

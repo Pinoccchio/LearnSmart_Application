@@ -14,9 +14,9 @@ import '../../services/study_analytics_service.dart';
 import '../../widgets/flashcard/flashcard_widget.dart';
 import '../../widgets/flashcard/flashcard_result_widget.dart';
 import '../../widgets/analytics/performance_chart_widget.dart';
-import '../../widgets/analytics/insights_widget.dart';
 import '../../widgets/analytics/recommendations_widget.dart';
 import '../../widgets/analytics/study_plan_widget.dart';
+import 'active_recall_completion_screen.dart';
 
 class ActiveRecallSessionScreen extends StatefulWidget {
   final Course course;
@@ -656,25 +656,42 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
     // Update session as completed in database
     _updateSessionStatus(StudySessionStatus.completed);
 
-    // Generate comprehensive analytics first, then show dialog
+    // Generate comprehensive analytics first, then navigate to completion screen
     await _generateSessionAnalytics(results);
 
-    // Now that analytics are ready, move to completed state and show dialog
+    // Now that analytics are ready, move to completed state and navigate to completion screen
     if (mounted) {
       setState(() {
         _currentStatus = StudySessionStatus.completed;
       });
       
-      // Small delay to allow UI to update before showing dialog
+      // Small delay to allow UI to update before navigation
       await Future.delayed(const Duration(milliseconds: 500));
       
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: _buildEnhancedResultsDialog(results),
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ActiveRecallCompletionScreen(
+              course: widget.course,
+              module: widget.module,
+              sessionResults: results,
+              sessionAnalytics: _sessionAnalytics,
+              onBackToModule: () {
+                Navigator.of(context).pop(); // Go back to module details
+              },
+              onStudyAgain: () {
+                Navigator.of(context).pop(); // Go back to module details
+                // Navigate back to the original Active Recall session screen
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => ActiveRecallSessionScreen(
+                      course: widget.course,
+                      module: widget.module,
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         );
       }
@@ -1106,8 +1123,8 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
                 ),
               ),
             ],
@@ -1146,8 +1163,8 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+                  softWrap: true,
+                  overflow: TextOverflow.visible,
                 ),
               ),
             ],
@@ -1175,9 +1192,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 4),
-          ...behavior.commonErrorTypes.map((error) => Text(
-            '• $error',
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ...behavior.commonErrorTypes.map((error) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $error',
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
       ],
@@ -1200,9 +1222,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.green),
           ),
           const SizedBox(height: 4),
-          ...cognitive.cognitiveStrengths.map((strength) => Text(
-            '• $strength',
-            style: const TextStyle(fontSize: 12, color: Colors.green),
+          ...cognitive.cognitiveStrengths.map((strength) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $strength',
+              style: const TextStyle(fontSize: 12, color: Colors.green),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
         if (cognitive.cognitiveWeaknesses.isNotEmpty) ...[
@@ -1212,9 +1239,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.orange),
           ),
           const SizedBox(height: 4),
-          ...cognitive.cognitiveWeaknesses.map((weakness) => Text(
-            '• $weakness',
-            style: const TextStyle(fontSize: 12, color: Colors.orange),
+          ...cognitive.cognitiveWeaknesses.map((weakness) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $weakness',
+              style: const TextStyle(fontSize: 12, color: Colors.orange),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
       ],
@@ -1236,9 +1268,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.green),
           ),
           const SizedBox(height: 4),
-          ...patterns.strongConcepts.map((concept) => Text(
-            '• $concept',
-            style: const TextStyle(fontSize: 12, color: Colors.green),
+          ...patterns.strongConcepts.map((concept) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $concept',
+              style: const TextStyle(fontSize: 12, color: Colors.green),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
         if (patterns.weakConcepts.isNotEmpty) ...[
@@ -1248,9 +1285,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.red),
           ),
           const SizedBox(height: 4),
-          ...patterns.weakConcepts.map((concept) => Text(
-            '• $concept',
-            style: const TextStyle(fontSize: 12, color: Colors.red),
+          ...patterns.weakConcepts.map((concept) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $concept',
+              style: const TextStyle(fontSize: 12, color: Colors.red),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
       ],
