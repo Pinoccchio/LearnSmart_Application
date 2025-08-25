@@ -604,7 +604,17 @@ COGNITIVE FACTORS:
 NOTE-TAKING ANALYSIS:
 - Study Notes: ${analyticsData['notes_analysis']['study_notes']}
 - Reflections: ${analyticsData['notes_analysis']['reflections']}
-- Quiz Answers: ${analyticsData['notes_analysis']['quiz_answers']}
+
+HISTORICAL CONTEXT (Previous Module Sessions):
+- Total Sessions in Module: ${analyticsData['historical_context']['total_module_sessions']}
+- Total Cycles Completed: ${analyticsData['historical_context']['total_module_cycles']}
+- Historical Average Focus: ${analyticsData['historical_context']['historical_avg_focus']}/10
+- Historical Completion Rate: ${analyticsData['historical_context']['historical_completion_rate']}%
+- Optimal Cycle Length: ${analyticsData['historical_context']['optimal_cycle_length']} minutes
+- Focus Trend: ${analyticsData['historical_context']['focus_trend']}
+- Best Study Time: ${analyticsData['historical_context']['best_time_of_day']}
+- Recent Focus Scores: ${analyticsData['historical_context']['focus_score_trends']}
+- Average Cycles per Session: ${analyticsData['historical_context']['avg_cycles_per_session']}
 
 Generate the following in JSON format:
 
@@ -658,15 +668,17 @@ DESCRIPTIVE ANALYTICS (Focus on Pomodoro Elements):
 1. Analyze focus score progression throughout work cycles
 2. Examine cycle completion patterns and break adherence
 3. Identify productivity trends and attention patterns
-4. Evaluate note-taking engagement during work periods
-5. Assess overall Pomodoro technique effectiveness
+4. Evaluate note-taking engagement during work periods (study notes and reflections)
+5. Assess overall Pomodoro technique effectiveness for focused learning
 
-PRESCRIPTIVE ANALYTICS (Pomodoro Optimizations):
-1. Recommend optimal cycle lengths based on focus patterns
-2. Suggest break strategies based on attention span data
-3. Advise on distraction management and environmental setup
-4. Provide cycle scheduling recommendations
-5. Suggest focus enhancement techniques specific to Pomodoro
+PRESCRIPTIVE ANALYTICS (Pomodoro Optimizations with Historical Context):
+1. Recommend optimal cycle lengths based on current session + historical focus patterns
+2. Suggest break strategies considering attention span trends over time
+3. Compare current performance to historical averages and suggest improvements
+4. Provide cycle scheduling recommendations based on best performing times
+5. Suggest focus enhancement techniques considering long-term progress trends
+6. Recommend technique changes if productivity is declining compared to history
+7. Optimize session length based on historical cycle completion patterns
 
 FOCUS PATTERN ANALYSIS:
 - High focus (7-10): Recommend maintaining or extending cycles

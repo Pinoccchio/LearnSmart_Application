@@ -13,6 +13,235 @@ class StudyAnalyticsService {
     _aiService = GeminiAIService();
   }
 
+  /// Get historical Pomodoro sessions for a user and module
+  Future<List<PomodoroSession>> getHistoricalPomodoroSessions(String userId, String moduleId) async {
+    try {
+      print('📊 [HISTORICAL DATA] Fetching Pomodoro sessions for user: $userId, module: $moduleId');
+      
+      final response = await SupabaseService.client
+          .from('pomodoro_sessions')
+          .select('''
+            *,
+            pomodoro_cycles(*),
+            pomodoro_notes(*)
+          ''')
+          .eq('user_id', userId)
+          .eq('module_id', moduleId)
+          .eq('status', 'completed')
+          .order('started_at', ascending: false)
+          .limit(20); // Last 20 sessions for analysis
+      
+      final sessions = response.map((sessionData) {
+        return PomodoroSession.fromJson(sessionData);
+      }).toList();
+      
+      print('✅ [HISTORICAL DATA] Found ${sessions.length} historical Pomodoro sessions');
+      return sessions;
+      
+    } catch (e) {
+      print('❌ [HISTORICAL DATA] Error fetching historical sessions: $e');
+      return [];
+    }
+  }
+
+  /// Aggregate performance data across multiple Pomodoro sessions
+  Future<Map<String, dynamic>> aggregateModulePerformance(String userId, String moduleId) async {
+    try {
+      final sessions = await getHistoricalPomodoroSessions(userId, moduleId);
+      
+      if (sessions.isEmpty) {
+        return _getEmptyPerformanceData();
+      }
+      
+      // Calculate aggregated metrics
+      final totalSessions = sessions.length;
+      final totalCyclesPlanned = sessions.fold(0, (sum, session) => sum + session.totalCyclesPlanned);
+      final totalCyclesCompleted = sessions.fold(0, (sum, session) => sum + session.cyclesCompleted);
+      final totalStudyMinutes = sessions.fold(0, (sum, session) => 
+        sum + (session.completedAt?.difference(session.startedAt).inMinutes ?? 0));
+      
+      // Get all cycles for detailed analysis
+      final allCycles = <PomodoroCycle>[];
+      for (final session in sessions) {
+        final cyclesResponse = await SupabaseService.client
+            .from('pomodoro_cycles')
+            .select('*')
+            .eq('session_id', session.id);
+        
+        final cycles = cyclesResponse.map((cycleData) => PomodoroCycle.fromJson(cycleData)).toList();
+        allCycles.addAll(cycles);
+      }
+      
+      // Calculate focus score trends
+      final focusScores = allCycles
+          .where((cycle) => cycle.focusScore != null && cycle.type == PomodoroCycleType.work)
+          .map((cycle) => cycle.focusScore!.toDouble())
+          .toList();
+      
+      final avgFocusScore = focusScores.isNotEmpty 
+          ? focusScores.reduce((a, b) => a + b) / focusScores.length 
+          : 0.0;
+      
+      // Calculate completion rate
+      final completionRate = totalCyclesPlanned > 0 
+          ? (totalCyclesCompleted / totalCyclesPlanned) * 100 
+          : 0.0;
+      
+      // Analyze time patterns (best performing hour)
+      final sessionsByHour = <int, List<double>>{};
+      for (final session in sessions) {
+        final hour = session.startedAt.hour;
+        if (!sessionsByHour.containsKey(hour)) {
+          sessionsByHour[hour] = [];
+        }
+        
+        // Calculate session productivity score
+        final sessionCycles = allCycles.where((c) => c.sessionId == session.id).toList();
+        final sessionFocusScores = sessionCycles
+            .where((c) => c.focusScore != null)
+            .map((c) => c.focusScore!.toDouble())
+            .toList();
+        
+        if (sessionFocusScores.isNotEmpty) {
+          final sessionAvgFocus = sessionFocusScores.reduce((a, b) => a + b) / sessionFocusScores.length;
+          sessionsByHour[hour]!.add(sessionAvgFocus);
+        }
+      }
+      
+      // Find best performing time
+      String bestTimeOfDay = 'morning';
+      double bestScore = 0.0;
+      
+      sessionsByHour.forEach((hour, scores) {
+        final avgScore = scores.isNotEmpty ? scores.reduce((a, b) => a + b) / scores.length : 0.0;
+        if (avgScore > bestScore) {
+          bestScore = avgScore;
+          if (hour >= 6 && hour < 12) bestTimeOfDay = 'morning';
+          else if (hour >= 12 && hour < 18) bestTimeOfDay = 'afternoon';
+          else bestTimeOfDay = 'evening';
+        }
+      });
+      
+      // Calculate optimal cycle length
+      final workCycles = allCycles.where((c) => c.type == PomodoroCycleType.work).toList();
+      final optimalCycleLength = _calculateOptimalCycleLength(workCycles);
+      
+      // Determine focus trend
+      String focusTrend = 'stable';
+      if (focusScores.length >= 4) {
+        final firstHalf = focusScores.take(focusScores.length ~/ 2).toList();
+        final secondHalf = focusScores.skip(focusScores.length ~/ 2).toList();
+        
+        final firstAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
+        final secondAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
+        
+        if (secondAvg > firstAvg + 0.5) focusTrend = 'improving';
+        else if (firstAvg > secondAvg + 0.5) focusTrend = 'declining';
+      }
+      
+      print('📈 [PERFORMANCE AGGREGATION] Processed $totalSessions sessions, ${allCycles.length} cycles');
+      
+      return {
+        'total_sessions': totalSessions,
+        'total_cycles_planned': totalCyclesPlanned,
+        'total_cycles_completed': totalCyclesCompleted,
+        'total_study_minutes': totalStudyMinutes,
+        'average_focus_score': avgFocusScore,
+        'completion_rate': completionRate,
+        'best_time_of_day': bestTimeOfDay,
+        'focus_trend': focusTrend,
+        'optimal_cycle_length': optimalCycleLength,
+        'focus_scores': focusScores,
+        'sessions_by_hour': sessionsByHour,
+      };
+      
+    } catch (e) {
+      print('❌ [PERFORMANCE AGGREGATION] Error aggregating module performance: $e');
+      return _getEmptyPerformanceData();
+    }
+  }
+
+  /// Calculate optimal cycle length based on focus score patterns
+  int _calculateOptimalCycleLength(List<PomodoroCycle> workCycles) {
+    if (workCycles.isEmpty) return 25; // Default Pomodoro length
+    
+    // Group cycles by duration and calculate average focus scores
+    final durationGroups = <int, List<double>>{};
+    
+    for (final cycle in workCycles) {
+      final duration = cycle.durationMinutes;
+      if (cycle.focusScore != null) {
+        if (!durationGroups.containsKey(duration)) {
+          durationGroups[duration] = [];
+        }
+        durationGroups[duration]!.add(cycle.focusScore!.toDouble());
+      }
+    }
+    
+    // Find duration with highest average focus score
+    int optimalDuration = 25;
+    double bestAverageScore = 0.0;
+    
+    durationGroups.forEach((duration, scores) {
+      if (scores.length >= 2) { // Need at least 2 data points
+        final avgScore = scores.reduce((a, b) => a + b) / scores.length;
+        if (avgScore > bestAverageScore) {
+          bestAverageScore = avgScore;
+          optimalDuration = duration;
+        }
+      }
+    });
+    
+    return optimalDuration;
+  }
+
+  /// Get focus score trends for visualization
+  Future<List<double>> getFocusScoreTrends(String userId, String moduleId) async {
+    try {
+      final sessions = await getHistoricalPomodoroSessions(userId, moduleId);
+      final focusScores = <double>[];
+      
+      for (final session in sessions.reversed) { // Chronological order
+        final cyclesResponse = await SupabaseService.client
+            .from('pomodoro_cycles')
+            .select('*')
+            .eq('session_id', session.id)
+            .eq('type', 'work')
+            .order('started_at');
+        
+        final cycles = cyclesResponse.map((cycleData) => PomodoroCycle.fromJson(cycleData)).toList();
+        
+        for (final cycle in cycles) {
+          if (cycle.focusScore != null) {
+            focusScores.add(cycle.focusScore!.toDouble());
+          }
+        }
+      }
+      
+      return focusScores;
+      
+    } catch (e) {
+      print('❌ [FOCUS TRENDS] Error getting focus score trends: $e');
+      return [];
+    }
+  }
+
+  Map<String, dynamic> _getEmptyPerformanceData() {
+    return {
+      'total_sessions': 0,
+      'total_cycles_planned': 0,
+      'total_cycles_completed': 0,
+      'total_study_minutes': 0,
+      'average_focus_score': 0.0,
+      'completion_rate': 0.0,
+      'best_time_of_day': 'morning',
+      'focus_trend': 'stable',
+      'optimal_cycle_length': 25,
+      'focus_scores': <double>[],
+      'sessions_by_hour': <int, List<double>>{},
+    };
+  }
+
   /// Generate comprehensive analytics for a completed study session
   Future<StudySessionAnalytics> generateSessionAnalytics({
     required String sessionId,
@@ -742,8 +971,8 @@ class StudyAnalyticsService {
     try {
       print('📊 [POMODORO ANALYTICS] Starting comprehensive analysis for session: $sessionId');
       
-      // Calculate descriptive analytics
-      final performanceMetrics = _calculatePomodoroPerformanceMetrics(session, cycles, notes);
+      // Calculate descriptive analytics with historical context
+      final performanceMetrics = await _calculatePomodoroPerformanceMetrics(session, cycles, notes);
       
       final learningPatterns = _analyzePomodoroLearningPatterns(session, cycles, notes);
       
@@ -783,17 +1012,17 @@ class StudyAnalyticsService {
       print('❌ [POMODORO ANALYTICS] Error generating session analytics: $e');
       
       // Return basic analytics if full analysis fails
-      return _generateFallbackPomodoroAnalytics(sessionId, userId, moduleId, session, cycles, notes);
+      return await _generateFallbackPomodoroAnalytics(sessionId, userId, moduleId, session, cycles, notes);
     }
   }
 
-  /// Calculate performance metrics from Pomodoro session data
-  PerformanceMetrics _calculatePomodoroPerformanceMetrics(
+  /// Calculate performance metrics from Pomodoro session data with historical context
+  Future<PerformanceMetrics> _calculatePomodoroPerformanceMetrics(
     PomodoroSession session,
     List<PomodoroCycle> cycles,
     List<PomodoroNote> notes,
-  ) {
-    // Focus score analysis
+  ) async {
+    // Focus score analysis for current session
     final focusScores = cycles
         .where((c) => c.focusScore != null)
         .map((c) => c.focusScore!)
@@ -803,28 +1032,64 @@ class StudyAnalyticsService {
         ? focusScores.reduce((a, b) => a + b) / focusScores.length 
         : 0.0;
     
-    // Completion rate
+    // Completion rate for current session
     final completedCycles = cycles.where((c) => c.actualDuration >= c.plannedDuration).length;
     final completionRate = cycles.isNotEmpty ? (completedCycles / cycles.length) * 100 : 0.0;
     
-    // Calculate improvement based on focus score progression
+    // Get historical performance data for this module
+    final historicalData = await aggregateModulePerformance(session.userId, session.moduleId);
+    
+    // Track number of Pomodoro cycles completed per module (current + historical)
+    final totalCyclesInModule = historicalData['total_cycles_completed'] as int;
+    final totalSessionsInModule = historicalData['total_sessions'] as int;
+    final avgCyclesPerSession = totalSessionsInModule > 0 ? totalCyclesInModule / totalSessionsInModule : 0.0;
+    
+    // Calculate improvement based on focus score progression within session
     final earlyFocusScores = focusScores.take(focusScores.length ~/ 2).toList();
     final lateFocusScores = focusScores.skip(focusScores.length ~/ 2).toList();
     
     final earlyAvg = earlyFocusScores.isNotEmpty ? earlyFocusScores.reduce((a, b) => a + b) / earlyFocusScores.length : avgFocusScore;
     final lateAvg = lateFocusScores.isNotEmpty ? lateFocusScores.reduce((a, b) => a + b) / lateFocusScores.length : avgFocusScore;
-    final improvement = lateAvg - earlyAvg;
+    final sessionImprovement = lateAvg - earlyAvg;
+    
+    // Compare current session performance to historical average
+    final historicalAvgFocus = historicalData['average_focus_score'] as double;
+    final historicalCompletionRate = historicalData['completion_rate'] as double;
+    final focusImprovement = avgFocusScore * 10 - historicalAvgFocus;
+    final completionImprovement = completionRate - historicalCompletionRate;
     
     // Productivity score (based on completion rate and focus scores)
     final productivityScore = ((completionRate + avgFocusScore * 10) / 2);
     
+    // Record time spent and productivity per session
+    final sessionTimeMinutes = session.totalDuration.inMinutes;
+    final productivityPerMinute = sessionTimeMinutes > 0 ? productivityScore / sessionTimeMinutes : 0.0;
+    
+    // Calculate overall improvement (session + historical context)
+    final overallImprovement = (sessionImprovement * 10 + focusImprovement + completionImprovement) / 3;
+    
+    print('📊 [ENHANCED POMODORO ANALYTICS] Current session: ${cycles.length} cycles, ${sessionTimeMinutes}min');
+    print('📊 [ENHANCED POMODORO ANALYTICS] Module totals: ${totalCyclesInModule} cycles across ${totalSessionsInModule} sessions');
+    print('📊 [ENHANCED POMODORO ANALYTICS] Focus improvement vs history: ${focusImprovement.toStringAsFixed(1)}%');
+    
     return PerformanceMetrics(
       preStudyAccuracy: earlyAvg * 10, // Convert to percentage scale
       postStudyAccuracy: lateAvg * 10,
-      improvementPercentage: improvement * 10,
+      improvementPercentage: overallImprovement,
       averageResponseTime: session.totalDuration.inMinutes / max(1, cycles.length).toDouble(),
       accuracyByDifficulty: productivityScore,
-      materialPerformance: {'Focus Score': avgFocusScore * 10, 'Completion Rate': completionRate},
+      materialPerformance: {
+        'Current Focus Score': avgFocusScore * 10,
+        'Current Completion Rate': completionRate,
+        'Historical Avg Focus': historicalAvgFocus,
+        'Historical Completion Rate': historicalCompletionRate,
+        'Cycles This Module': totalCyclesInModule.toDouble(),
+        'Sessions This Module': totalSessionsInModule.toDouble(),
+        'Avg Cycles Per Session': avgCyclesPerSession,
+        'Productivity Per Minute': productivityPerMinute,
+        'Focus vs History': focusImprovement,
+        'Completion vs History': completionImprovement,
+      },
       conceptMastery: _analyzePomodoroConceptMastery(notes),
       overallLevel: AnalyticsCalculator.determinePerformanceLevel(productivityScore),
     );
@@ -998,7 +1263,7 @@ class StudyAnalyticsService {
     );
   }
 
-  /// Generate AI-powered insights for Pomodoro sessions
+  /// Generate AI-powered insights for Pomodoro sessions with historical context
   Future<Map<String, dynamic>> _generatePomodoroAIInsights(
     PerformanceMetrics performance,
     LearningPatterns patterns,
@@ -1011,9 +1276,13 @@ class StudyAnalyticsService {
     List<PomodoroNote> notes,
   ) async {
     try {
-      print('🤖 [POMODORO AI INSIGHTS] Generating AI-powered recommendations...');
+      print('🤖 [POMODORO AI INSIGHTS] Generating AI-powered recommendations with historical context...');
       
-      // Create comprehensive data summary for AI
+      // Get historical context for enhanced AI prompts
+      final historicalData = await aggregateModulePerformance(session.userId, session.moduleId);
+      final focusTrends = await getFocusScoreTrends(session.userId, session.moduleId);
+      
+      // Create comprehensive data summary for AI with historical context
       final analyticsData = {
         'technique': 'pomodoro',
         'course': course.title,
@@ -1054,7 +1323,20 @@ class StudyAnalyticsService {
         'notes_analysis': {
           'study_notes': notes.where((n) => n.noteType == PomodoroNoteType.studyNote).length,
           'reflections': notes.where((n) => n.noteType == PomodoroNoteType.reflection).length,
-          'quiz_answers': notes.where((n) => n.noteType == PomodoroNoteType.quizAnswer).length,
+          // Note: quiz_answers removed - not applicable to Pomodoro technique
+        },
+        'historical_context': {
+          'total_module_sessions': historicalData['total_sessions'],
+          'total_module_cycles': historicalData['total_cycles_completed'],
+          'historical_avg_focus': historicalData['average_focus_score'],
+          'historical_completion_rate': historicalData['completion_rate'],
+          'optimal_cycle_length': historicalData['optimal_cycle_length'],
+          'focus_trend': historicalData['focus_trend'],
+          'best_time_of_day': historicalData['best_time_of_day'],
+          'focus_score_trends': focusTrends.length > 5 ? focusTrends.sublist(focusTrends.length - 5) : focusTrends,
+          'avg_cycles_per_session': historicalData['total_sessions'] > 0 
+              ? historicalData['total_cycles_completed'] / historicalData['total_sessions'] 
+              : 0.0,
         },
       };
       
@@ -1193,7 +1475,7 @@ class StudyAnalyticsService {
       'total_notes': notes.length,
       'study_notes': notes.where((n) => n.noteType == PomodoroNoteType.studyNote).length,
       'reflections': notes.where((n) => n.noteType == PomodoroNoteType.reflection).length,
-      'quiz_answers': notes.where((n) => n.noteType == PomodoroNoteType.quizAnswer).length,
+      // Note: quiz_answers removed - not applicable to Pomodoro technique
       'notes_per_cycle': cycles.isNotEmpty ? (notes.length / cycles.length).round() : 0,
     };
   }
@@ -1277,7 +1559,7 @@ class StudyAnalyticsService {
   }
 
   /// Generate fallback insights for Pomodoro when AI generation fails
-  Map<String, dynamic> _generateFallbackPomodoroInsights(
+  Future<Map<String, dynamic>> _generateFallbackPomodoroInsights(
     PerformanceMetrics performance,
     LearningPatterns patterns,
     BehaviorAnalysis behavior,
@@ -1285,24 +1567,24 @@ class StudyAnalyticsService {
     PomodoroSession session,
     List<PomodoroCycle> cycles,
     List<PomodoroNote> notes,
-  ) {
-    final avgFocus = performance.materialPerformance['Focus Score'] ?? 50.0;
-    final completionRate = performance.materialPerformance['Completion Rate'] ?? 0.0;
+  ) async {
+    final avgFocus = performance.materialPerformance['Current Focus Score'] ?? 50.0;
+    final completionRate = performance.materialPerformance['Current Completion Rate'] ?? 0.0;
+    final optimalCycleLength = performance.materialPerformance['Cycles This Module'] != null 
+        ? await _getOptimalCycleLengthRecommendation(session.userId, session.moduleId, avgFocus, completionRate)
+        : 25; // Default Pomodoro length
+    final currentCycleLength = cycles.isNotEmpty ? cycles.first.plannedDuration.inMinutes : 25;
     
     final recommendations = <PersonalizedRecommendation>[
       PersonalizedRecommendation(
         id: 'pomodoro_fallback_rec_1',
         type: RecommendationType.studyTiming,
-        title: 'Optimize Pomodoro Settings',
-        description: 'Based on your session performance, consider adjusting your Pomodoro cycle length.',
-        actionableAdvice: completionRate > 80 
-            ? 'Great job completing most cycles! Consider extending work periods slightly for deeper focus.'
-            : avgFocus < 50
-                ? 'Try shorter work periods (15-20 minutes) to build focus gradually.'
-                : 'Maintain current cycle length but focus on minimizing distractions.',
+        title: 'Optimize Pomodoro Cycle Length',
+        description: 'Based on your session performance and historical data, adjust your Pomodoro cycle length for optimal focus.',
+        actionableAdvice: _getCycleLengthAdvice(currentCycleLength, optimalCycleLength, avgFocus, completionRate),
         priority: 1,
         confidenceScore: 0.8,
-        reasons: ['Focus score analysis', 'Completion rate patterns'],
+        reasons: ['Focus score analysis', 'Completion rate patterns', 'Historical performance data'],
       ),
       PersonalizedRecommendation(
         id: 'pomodoro_fallback_rec_2',
@@ -1388,15 +1670,52 @@ class StudyAnalyticsService {
     };
   }
 
+  /// Get optimal cycle length recommendation based on historical data and current performance
+  Future<int> _getOptimalCycleLengthRecommendation(String userId, String moduleId, double avgFocus, double completionRate) async {
+    try {
+      final historicalData = await aggregateModulePerformance(userId, moduleId);
+      final optimalLength = historicalData['optimal_cycle_length'] as int;
+      
+      // Adjust based on current performance
+      if (avgFocus < 40 || completionRate < 60) {
+        // Low performance - recommend shorter cycles
+        return (optimalLength * 0.75).round().clamp(15, 25);
+      } else if (avgFocus > 70 && completionRate > 85) {
+        // High performance - could handle longer cycles
+        return (optimalLength * 1.2).round().clamp(25, 45);
+      }
+      
+      return optimalLength;
+    } catch (e) {
+      print('⚠️ [CYCLE OPTIMIZATION] Error getting optimal length: $e');
+      return 25; // Default
+    }
+  }
+  
+  /// Generate cycle length advice based on performance data
+  String _getCycleLengthAdvice(int currentLength, int optimalLength, double avgFocus, double completionRate) {
+    if (currentLength == optimalLength) {
+      if (avgFocus > 70 && completionRate > 85) {
+        return 'Your current ${currentLength}-minute cycles are optimal! Consider extending to ${optimalLength + 5} minutes if you want to challenge yourself further.';
+      } else {
+        return 'Your ${currentLength}-minute cycles are well-suited for your current performance level. Focus on consistency and minimizing distractions.';
+      }
+    } else if (currentLength > optimalLength) {
+      return 'Consider shortening your cycles from ${currentLength} to ${optimalLength} minutes. Based on your focus patterns, shorter cycles may improve completion rates and maintain better attention.';
+    } else {
+      return 'You could benefit from extending your cycles from ${currentLength} to ${optimalLength} minutes. Your focus scores suggest you can maintain attention for longer periods.';
+    }
+  }
+
   /// Generate fallback Pomodoro analytics when full analysis fails
-  StudySessionAnalytics _generateFallbackPomodoroAnalytics(
+  Future<StudySessionAnalytics> _generateFallbackPomodoroAnalytics(
     String sessionId,
     String userId,
     String moduleId,
     PomodoroSession session,
     List<PomodoroCycle> cycles,
     List<PomodoroNote> notes,
-  ) {
+  ) async {
     // Basic calculations
     final focusScores = cycles
         .where((c) => c.focusScore != null)
@@ -1411,13 +1730,21 @@ class StudyAnalyticsService {
         ? (cycles.where((c) => c.isCompleted).length / cycles.length) * 100
         : 0.0;
     
+    // Try to get basic historical context even in fallback
+    final historicalData = await aggregateModulePerformance(userId, moduleId);
+    final totalModuleCycles = historicalData['total_cycles_completed'] as int;
+    
     final basicPerformance = PerformanceMetrics(
       preStudyAccuracy: avgFocusScore * 10,
       postStudyAccuracy: avgFocusScore * 10,
       improvementPercentage: 0.0,
       averageResponseTime: session.totalDuration.inMinutes / max(1, cycles.length).toDouble(),
       accuracyByDifficulty: (avgFocusScore * 10 + completionRate) / 2,
-      materialPerformance: {'Focus Score': avgFocusScore * 10, 'Completion Rate': completionRate},
+      materialPerformance: {
+        'Focus Score': avgFocusScore * 10, 
+        'Completion Rate': completionRate,
+        'Total Module Cycles': totalModuleCycles.toDouble(),
+      },
       conceptMastery: {},
       overallLevel: AnalyticsCalculator.determinePerformanceLevel(avgFocusScore * 10),
     );

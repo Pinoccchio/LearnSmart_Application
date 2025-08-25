@@ -1,46 +1,845 @@
-I/flutter (32243):    Total planned cycles: 1
-I/flutter (32243):    Cycles completed: 1
-I/flutter (32243):    Total cycles recorded: 2
-I/flutter (32243):    Total notes: 0
-I/flutter (32243): 📊 [POMODORO RESULTS] Work time: 1 minutes
-I/flutter (32243): 📊 [POMODORO RESULTS] Break time: 1 minutes
-I/flutter (32243): 📊 [POMODORO RESULTS] Interruptions: 0
-I/flutter (32243): 📊 [POMODORO RESULTS] Average focus: 0.0/10
-I/flutter (32243): 📊 [POMODORO ANALYTICS] Generating session analytics...
-I/flutter (32243): 📊 [POMODORO ANALYTICS] Starting comprehensive analysis for session: ff65649c-d6d4-46e0-8b1b-bafeabe9afaf
-I/flutter (32243): 🤖 [POMODORO AI INSIGHTS] Generating AI-powered recommendations...
-I/flutter (32243): 🍅 [GEMINI AI] Generating Pomodoro-specific analytics insights...
-I/flutter (32243): 📊 [POMODORO ANALYTICS] Starting comprehensive analysis for session: ff65649c-d6d4-46e0-8b1b-bafeabe9afaf
-I/flutter (32243): 🤖 [POMODORO AI INSIGHTS] Generating AI-powered recommendations...
-I/flutter (32243): 🍅 [GEMINI AI] Generating Pomodoro-specific analytics insights...
-D/TextSelection(32243): onUseCache cache=false
-I/flutter (32243): 🍅 [GEMINI AI] Pomodoro analytics response received: ```json
-I/flutter (32243): {
-I/flutter (32243):   "insights": [
-I/flutter (32243):     {
-I/flutter (32243):       "id": "pomodoro_descriptive_insight_1",
-I/flutter (32243):       "category": "focus_patterns",
-I/flutter (32243):       "title": "Low Focus and Limited Engagement",
-I/flutter (32243):       "insight": "The average focus score of 0.0/10 indicates extremely low engagement and concentration during the Pomodoro work cycle...
-I/flutter (32243): ✅ [GEMINI AI] Successfully processed AI analytics response
-I/flutter (32243): 📊 [AI RESULTS] Generated 3 insights, 4 recommendations
-I/flutter (32243): 💾 [ANALYTICS] Saving analytics to database...
-I/flutter (32243): 🍅 [GEMINI AI] Pomodoro analytics response received: ```json
-I/flutter (32243): {
-I/flutter (32243):   "insights": [
-I/flutter (32243):     {
-I/flutter (32243):       "id": "pomodoro_descriptive_insight_1",
-I/flutter (32243):       "category": "focus_patterns",
-I/flutter (32243):       "title": "Low Average Focus Score Indicates Significant Distractions or Cognitive Load",
-I/flutter (32243):       "insight": "The average focus score of 0.0/10 suggests significant difficulty maintai...
-I/flutter (32243): ✅ [GEMINI AI] Successfully processed AI analytics response
-I/flutter (32243): 📊 [AI RESULTS] Generated 4 insights, 4 recommendations
-I/flutter (32243): 💾 [ANALYTICS] Saving analytics to database...
-I/flutter (32243): ❌ [ANALYTICS] Error saving analytics to database: PostgrestException(message: insert or update on table "study_session_analytics" violates foreign key constraint "study_session_analytics_session_id_fkey", code: 23503, details: Key is not present in table "active_recall_sessions"., hint: null)
-I/flutter (32243): 💡 [ANALYTICS] Foreign key constraint error - check session/user/module IDs
-I/flutter (32243): ✅ [POMODORO ANALYTICS] Analytics generation completed successfully
-I/flutter (32243): ✅ [POMODORO ANALYTICS] Analytics generated successfully
-I/flutter (32243): ❌ [ANALYTICS] Error saving analytics to database: PostgrestException(message: insert or update on table "study_session_analytics" violates foreign key constraint "study_session_analytics_session_id_fkey", code: 23503, details: Key is not present in table "active_recall_sessions"., hint: null)
-I/flutter (32243): 💡 [ANALYTICS] Foreign key constraint error - check session/user/module IDs
-I/flutter (32243): ✅ [POMODORO ANALYTICS] Analytics generation completed successfully
-I/flutter (32243): ✅ [POMODORO ANALYTICS] Analytics generated successfully
+[{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": "expected_token",
+	"severity": 8,
+	"message": "Expected to find ','.",
+	"source": "dart",
+	"startLineNumber": 150,
+	"startColumn": 9,
+	"endLineNumber": 150,
+	"endColumn": 26,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": "expected_token",
+	"severity": 8,
+	"message": "Expected to find ','.",
+	"source": "dart",
+	"startLineNumber": 236,
+	"startColumn": 7,
+	"endLineNumber": 236,
+	"endColumn": 24,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 19,
+	"startColumn": 7,
+	"endLineNumber": 19,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 38,
+	"startColumn": 7,
+	"endLineNumber": 38,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 42,
+	"startColumn": 7,
+	"endLineNumber": 42,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "curly_braces_in_flow_control_structures",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/curly_braces_in_flow_control_structures",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Statements in an if should be enclosed in a block.\nTry wrapping the statement in a block.",
+	"source": "dart",
+	"startLineNumber": 119,
+	"startColumn": 39,
+	"endLineNumber": 119,
+	"endColumn": 65,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "curly_braces_in_flow_control_structures",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/curly_braces_in_flow_control_structures",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Statements in an if should be enclosed in a block.\nTry wrapping the statement in a block.",
+	"source": "dart",
+	"startLineNumber": 120,
+	"startColumn": 45,
+	"endLineNumber": 120,
+	"endColumn": 73,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "curly_braces_in_flow_control_structures",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/curly_braces_in_flow_control_structures",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Statements in an if should be enclosed in a block.\nTry wrapping the statement in a block.",
+	"source": "dart",
+	"startLineNumber": 121,
+	"startColumn": 16,
+	"endLineNumber": 121,
+	"endColumn": 42,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "curly_braces_in_flow_control_structures",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/curly_braces_in_flow_control_structures",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Statements in an if should be enclosed in a block.\nTry wrapping the statement in a block.",
+	"source": "dart",
+	"startLineNumber": 138,
+	"startColumn": 41,
+	"endLineNumber": 138,
+	"endColumn": 66,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "curly_braces_in_flow_control_structures",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/curly_braces_in_flow_control_structures",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Statements in an if should be enclosed in a block.\nTry wrapping the statement in a block.",
+	"source": "dart",
+	"startLineNumber": 139,
+	"startColumn": 46,
+	"endLineNumber": 139,
+	"endColumn": 71,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 142,
+	"startColumn": 7,
+	"endLineNumber": 142,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 159,
+	"startColumn": 7,
+	"endLineNumber": 159,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 224,
+	"startColumn": 7,
+	"endLineNumber": 224,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 256,
+	"startColumn": 7,
+	"endLineNumber": 256,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 262,
+	"startColumn": 7,
+	"endLineNumber": 262,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 302,
+	"startColumn": 7,
+	"endLineNumber": 302,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 306,
+	"startColumn": 7,
+	"endLineNumber": 306,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 487,
+	"startColumn": 7,
+	"endLineNumber": 487,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 527,
+	"startColumn": 7,
+	"endLineNumber": 527,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 537,
+	"startColumn": 7,
+	"endLineNumber": 537,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 551,
+	"startColumn": 7,
+	"endLineNumber": 551,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 554,
+	"startColumn": 7,
+	"endLineNumber": 554,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 558,
+	"startColumn": 9,
+	"endLineNumber": 558,
+	"endColumn": 14,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 560,
+	"startColumn": 9,
+	"endLineNumber": 560,
+	"endColumn": 14,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 562,
+	"startColumn": 9,
+	"endLineNumber": 562,
+	"endColumn": 14,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 564,
+	"startColumn": 9,
+	"endLineNumber": 564,
+	"endColumn": 14,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 972,
+	"startColumn": 7,
+	"endLineNumber": 972,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1008,
+	"startColumn": 7,
+	"endLineNumber": 1008,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1012,
+	"startColumn": 7,
+	"endLineNumber": 1012,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1071,
+	"startColumn": 5,
+	"endLineNumber": 1071,
+	"endColumn": 10,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1072,
+	"startColumn": 5,
+	"endLineNumber": 1072,
+	"endColumn": 10,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1072,
+	"startColumn": 60,
+	"endLineNumber": 1072,
+	"endColumn": 82,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1072,
+	"startColumn": 97,
+	"endLineNumber": 1072,
+	"endColumn": 121,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1073,
+	"startColumn": 5,
+	"endLineNumber": 1073,
+	"endColumn": 10,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1279,
+	"startColumn": 7,
+	"endLineNumber": 1279,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1349,
+	"startColumn": 7,
+	"endLineNumber": 1349,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "avoid_print",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/avoid_print",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Don't invoke 'print' in production code.\nTry using a logging framework.",
+	"source": "dart",
+	"startLineNumber": 1690,
+	"startColumn": 7,
+	"endLineNumber": 1690,
+	"endColumn": 12,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1699,
+	"startColumn": 30,
+	"endLineNumber": 1699,
+	"endColumn": 46,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1701,
+	"startColumn": 22,
+	"endLineNumber": 1701,
+	"endColumn": 38,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1704,
+	"startColumn": 52,
+	"endLineNumber": 1704,
+	"endColumn": 68,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1704,
+	"startColumn": 72,
+	"endLineNumber": 1704,
+	"endColumn": 88,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1706,
+	"startColumn": 65,
+	"endLineNumber": 1706,
+	"endColumn": 81,
+	"origin": "extHost1"
+},{
+	"resource": "/C:/Users/User/Documents/first_year_files/folder_for_jobs/LEARNSMART/APP/learnsmart_app/lib/services/study_analytics_service.dart",
+	"owner": "_generated_diagnostic_collection_name_#6",
+	"code": {
+		"value": "unnecessary_brace_in_string_interps",
+		"target": {
+			"$mid": 1,
+			"path": "/diagnostics/unnecessary_brace_in_string_interps",
+			"scheme": "https",
+			"authority": "dart.dev"
+		}
+	},
+	"severity": 2,
+	"message": "Unnecessary braces in a string interpolation.\nTry removing the braces.",
+	"source": "dart",
+	"startLineNumber": 1706,
+	"startColumn": 85,
+	"endLineNumber": 1706,
+	"endColumn": 101,
+	"origin": "extHost1"
+}]
