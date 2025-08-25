@@ -2,6 +2,7 @@ import 'dart:math';
 import '../models/study_analytics_models.dart';
 import '../models/active_recall_models.dart';
 import '../models/pomodoro_models.dart';
+import '../models/feynman_models.dart';
 import '../models/course_models.dart';
 import '../services/supabase_service.dart';
 import '../services/gemini_ai_service.dart';
@@ -1857,6 +1858,966 @@ class StudyAnalyticsService {
       insights: [],
       suggestedStudyPlan: StudyPlan(
         id: 'fallback_plan',
+        activities: [],
+        estimatedDuration: const Duration(minutes: 30),
+        focusAreas: {},
+        objectives: [],
+      ),
+    );
+  }
+
+  // FEYNMAN TECHNIQUE ANALYTICS METHODS
+
+  /// Get historical Feynman sessions for a user and module
+  Future<List<FeynmanSession>> getHistoricalFeynmanSessions(String userId, String moduleId) async {
+    try {
+      print('📊 [FEYNMAN HISTORICAL] Fetching Feynman sessions for user: $userId, module: $moduleId');
+      
+      final response = await SupabaseService.client
+          .from('feynman_sessions')
+          .select('''
+            *,
+            feynman_explanations(*),
+            feynman_study_suggestions(*)
+          ''')
+          .eq('user_id', userId)
+          .eq('module_id', moduleId)
+          .eq('status', 'completed')
+          .order('started_at', ascending: false)
+          .limit(15); // Last 15 sessions for analysis
+      
+      final sessions = response.map((sessionData) {
+        return FeynmanSession.fromJson(sessionData);
+      }).toList();
+      
+      print('✅ [FEYNMAN HISTORICAL] Found ${sessions.length} historical Feynman sessions');
+      return sessions;
+      
+    } catch (e) {
+      print('❌ [FEYNMAN HISTORICAL] Error fetching historical sessions: $e');
+      return [];
+    }
+  }
+
+  /// Aggregate Feynman performance data across multiple sessions
+  Future<Map<String, dynamic>> aggregateFeynmanModulePerformance(String userId, String moduleId) async {
+    try {
+      final sessions = await getHistoricalFeynmanSessions(userId, moduleId);
+      
+      if (sessions.isEmpty) {
+        return _getEmptyFeynmanPerformanceData();
+      }
+      
+      // Get all explanations for detailed analysis
+      final allExplanations = <FeynmanExplanation>[];
+      for (final session in sessions) {
+        final explanationsResponse = await SupabaseService.client
+            .from('feynman_explanations')
+            .select('*')
+            .eq('session_id', session.id);
+        
+        final explanations = explanationsResponse.map((expData) => FeynmanExplanation.fromJson(expData)).toList();
+        allExplanations.addAll(explanations);
+      }
+      
+      // Calculate aggregated metrics
+      final totalSessions = sessions.length;
+      final totalExplanations = allExplanations.length;
+      final totalStudyTime = sessions.fold(0, (sum, session) => 
+        sum + (session.completedAt?.difference(session.startedAt).inMinutes ?? 0));
+      
+      // Calculate average explanation quality scores
+      final scoredExplanations = allExplanations.where((e) => e.overallScore != null);
+      final avgOverallScore = scoredExplanations.isNotEmpty 
+          ? scoredExplanations.map((e) => e.overallScore!).reduce((a, b) => a + b) / scoredExplanations.length 
+          : 0.0;
+      
+      final avgClarityScore = scoredExplanations.isNotEmpty 
+          ? scoredExplanations.where((e) => e.clarityScore != null).map((e) => e.clarityScore!).fold(0.0, (a, b) => a + b) / scoredExplanations.where((e) => e.clarityScore != null).length
+          : 0.0;
+      
+      final avgCompletenessScore = scoredExplanations.isNotEmpty 
+          ? scoredExplanations.where((e) => e.completenessScore != null).map((e) => e.completenessScore!).fold(0.0, (a, b) => a + b) / scoredExplanations.where((e) => e.completenessScore != null).length
+          : 0.0;
+      
+      // Calculate improvement trend
+      String improvementTrend = 'stable';
+      if (scoredExplanations.length >= 4) {
+        final sessionScores = sessions.map((session) {
+          final sessionExplanations = allExplanations.where((e) => e.sessionId == session.id);
+          if (sessionExplanations.isNotEmpty) {
+            final avgSessionScore = sessionExplanations.where((e) => e.overallScore != null)
+                .map((e) => e.overallScore!)
+                .fold(0.0, (a, b) => a + b) / sessionExplanations.where((e) => e.overallScore != null).length;
+            return avgSessionScore;
+          }
+          return 0.0;
+        }).where((score) => score > 0).toList();
+        
+        if (sessionScores.length >= 3) {
+          final firstHalf = sessionScores.take(sessionScores.length ~/ 2).toList();
+          final secondHalf = sessionScores.skip(sessionScores.length ~/ 2).toList();
+          
+          final firstAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
+          final secondAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
+          
+          if (secondAvg > firstAvg + 0.5) improvementTrend = 'improving';
+          else if (firstAvg > secondAvg + 0.5) improvementTrend = 'declining';
+        }
+      }
+      
+      // Calculate concept mastery patterns
+      final strongConcepts = <String>{};
+      final strugglingConcepts = <String>{};
+      
+      for (final explanation in allExplanations) {
+        if (explanation.overallScore != null) {
+          if (explanation.overallScore! >= 7.0) {
+            strongConcepts.addAll(explanation.strengths);
+          } else if (explanation.overallScore! < 5.0) {
+            strugglingConcepts.addAll(explanation.identifiedGaps);
+          }
+        }
+      }
+      
+      // Calculate average explanation length and complexity
+      final avgWordCount = allExplanations.isNotEmpty 
+          ? allExplanations.map((e) => e.wordCount).reduce((a, b) => a + b) / allExplanations.length 
+          : 0.0;
+      
+      // Determine best performing topics (if multiple topics studied)
+      final topicPerformance = <String, List<double>>{};
+      for (final session in sessions) {
+        final sessionExplanations = allExplanations.where((e) => e.sessionId == session.id && e.overallScore != null);
+        if (sessionExplanations.isNotEmpty) {
+          final avgScore = sessionExplanations.map((e) => e.overallScore!).reduce((a, b) => a + b) / sessionExplanations.length;
+          if (!topicPerformance.containsKey(session.topic)) {
+            topicPerformance[session.topic] = [];
+          }
+          topicPerformance[session.topic]!.add(avgScore);
+        }
+      }
+      
+      String bestTopic = 'General';
+      double bestTopicScore = 0.0;
+      topicPerformance.forEach((topic, scores) {
+        final avgScore = scores.reduce((a, b) => a + b) / scores.length;
+        if (avgScore > bestTopicScore) {
+          bestTopicScore = avgScore;
+          bestTopic = topic;
+        }
+      });
+      
+      print('📈 [FEYNMAN PERFORMANCE] Processed $totalSessions sessions, $totalExplanations explanations');
+      
+      return {
+        'total_sessions': totalSessions,
+        'total_explanations': totalExplanations,
+        'total_study_minutes': totalStudyTime,
+        'average_overall_score': avgOverallScore,
+        'average_clarity_score': avgClarityScore,
+        'average_completeness_score': avgCompletenessScore,
+        'improvement_trend': improvementTrend,
+        'strong_concepts': strongConcepts.toList(),
+        'struggling_concepts': strugglingConcepts.toList(),
+        'average_word_count': avgWordCount,
+        'best_topic': bestTopic,
+        'best_topic_score': bestTopicScore,
+        'topic_performance': topicPerformance,
+        'sessions_by_topic': sessions.fold<Map<String, int>>({}, (map, session) {
+          map[session.topic] = (map[session.topic] ?? 0) + 1;
+          return map;
+        }),
+      };
+      
+    } catch (e) {
+      print('❌ [FEYNMAN PERFORMANCE] Error aggregating performance: $e');
+      return _getEmptyFeynmanPerformanceData();
+    }
+  }
+
+  /// Generate comprehensive analytics for a completed Feynman session
+  Future<StudySessionAnalytics> generateFeynmanAnalytics({
+    required String sessionId,
+    required String userId,
+    required String moduleId,
+    required FeynmanSession session,
+    required List<FeynmanExplanation> explanations,
+    required List<FeynmanFeedback> feedback,
+    required List<FeynmanStudySuggestion> suggestions,
+    required Course course,
+    required Module module,
+  }) async {
+    try {
+      print('📊 [FEYNMAN ANALYTICS] Starting comprehensive analysis for session: $sessionId');
+      
+      // Calculate descriptive analytics with historical context
+      final performanceMetrics = await _calculateFeynmanPerformanceMetrics(session, explanations, feedback);
+      
+      final learningPatterns = _analyzeFeynmanLearningPatterns(session, explanations, feedback);
+      
+      final behaviorAnalysis = _analyzeFeynmanBehavior(session, explanations, feedback);
+      
+      final cognitiveAnalysis = _analyzeFeynmanCognition(session, explanations, feedback);
+      
+      // Generate AI-powered insights and recommendations
+      final aiResults = await _generateFeynmanAIInsights(
+        performanceMetrics, learningPatterns, behaviorAnalysis, 
+        cognitiveAnalysis, course, module, session, explanations, feedback, suggestions
+      );
+      
+      // Create the analytics object
+      final analytics = StudySessionAnalytics(
+        id: '', // Will be generated by database
+        sessionId: sessionId,
+        userId: userId,
+        moduleId: moduleId,
+        analyzedAt: DateTime.now(),
+        performanceMetrics: performanceMetrics,
+        learningPatterns: learningPatterns,
+        behaviorAnalysis: behaviorAnalysis,
+        cognitiveAnalysis: cognitiveAnalysis,
+        recommendations: aiResults['recommendations'] as List<PersonalizedRecommendation>,
+        insights: aiResults['insights'] as List<AnalyticsInsight>,
+        suggestedStudyPlan: aiResults['studyPlan'] as StudyPlan,
+      );
+      
+      // Save to database
+      await _saveAnalyticsToDatabase(analytics, sessionType: 'feynman');
+      
+      print('✅ [FEYNMAN ANALYTICS] Analytics generation completed successfully');
+      return analytics;
+      
+    } catch (e) {
+      print('❌ [FEYNMAN ANALYTICS] Error generating session analytics: $e');
+      
+      // Return basic analytics if full analysis fails
+      return await _generateFallbackFeynmanAnalytics(sessionId, userId, moduleId, session, explanations, feedback);
+    }
+  }
+
+  /// Calculate performance metrics from Feynman session data
+  Future<PerformanceMetrics> _calculateFeynmanPerformanceMetrics(
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+  ) async {
+    // Explanation quality analysis
+    final scoredExplanations = explanations.where((e) => e.overallScore != null);
+    final avgOverallScore = scoredExplanations.isNotEmpty 
+        ? scoredExplanations.map((e) => e.overallScore!).reduce((a, b) => a + b) / scoredExplanations.length 
+        : 0.0;
+    
+    // Calculate improvement from first to last explanation
+    double improvementPercentage = 0.0;
+    if (explanations.length >= 2) {
+      final firstScore = explanations.first.overallScore ?? 0.0;
+      final lastScore = explanations.last.overallScore ?? 0.0;
+      improvementPercentage = ((lastScore - firstScore) / max(firstScore, 1.0)) * 100;
+    }
+    
+    // Get historical performance data for context
+    final historicalData = await aggregateFeynmanModulePerformance(session.userId, session.moduleId);
+    
+    // Calculate concept mastery scores
+    final conceptMastery = _calculateFeynmanConceptMastery(explanations, feedback);
+    
+    // Calculate difficulty performance (based on feedback severity)
+    final difficultyPerformance = _calculateFeynmanDifficultyPerformance(feedback);
+    
+    // Material performance (explanation quality by attempt)
+    final materialPerformance = <String, double>{};
+    for (int i = 0; i < explanations.length; i++) {
+      final explanation = explanations[i];
+      if (explanation.overallScore != null) {
+        materialPerformance['Attempt ${explanation.attemptNumber}'] = explanation.overallScore! * 10; // Scale to 100
+      }
+    }
+    
+    // Add historical context
+    materialPerformance['Current Session Avg'] = avgOverallScore * 10;
+    materialPerformance['Historical Avg'] = (historicalData['average_overall_score'] as double) * 10;
+    materialPerformance['Total Sessions'] = (historicalData['total_sessions'] as int).toDouble();
+    materialPerformance['Total Explanations'] = (historicalData['total_explanations'] as int).toDouble();
+    
+    // Average response time (time between explanations)
+    double avgResponseTime = 0.0;
+    if (explanations.length > 1) {
+      final intervals = <int>[];
+      for (int i = 1; i < explanations.length; i++) {
+        final interval = explanations[i].createdAt.difference(explanations[i-1].createdAt).inMinutes;
+        intervals.add(interval);
+      }
+      avgResponseTime = intervals.isNotEmpty ? intervals.reduce((a, b) => a + b) / intervals.length : 0.0;
+    }
+    
+    print('📊 [FEYNMAN METRICS] Session: ${explanations.length} explanations, avg score: ${avgOverallScore.toStringAsFixed(1)}');
+    
+    return PerformanceMetrics(
+      preStudyAccuracy: explanations.isNotEmpty ? (explanations.first.overallScore ?? 0.0) * 10 : 0.0,
+      postStudyAccuracy: explanations.isNotEmpty ? (explanations.last.overallScore ?? 0.0) * 10 : 0.0,
+      improvementPercentage: improvementPercentage,
+      averageResponseTime: avgResponseTime,
+      accuracyByDifficulty: difficultyPerformance,
+      materialPerformance: materialPerformance,
+      conceptMastery: conceptMastery,
+      overallLevel: AnalyticsCalculator.determinePerformanceLevel(avgOverallScore * 10),
+    );
+  }
+
+  /// Analyze Feynman learning patterns
+  LearningPatterns _analyzeFeynmanLearningPatterns(
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+  ) {
+    // Determine pattern type based on score progression
+    LearningPatternType patternType = LearningPatternType.steadyProgression;
+    if (explanations.length >= 2) {
+      final scores = explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).toList();
+      if (scores.length >= 2) {
+        final trend = _calculateTrend(scores);
+        if (trend > 0.5) {
+          patternType = LearningPatternType.acceleratedLearning;
+        } else if (trend < -0.5) {
+          patternType = LearningPatternType.strugglingConcepts;
+        }
+      }
+    }
+    
+    // Learning velocity (improvement per explanation)
+    final learningVelocity = explanations.length > 1 && explanations.first.overallScore != null && explanations.last.overallScore != null
+        ? (explanations.last.overallScore! - explanations.first.overallScore!) / explanations.length 
+        : 0.0;
+    
+    // Strong and weak concepts from explanations
+    final conceptAnalysis = _analyzeFeynmanConceptPatterns(explanations);
+    
+    // Retention based on explanation consistency
+    final retentionRates = _calculateFeynmanRetentionRates(explanations);
+    
+    // Temporal patterns
+    final temporalPatterns = _analyzeFeynmanTemporalPatterns(session, explanations);
+    
+    return LearningPatterns(
+      patternType: patternType,
+      learningVelocity: learningVelocity,
+      strongConcepts: conceptAnalysis['strong']!,
+      weakConcepts: conceptAnalysis['weak']!,
+      retentionRates: retentionRates,
+      temporalPatterns: temporalPatterns,
+    );
+  }
+
+  /// Analyze Feynman study behavior patterns
+  BehaviorAnalysis _analyzeFeynmanBehavior(
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+  ) {
+    // Total study time
+    final totalStudyTime = session.totalDuration;
+    
+    // Explanation effort (word count patterns)
+    final avgWordCount = explanations.isNotEmpty 
+        ? explanations.map((e) => e.wordCount).reduce((a, b) => a + b) / explanations.length 
+        : 0;
+    
+    // Feedback engagement (how they respond to AI feedback)
+    final criticalFeedbackCount = feedback.where((f) => f.severity == FeedbackSeverity.critical).length;
+    final highPriorityFeedbackCount = feedback.where((f) => f.priority >= 4).length;
+    
+    // Common error types from feedback
+    final errorTypes = _identifyFeynmanErrorTypes(feedback);
+    
+    // Question attempt patterns (explanation iterations)
+    final attemptPatterns = {
+      'total_explanations': explanations.length,
+      'avg_word_count': avgWordCount.round(),
+      'improvement_attempts': explanations.length > 1 ? explanations.length - 1 : 0,
+      'critical_feedback': criticalFeedbackCount,
+    };
+    
+    // Persistence score (continued explanations despite challenges)
+    final persistenceScore = explanations.length > 1 && criticalFeedbackCount > 0 
+        ? min(100.0, (explanations.length / max(criticalFeedbackCount, 1)) * 25) 
+        : 75.0;
+    
+    // Engagement level (based on explanation quality and effort)
+    final avgScore = explanations.where((e) => e.overallScore != null).isNotEmpty
+        ? explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / explanations.where((e) => e.overallScore != null).length
+        : 5.0;
+    final effortScore = avgWordCount > 50 ? min(100.0, avgWordCount / 2) : avgWordCount * 2;
+    final engagementLevel = ((avgScore * 10 + effortScore) / 2);
+    
+    return BehaviorAnalysis(
+      totalStudyTime: totalStudyTime,
+      hintUsageCount: highPriorityFeedbackCount, // High-priority feedback as "hints"
+      hintEffectiveness: explanations.length > 1 ? 75.0 : 50.0, // Improvement attempts as effectiveness
+      commonErrorTypes: errorTypes,
+      questionAttemptPatterns: attemptPatterns,
+      persistenceScore: persistenceScore,
+      engagementLevel: engagementLevel,
+    );
+  }
+
+  /// Analyze Feynman cognitive patterns
+  CognitiveAnalysis _analyzeFeynmanCognition(
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+  ) {
+    // Cognitive load (complexity handling)
+    final avgWordCount = explanations.isNotEmpty 
+        ? explanations.map((e) => e.wordCount).reduce((a, b) => a + b) / explanations.length 
+        : 0;
+    final cognitiveLoadScore = min(100.0, max(0.0, 100 - (avgWordCount / 5))); // Higher word count = lower cognitive load
+    
+    // Memory retention by explanation type
+    final memoryRetentionByType = <String, double>{};
+    final textExplanations = explanations.where((e) => e.explanationType == ExplanationType.text);
+    if (textExplanations.isNotEmpty) {
+      final avgTextScore = textExplanations.where((e) => e.overallScore != null).isNotEmpty
+          ? textExplanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / textExplanations.where((e) => e.overallScore != null).length
+          : 5.0;
+      memoryRetentionByType['Text Explanations'] = avgTextScore * 10;
+    }
+    
+    // Processing speed (explanation generation efficiency)
+    final processingSpeed = avgWordCount > 0 ? min(150.0, avgWordCount / 2) : 50.0;
+    
+    // Cognitive profile analysis
+    final cognitiveProfile = _analyzeFeynmanCognitiveProfile(explanations, feedback);
+    
+    // Attention span (consistency across explanations)
+    final attentionSpan = _calculateFeynmanAttentionSpan(explanations);
+    
+    return CognitiveAnalysis(
+      cognitiveLoadScore: cognitiveLoadScore,
+      memoryRetentionByType: memoryRetentionByType,
+      processingSpeed: processingSpeed,
+      cognitiveStrengths: cognitiveProfile['strengths']!,
+      cognitiveWeaknesses: cognitiveProfile['weaknesses']!,
+      attentionSpan: attentionSpan,
+    );
+  }
+
+  /// Generate AI-powered insights for Feynman sessions
+  Future<Map<String, dynamic>> _generateFeynmanAIInsights(
+    PerformanceMetrics performance,
+    LearningPatterns patterns,
+    BehaviorAnalysis behavior,
+    CognitiveAnalysis cognitive,
+    Course course,
+    Module module,
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+    List<FeynmanStudySuggestion> suggestions,
+  ) async {
+    try {
+      print('🤖 [FEYNMAN AI INSIGHTS] Generating AI-powered recommendations...');
+      
+      // Get historical context for enhanced AI prompts
+      final historicalData = await aggregateFeynmanModulePerformance(session.userId, session.moduleId);
+      
+      // Create comprehensive data summary for AI
+      final analyticsData = {
+        'technique': 'feynman',
+        'course': course.title,
+        'module': module.title,
+        'session_data': {
+          'topic': session.topic,
+          'total_explanations': explanations.length,
+          'session_duration_minutes': session.totalDuration.inMinutes,
+          'explanation_types': explanations.map((e) => e.explanationType.value).toSet().toList(),
+        },
+        'explanation_analysis': {
+          'average_overall_score': explanations.where((e) => e.overallScore != null).isNotEmpty
+              ? explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / explanations.where((e) => e.overallScore != null).length
+              : 0.0,
+          'average_clarity_score': explanations.where((e) => e.clarityScore != null).isNotEmpty
+              ? explanations.where((e) => e.clarityScore != null).map((e) => e.clarityScore!).reduce((a, b) => a + b) / explanations.where((e) => e.clarityScore != null).length
+              : 0.0,
+          'average_completeness_score': explanations.where((e) => e.completenessScore != null).isNotEmpty
+              ? explanations.where((e) => e.completenessScore != null).map((e) => e.completenessScore!).reduce((a, b) => a + b) / explanations.where((e) => e.completenessScore != null).length
+              : 0.0,
+          'improvement_trend': patterns.learningVelocity,
+          'average_word_count': explanations.isNotEmpty ? explanations.map((e) => e.wordCount).reduce((a, b) => a + b) / explanations.length : 0,
+        },
+        'performance': {
+          'overall_improvement': performance.improvementPercentage,
+          'pattern_type': patterns.patternType.name,
+          'strong_concepts': patterns.strongConcepts,
+          'weak_concepts': patterns.weakConcepts,
+        },
+        'behavior': {
+          'persistence_score': behavior.persistenceScore,
+          'engagement_level': behavior.engagementLevel,
+          'total_study_minutes': behavior.totalStudyTime.inMinutes,
+          'common_challenges': behavior.commonErrorTypes,
+        },
+        'cognitive': {
+          'cognitive_load': cognitive.cognitiveLoadScore,
+          'processing_speed': cognitive.processingSpeed,
+          'attention_span': cognitive.attentionSpan,
+          'strengths': cognitive.cognitiveStrengths,
+          'weaknesses': cognitive.cognitiveWeaknesses,
+        },
+        'feedback_analysis': {
+          'total_feedback': feedback.length,
+          'critical_issues': feedback.where((f) => f.severity == FeedbackSeverity.critical).length,
+          'high_priority_items': feedback.where((f) => f.priority >= 4).length,
+          'feedback_categories': feedback.map((f) => f.feedbackType.value).toSet().toList(),
+        },
+        'historical_context': {
+          'total_module_sessions': historicalData['total_sessions'],
+          'total_module_explanations': historicalData['total_explanations'],
+          'historical_avg_score': historicalData['average_overall_score'],
+          'improvement_trend': historicalData['improvement_trend'],
+          'strong_concepts_history': historicalData['strong_concepts'],
+          'struggling_concepts_history': historicalData['struggling_concepts'],
+          'best_topic': historicalData['best_topic'],
+          'sessions_by_topic': historicalData['sessions_by_topic'],
+        },
+      };
+      
+      // Generate AI insights using the Gemini service
+      final aiResults = await _aiService.generateFeynmanAnalyticsInsights(analyticsData);
+      
+      return aiResults;
+      
+    } catch (e) {
+      print('❌ [FEYNMAN AI INSIGHTS] Error generating AI insights: $e');
+      
+      // Return fallback insights
+      return _generateFallbackFeynmanInsights(performance, patterns, behavior, cognitive, session, explanations, feedback);
+    }
+  }
+
+  // Helper methods for Feynman analytics
+
+  Map<String, dynamic> _getEmptyFeynmanPerformanceData() {
+    return {
+      'total_sessions': 0,
+      'total_explanations': 0,
+      'total_study_minutes': 0,
+      'average_overall_score': 0.0,
+      'average_clarity_score': 0.0,
+      'average_completeness_score': 0.0,
+      'improvement_trend': 'stable',
+      'strong_concepts': <String>[],
+      'struggling_concepts': <String>[],
+      'average_word_count': 0.0,
+      'best_topic': 'General',
+      'best_topic_score': 0.0,
+      'topic_performance': <String, List<double>>{},
+      'sessions_by_topic': <String, int>{},
+    };
+  }
+
+  Map<String, double> _calculateFeynmanConceptMastery(List<FeynmanExplanation> explanations, List<FeynmanFeedback> feedback) {
+    final conceptMastery = <String, double>{};
+    
+    // Analyze strengths from explanations
+    final allStrengths = explanations.expand((e) => e.strengths).toList();
+    final strengthCounts = <String, int>{};
+    for (final strength in allStrengths) {
+      strengthCounts[strength] = (strengthCounts[strength] ?? 0) + 1;
+    }
+    
+    strengthCounts.forEach((concept, count) {
+      final masteryScore = min(100.0, (count / explanations.length) * 100);
+      conceptMastery[concept] = masteryScore;
+    });
+    
+    return conceptMastery;
+  }
+
+  double _calculateFeynmanDifficultyPerformance(List<FeynmanFeedback> feedback) {
+    if (feedback.isEmpty) return 75.0;
+    
+    final severityScores = feedback.map((f) {
+      switch (f.severity) {
+        case FeedbackSeverity.low:
+          return 1.0;
+        case FeedbackSeverity.medium:
+          return 0.7;
+        case FeedbackSeverity.high:
+          return 0.4;
+        case FeedbackSeverity.critical:
+          return 0.1;
+      }
+    }).toList();
+    
+    final avgSeverityScore = severityScores.reduce((a, b) => a + b) / severityScores.length;
+    return avgSeverityScore * 100;
+  }
+
+  Map<String, List<String>> _analyzeFeynmanConceptPatterns(List<FeynmanExplanation> explanations) {
+    final strong = <String>{};
+    final weak = <String>{};
+    
+    for (final explanation in explanations) {
+      if (explanation.overallScore != null) {
+        if (explanation.overallScore! >= 7.0) {
+          strong.addAll(explanation.strengths);
+        } else if (explanation.overallScore! < 5.0) {
+          weak.addAll(explanation.identifiedGaps);
+        }
+      }
+    }
+    
+    return {'strong': strong.toList(), 'weak': weak.toList()};
+  }
+
+  Map<String, double> _calculateFeynmanRetentionRates(List<FeynmanExplanation> explanations) {
+    final retentionRates = <String, double>{};
+    
+    if (explanations.length >= 2) {
+      // Compare concept coverage across explanations
+      final firstExplanation = explanations.first;
+      final lastExplanation = explanations.last;
+      
+      final firstConcepts = {...firstExplanation.strengths, ...firstExplanation.identifiedGaps};
+      final lastConcepts = {...lastExplanation.strengths, ...lastExplanation.identifiedGaps};
+      
+      final retainedConcepts = firstConcepts.intersection(lastConcepts);
+      final retentionRate = firstConcepts.isNotEmpty 
+          ? (retainedConcepts.length / firstConcepts.length) * 100 
+          : 0.0;
+      
+      retentionRates['Concept Retention'] = retentionRate;
+      
+      // Quality retention
+      if (firstExplanation.overallScore != null && lastExplanation.overallScore != null) {
+        final qualityRetention = (lastExplanation.overallScore! / max(firstExplanation.overallScore!, 1.0)) * 100;
+        retentionRates['Quality Retention'] = qualityRetention.clamp(0.0, 200.0);
+      }
+    }
+    
+    return retentionRates;
+  }
+
+  List<TimeBasedPattern> _analyzeFeynmanTemporalPatterns(FeynmanSession session, List<FeynmanExplanation> explanations) {
+    final patterns = <TimeBasedPattern>[];
+    
+    if (explanations.isNotEmpty) {
+      // Analyze performance by explanation sequence
+      for (int i = 0; i < explanations.length; i++) {
+        final explanation = explanations[i];
+        if (explanation.overallScore != null) {
+          patterns.add(TimeBasedPattern(
+            timeframe: 'explanation_${explanation.attemptNumber}',
+            performanceScore: explanation.overallScore! * 10,
+            pattern: explanation.overallScore! >= 7.0 ? 'high_quality' : explanation.overallScore! >= 5.0 ? 'moderate_quality' : 'needs_improvement',
+            observations: ['Explanation ${explanation.attemptNumber}: ${explanation.overallScore!.toStringAsFixed(1)}/10'],
+          ));
+        }
+      }
+      
+      // Overall session pattern
+      final avgScore = explanations.where((e) => e.overallScore != null).isNotEmpty
+          ? explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / explanations.where((e) => e.overallScore != null).length
+          : 0.0;
+      
+      patterns.add(TimeBasedPattern(
+        timeframe: 'session_overall',
+        performanceScore: avgScore * 10,
+        pattern: explanations.length > 1 ? 'iterative_improvement' : 'single_attempt',
+        observations: ['${explanations.length} explanations over ${session.totalDuration.inMinutes} minutes'],
+      ));
+    }
+    
+    return patterns;
+  }
+
+  List<String> _identifyFeynmanErrorTypes(List<FeynmanFeedback> feedback) {
+    final errorTypes = <String>[];
+    
+    // Count feedback by type
+    final typeCounts = <FeynmanFeedbackType, int>{};
+    for (final item in feedback) {
+      typeCounts[item.feedbackType] = (typeCounts[item.feedbackType] ?? 0) + 1;
+    }
+    
+    // Identify common issues
+    typeCounts.forEach((type, count) {
+      if (count > feedback.length * 0.3) {
+        errorTypes.add('Frequent ${type.displayName.toLowerCase()} issues');
+      }
+    });
+    
+    // Check for critical issues
+    final criticalCount = feedback.where((f) => f.severity == FeedbackSeverity.critical).length;
+    if (criticalCount > 0) {
+      errorTypes.add('Critical understanding gaps');
+    }
+    
+    // Check for high-priority issues
+    final highPriorityCount = feedback.where((f) => f.priority >= 4).length;
+    if (highPriorityCount > feedback.length * 0.4) {
+      errorTypes.add('Multiple high-priority improvements needed');
+    }
+    
+    return errorTypes.isEmpty ? ['No significant error patterns identified'] : errorTypes;
+  }
+
+  Map<String, List<String>> _analyzeFeynmanCognitiveProfile(List<FeynmanExplanation> explanations, List<FeynmanFeedback> feedback) {
+    final strengths = <String>[];
+    final weaknesses = <String>[];
+    
+    // Analyze explanation quality
+    final avgScore = explanations.where((e) => e.overallScore != null).isNotEmpty
+        ? explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / explanations.where((e) => e.overallScore != null).length
+        : 0.0;
+    
+    if (avgScore >= 7.0) {
+      strengths.add('Strong conceptual understanding');
+    } else if (avgScore < 4.0) {
+      weaknesses.add('Needs deeper conceptual understanding');
+    }
+    
+    // Analyze explanation length and detail
+    final avgWordCount = explanations.isNotEmpty 
+        ? explanations.map((e) => e.wordCount).reduce((a, b) => a + b) / explanations.length 
+        : 0;
+    
+    if (avgWordCount > 150) {
+      strengths.add('Detailed explanations');
+    } else if (avgWordCount < 50) {
+      weaknesses.add('Brief explanations may lack detail');
+    }
+    
+    // Analyze clarity scores specifically
+    final avgClarityScore = explanations.where((e) => e.clarityScore != null).isNotEmpty
+        ? explanations.where((e) => e.clarityScore != null).map((e) => e.clarityScore!).reduce((a, b) => a + b) / explanations.where((e) => e.clarityScore != null).length
+        : 0.0;
+    
+    if (avgClarityScore >= 7.0) {
+      strengths.add('Clear communication');
+    } else if (avgClarityScore < 5.0) {
+      weaknesses.add('Needs clearer explanations');
+    }
+    
+    // Analyze improvement pattern
+    if (explanations.length > 1) {
+      final firstScore = explanations.first.overallScore ?? 0.0;
+      final lastScore = explanations.last.overallScore ?? 0.0;
+      if (lastScore > firstScore + 1.0) {
+        strengths.add('Quick learning adaptation');
+      } else if (firstScore > lastScore + 1.0) {
+        weaknesses.add('Difficulty maintaining explanation quality');
+      }
+    }
+    
+    return {
+      'strengths': strengths.isEmpty ? ['Completed explanation attempts'] : strengths,
+      'weaknesses': weaknesses.isEmpty ? ['No significant weaknesses identified'] : weaknesses,
+    };
+  }
+
+  double _calculateFeynmanAttentionSpan(List<FeynmanExplanation> explanations) {
+    if (explanations.length < 2) return 100.0;
+    
+    // Analyze quality consistency across explanations
+    final scores = explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).toList();
+    if (scores.length < 2) return 100.0;
+    
+    final variance = _calculateVariance(scores);
+    final consistencyScore = max(0.0, 100.0 - (variance * 20)); // Lower variance = higher consistency
+    
+    return consistencyScore;
+  }
+
+  /// Generate fallback insights when AI generation fails
+  Map<String, dynamic> _generateFallbackFeynmanInsights(
+    PerformanceMetrics performance,
+    LearningPatterns patterns,
+    BehaviorAnalysis behavior,
+    CognitiveAnalysis cognitive,
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+  ) {
+    final avgScore = explanations.where((e) => e.overallScore != null).isNotEmpty
+        ? explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / explanations.where((e) => e.overallScore != null).length
+        : 0.0;
+    
+    final recommendations = <PersonalizedRecommendation>[
+      PersonalizedRecommendation(
+        id: 'feynman_fallback_rec_1',
+        type: RecommendationType.studyMethods,
+        title: 'Continue Feynman Practice',
+        description: 'Based on your explanation quality, optimize your Feynman technique approach.',
+        actionableAdvice: avgScore >= 7.0 
+            ? 'Excellent explanations! Try tackling more complex topics using the same approach.'
+            : avgScore >= 5.0 
+                ? 'Good progress! Focus on adding more examples and simplifying complex concepts.'
+                : 'Practice breaking down topics into simpler components and use more analogies.',
+        priority: 1,
+        confidenceScore: 0.8,
+        reasons: ['Explanation quality analysis', 'Learning pattern recognition'],
+      ),
+      PersonalizedRecommendation(
+        id: 'feynman_fallback_rec_2',
+        type: RecommendationType.studyTiming,
+        title: 'Optimize Explanation Sessions',
+        description: 'Improve your explanation technique based on session analysis.',
+        actionableAdvice: explanations.length == 1 
+            ? 'Try multiple explanation attempts to refine your understanding.'
+            : feedback.where((f) => f.severity == FeedbackSeverity.critical).isNotEmpty
+                ? 'Address critical feedback before moving to new topics.'
+                : 'Continue with your current explanation approach.',
+        priority: 2,
+        confidenceScore: 0.7,
+        reasons: ['Session behavior analysis', 'Feedback patterns'],
+      ),
+    ];
+    
+    final insights = <AnalyticsInsight>[
+      AnalyticsInsight(
+        id: 'feynman_fallback_insight_1',
+        category: InsightCategory.performance,
+        title: 'Explanation Quality',
+        insight: 'Your average explanation score was ${avgScore.toStringAsFixed(1)}/10 across ${explanations.length} attempts.',
+        significance: 0.9,
+        supportingData: [
+          'Total explanations: ${explanations.length}',
+          'Session topic: ${session.topic}',
+          'Study time: ${session.totalDuration.inMinutes} minutes'
+        ],
+      ),
+      AnalyticsInsight(
+        id: 'feynman_fallback_insight_2',
+        category: InsightCategory.behavior,
+        title: 'Learning Approach',
+        insight: 'You demonstrated ${behavior.persistenceScore.toStringAsFixed(0)}% persistence in explaining concepts.',
+        significance: 0.7,
+        supportingData: [
+          'Engagement level: ${behavior.engagementLevel.toStringAsFixed(0)}%',
+          'Critical feedback items: ${feedback.where((f) => f.severity == FeedbackSeverity.critical).length}'
+        ],
+      ),
+    ];
+    
+    final studyPlan = StudyPlan(
+      id: 'feynman_fallback_plan',
+      activities: [
+        StudyActivity(
+          type: 'concept_review',
+          description: avgScore < 6.0 
+              ? 'Review core concepts and practice explaining with simple analogies'
+              : 'Expand explanations with real-world examples and applications',
+          duration: const Duration(minutes: 30),
+          priority: 1,
+          materials: patterns.weakConcepts.isEmpty ? ['Study materials'] : patterns.weakConcepts,
+        ),
+        if (explanations.length == 1)
+          StudyActivity(
+            type: 'explanation_practice',
+            description: 'Attempt multiple explanations of the same topic to refine understanding',
+            duration: const Duration(minutes: 20),
+            priority: 2,
+            materials: [session.topic],
+          ),
+      ],
+      estimatedDuration: Duration(minutes: explanations.length == 1 ? 50 : 30),
+      focusAreas: {
+        'explanation_quality': avgScore < 6.0 ? 'Improve' : 'Maintain',
+        'concept_clarity': patterns.weakConcepts.isNotEmpty ? 'Address gaps' : 'Continue practice',
+        'feedback_response': feedback.where((f) => f.severity == FeedbackSeverity.critical).isNotEmpty ? 'Critical' : 'Monitor',
+      },
+      objectives: [
+        if (avgScore < 6.0) 'Improve explanation clarity and completeness',
+        if (patterns.weakConcepts.isNotEmpty) 'Address identified knowledge gaps',
+        if (explanations.length == 1) 'Practice iterative explanation refinement',
+        'Continue developing teaching-based learning approach',
+      ],
+    );
+    
+    return {
+      'recommendations': recommendations,
+      'insights': insights,
+      'studyPlan': studyPlan,
+    };
+  }
+
+  /// Generate fallback analytics when full analysis fails
+  Future<StudySessionAnalytics> _generateFallbackFeynmanAnalytics(
+    String sessionId,
+    String userId,
+    String moduleId,
+    FeynmanSession session,
+    List<FeynmanExplanation> explanations,
+    List<FeynmanFeedback> feedback,
+  ) async {
+    // Basic calculations
+    final avgScore = explanations.where((e) => e.overallScore != null).isNotEmpty
+        ? explanations.where((e) => e.overallScore != null).map((e) => e.overallScore!).reduce((a, b) => a + b) / explanations.where((e) => e.overallScore != null).length
+        : 0.0;
+    
+    final avgWordCount = explanations.isNotEmpty 
+        ? explanations.map((e) => e.wordCount).reduce((a, b) => a + b) / explanations.length 
+        : 0.0;
+    
+    // Try to get basic historical context
+    final historicalData = await aggregateFeynmanModulePerformance(userId, moduleId);
+    final historicalAvgScore = historicalData['average_overall_score'] as double;
+    
+    final basicPerformance = PerformanceMetrics(
+      preStudyAccuracy: explanations.isNotEmpty ? (explanations.first.overallScore ?? 0.0) * 10 : 0.0,
+      postStudyAccuracy: explanations.isNotEmpty ? (explanations.last.overallScore ?? 0.0) * 10 : 0.0,
+      improvementPercentage: explanations.length > 1 && explanations.first.overallScore != null && explanations.last.overallScore != null
+          ? ((explanations.last.overallScore! - explanations.first.overallScore!) / max(explanations.first.overallScore!, 1.0)) * 100
+          : 0.0,
+      averageResponseTime: session.totalDuration.inMinutes / max(1, explanations.length).toDouble(),
+      accuracyByDifficulty: avgScore * 10,
+      materialPerformance: {
+        'Explanation Quality': avgScore * 10,
+        'Average Word Count': avgWordCount,
+        'Historical Average': historicalAvgScore * 10,
+      },
+      conceptMastery: {},
+      overallLevel: AnalyticsCalculator.determinePerformanceLevel(avgScore * 10),
+    );
+    
+    return StudySessionAnalytics(
+      id: '', // Database will generate UUID
+      sessionId: sessionId,
+      userId: userId,
+      moduleId: moduleId,
+      analyzedAt: DateTime.now(),
+      performanceMetrics: basicPerformance,
+      learningPatterns: LearningPatterns(
+        patternType: LearningPatternType.steadyProgression,
+        learningVelocity: 0.0,
+        strongConcepts: [],
+        weakConcepts: [],
+        retentionRates: {},
+        temporalPatterns: [],
+      ),
+      behaviorAnalysis: BehaviorAnalysis(
+        totalStudyTime: session.totalDuration,
+        hintUsageCount: feedback.where((f) => f.priority >= 4).length,
+        hintEffectiveness: 0.75,
+        commonErrorTypes: [],
+        questionAttemptPatterns: {},
+        persistenceScore: explanations.length > 1 ? 85.0 : 75.0,
+        engagementLevel: avgScore * 10,
+      ),
+      cognitiveAnalysis: CognitiveAnalysis(
+        cognitiveLoadScore: 50.0,
+        memoryRetentionByType: {},
+        processingSpeed: min(150.0, avgWordCount / 2),
+        cognitiveStrengths: [],
+        cognitiveWeaknesses: [],
+        attentionSpan: avgScore * 10,
+      ),
+      recommendations: [],
+      insights: [],
+      suggestedStudyPlan: StudyPlan(
+        id: 'feynman_fallback_plan',
         activities: [],
         estimatedDuration: const Duration(minutes: 30),
         focusAreas: {},

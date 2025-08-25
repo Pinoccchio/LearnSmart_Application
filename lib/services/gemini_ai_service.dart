@@ -4,6 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import '../models/course_models.dart';
 import '../models/active_recall_models.dart';
+import '../models/feynman_models.dart';
 import '../models/study_analytics_models.dart';
 import 'pdf_extraction_service.dart';
 
@@ -775,6 +776,387 @@ Return a JSON array of strings with specific advice:
         'Take breaks to maintain focus',
       ];
     }
+  }
+
+  /// Analyze a Feynman technique explanation using AI
+  Future<Map<String, dynamic>> analyzeFeynmanExplanation(Map<String, dynamic> analysisData) async {
+    try {
+      print('🤖 [FEYNMAN AI] Analyzing explanation for topic: ${analysisData['topic']}');
+      
+      final prompt = '''
+      Analyze this Feynman Technique explanation and provide detailed feedback:
+
+      Topic: ${analysisData['topic']}
+      Explanation Text: ${analysisData['explanation_text']}
+      Attempt Number: ${analysisData['attempt_number']}
+      Word Count: ${analysisData['word_count']}
+
+      Please provide a comprehensive analysis in JSON format with the following structure:
+      {
+        "scores": {
+          "clarity": 8.5,
+          "completeness": 7.2,
+          "conceptual_accuracy": 9.1,
+          "overall": 8.3
+        },
+        "identified_gaps": ["concept1", "concept2"],
+        "strengths": ["strength1", "strength2"],
+        "improvement_areas": ["area1", "area2"],
+        "feedback": [
+          {
+            "type": "clarity",
+            "text": "The explanation is generally clear but could use more examples",
+            "severity": "medium",
+            "suggestion": "Add 1-2 concrete examples to illustrate the concept",
+            "related_concepts": ["examples", "analogies"],
+            "priority": 3
+          }
+        ],
+        "study_suggestions": [
+          {
+            "type": "material_review",
+            "title": "Review Core Concepts",
+            "description": "Focus on understanding fundamental principles",
+            "priority": 1,
+            "duration_minutes": 20,
+            "related_concepts": ["concept1", "concept2"],
+            "suggested_materials": []
+          }
+        ]
+      }
+
+      Scoring Guidelines:
+      - 10: Excellent, teaching-quality explanation
+      - 8-9: Very good, minor improvements needed
+      - 6-7: Good, some gaps or unclear areas
+      - 4-5: Adequate, significant improvements needed
+      - 1-3: Poor, major understanding gaps
+
+      Focus on evaluating:
+      1. Clarity: Is the explanation easy to understand?
+      2. Completeness: Does it cover all important aspects?
+      3. Conceptual Accuracy: Are the concepts explained correctly?
+      4. Teaching Quality: Could someone else learn from this explanation?
+
+      Provide constructive, specific feedback that helps improve understanding.
+      ''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text ?? '';
+      
+      // Parse JSON response
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(responseText);
+      if (jsonMatch != null) {
+        final jsonString = jsonMatch.group(0)!;
+        final analysis = json.decode(jsonString) as Map<String, dynamic>;
+        
+        print('✅ [FEYNMAN AI] Analysis completed with overall score: ${analysis['scores']?['overall'] ?? 'N/A'}');
+        return analysis;
+      } else {
+        throw Exception('Could not parse AI response as JSON');
+      }
+      
+    } catch (e) {
+      print('❌ [FEYNMAN AI] Error analyzing explanation: $e');
+      
+      // Return fallback analysis
+      return {
+        'scores': {
+          'clarity': 5.0,
+          'completeness': 5.0,
+          'conceptual_accuracy': 5.0,
+          'overall': 5.0,
+        },
+        'identified_gaps': ['AI analysis failed'],
+        'strengths': ['Completed explanation attempt'],
+        'improvement_areas': ['Retry AI analysis'],
+        'feedback': [
+          {
+            'type': 'overall',
+            'text': 'AI analysis failed, but your effort in explaining is valuable',
+            'severity': 'low',
+            'suggestion': 'Continue practicing explanations',
+            'related_concepts': [],
+            'priority': 1,
+          }
+        ],
+        'study_suggestions': [
+          {
+            'type': 'material_review',
+            'title': 'Continue Learning',
+            'description': 'Keep practicing the Feynman technique',
+            'priority': 1,
+            'duration_minutes': 15,
+            'related_concepts': [],
+            'suggested_materials': [],
+          }
+        ],
+      };
+    }
+  }
+
+  /// Generate comprehensive analytics insights for Feynman sessions
+  Future<Map<String, dynamic>> generateFeynmanAnalyticsInsights(Map<String, dynamic> analyticsData) async {
+    try {
+      print('🧠 [FEYNMAN ANALYTICS AI] Generating insights for session analytics...');
+      
+      final sessionData = analyticsData['session_data'] ?? {};
+      final explanationAnalysis = analyticsData['explanation_analysis'] ?? {};
+      final performance = analyticsData['performance'] ?? {};
+      final behavior = analyticsData['behavior'] ?? {};
+      final cognitive = analyticsData['cognitive'] ?? {};
+      final feedbackAnalysis = analyticsData['feedback_analysis'] ?? {};
+      final historicalContext = analyticsData['historical_context'] ?? {};
+
+      final prompt = '''
+      Analyze this comprehensive Feynman Technique study session data and generate personalized insights and recommendations:
+
+      COURSE & MODULE:
+      Course: ${analyticsData['course'] ?? 'Unknown'}
+      Module: ${analyticsData['module'] ?? 'Unknown'}
+
+      SESSION DATA:
+      Topic: ${sessionData['topic'] ?? 'Unknown'}
+      Total Explanations: ${sessionData['total_explanations'] ?? 0}
+      Session Duration: ${sessionData['session_duration_minutes'] ?? 0} minutes
+      Explanation Types: ${sessionData['explanation_types'] ?? []}
+
+      EXPLANATION ANALYSIS:
+      Average Overall Score: ${explanationAnalysis['average_overall_score']?.toStringAsFixed(1) ?? 'N/A'}/10
+      Average Clarity Score: ${explanationAnalysis['average_clarity_score']?.toStringAsFixed(1) ?? 'N/A'}/10
+      Average Completeness Score: ${explanationAnalysis['average_completeness_score']?.toStringAsFixed(1) ?? 'N/A'}/10
+      Improvement Trend: ${explanationAnalysis['improvement_trend']?.toStringAsFixed(2) ?? 'N/A'}
+      Average Word Count: ${explanationAnalysis['average_word_count']?.round() ?? 0}
+
+      PERFORMANCE METRICS:
+      Overall Improvement: ${performance['overall_improvement']?.toStringAsFixed(1) ?? 'N/A'}%
+      Pattern Type: ${performance['pattern_type'] ?? 'Unknown'}
+      Strong Concepts: ${performance['strong_concepts'] ?? []}
+      Weak Concepts: ${performance['weak_concepts'] ?? []}
+
+      BEHAVIOR ANALYSIS:
+      Persistence Score: ${behavior['persistence_score']?.toStringAsFixed(0) ?? 'N/A'}%
+      Engagement Level: ${behavior['engagement_level']?.toStringAsFixed(0) ?? 'N/A'}%
+      Study Time: ${behavior['total_study_minutes'] ?? 0} minutes
+      Common Challenges: ${behavior['common_challenges'] ?? []}
+
+      COGNITIVE ANALYSIS:
+      Cognitive Load: ${cognitive['cognitive_load']?.toStringAsFixed(0) ?? 'N/A'}%
+      Processing Speed: ${cognitive['processing_speed']?.toStringAsFixed(0) ?? 'N/A'}%
+      Attention Span: ${cognitive['attention_span']?.toStringAsFixed(0) ?? 'N/A'}%
+      Strengths: ${cognitive['strengths'] ?? []}
+      Weaknesses: ${cognitive['weaknesses'] ?? []}
+
+      FEEDBACK ANALYSIS:
+      Total Feedback Items: ${feedbackAnalysis['total_feedback'] ?? 0}
+      Critical Issues: ${feedbackAnalysis['critical_issues'] ?? 0}
+      High Priority Items: ${feedbackAnalysis['high_priority_items'] ?? 0}
+      Feedback Categories: ${feedbackAnalysis['feedback_categories'] ?? []}
+
+      HISTORICAL CONTEXT:
+      Total Module Sessions: ${historicalContext['total_module_sessions'] ?? 0}
+      Total Module Explanations: ${historicalContext['total_module_explanations'] ?? 0}
+      Historical Average Score: ${historicalContext['historical_avg_score']?.toStringAsFixed(1) ?? 'N/A'}/10
+      Improvement Trend: ${historicalContext['improvement_trend'] ?? 'stable'}
+      Strong Concepts (History): ${historicalContext['strong_concepts_history'] ?? []}
+      Struggling Concepts (History): ${historicalContext['struggling_concepts_history'] ?? []}
+      Best Topic: ${historicalContext['best_topic'] ?? 'Unknown'}
+      Sessions by Topic: ${historicalContext['sessions_by_topic'] ?? {}}
+
+      Based on this comprehensive analysis, provide insights and recommendations in JSON format:
+      {
+        "recommendations": [
+          {
+            "id": "feynman_rec_1",
+            "type": "studyMethods",
+            "title": "Improve Explanation Quality",
+            "description": "Focus on enhancing your teaching-style explanations",
+            "actionableAdvice": "Specific advice based on the analysis",
+            "priority": 1,
+            "confidenceScore": 0.9,
+            "reasons": ["Performance data analysis", "Learning pattern recognition"]
+          }
+        ],
+        "insights": [
+          {
+            "id": "feynman_insight_1",
+            "category": "performance",
+            "title": "Explanation Effectiveness",
+            "insight": "Detailed insight based on the analysis",
+            "significance": 0.8,
+            "supportingData": ["Data point 1", "Data point 2"]
+          }
+        ],
+        "studyPlan": {
+          "id": "feynman_plan",
+          "activities": [
+            {
+              "type": "concept_refinement",
+              "description": "Specific activity based on analysis",
+              "duration": {"minutes": 25},
+              "priority": 1,
+              "materials": ["material1", "material2"]
+            }
+          ],
+          "estimatedDuration": {"minutes": 45},
+          "focusAreas": {
+            "explanation_clarity": "Improve",
+            "concept_depth": "Maintain",
+            "teaching_quality": "Enhance"
+          },
+          "objectives": ["Objective 1", "Objective 2"]
+        }
+      }
+
+      IMPORTANT GUIDELINES:
+      1. Be specific and actionable in recommendations
+      2. Reference actual data points in insights
+      3. Consider both current session and historical context
+      4. Focus on the unique aspects of Feynman technique (teaching-to-learn)
+      5. Provide constructive feedback that builds confidence
+      6. Suggest concrete next steps for improvement
+      7. Balance strengths recognition with areas for growth
+      8. Consider the progression and learning velocity
+      ''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text ?? '';
+      
+      // Parse JSON response
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(responseText);
+      if (jsonMatch != null) {
+        final jsonString = jsonMatch.group(0)!;
+        final insights = json.decode(jsonString) as Map<String, dynamic>;
+        
+        // Convert the parsed data to proper model objects
+        final recommendations = (insights['recommendations'] as List? ?? [])
+            .map((rec) => PersonalizedRecommendation.fromJson(rec))
+            .toList();
+            
+        final analyticsInsights = (insights['insights'] as List? ?? [])
+            .map((insight) => AnalyticsInsight.fromJson(insight))
+            .toList();
+            
+        final studyPlanData = insights['studyPlan'] as Map<String, dynamic>? ?? {};
+        final studyPlan = StudyPlan.fromJson(studyPlanData);
+        
+        print('✅ [FEYNMAN ANALYTICS AI] Generated ${recommendations.length} recommendations and ${analyticsInsights.length} insights');
+        
+        return {
+          'recommendations': recommendations,
+          'insights': analyticsInsights,
+          'studyPlan': studyPlan,
+        };
+      } else {
+        throw Exception('Could not parse AI response as JSON');
+      }
+      
+    } catch (e) {
+      print('❌ [FEYNMAN ANALYTICS AI] Error generating insights: $e');
+      
+      // Return fallback insights
+      return _generateFallbackFeynmanInsights(analyticsData);
+    }
+  }
+
+  /// Generate fallback insights when AI fails
+  Map<String, dynamic> _generateFallbackFeynmanInsights(Map<String, dynamic> analyticsData) {
+    final explanationAnalysis = analyticsData['explanation_analysis'] ?? {};
+    final avgScore = explanationAnalysis['average_overall_score'] ?? 0.0;
+    final sessionData = analyticsData['session_data'] ?? {};
+    
+    final recommendations = [
+      PersonalizedRecommendation(
+        id: 'fallback_feynman_rec_1',
+        type: RecommendationType.studyMethods,
+        title: 'Continue Feynman Practice',
+        description: 'Based on your explanation attempts, continue developing your teaching approach.',
+        actionableAdvice: avgScore >= 7.0 
+            ? 'Excellent explanations! Challenge yourself with more complex topics.'
+            : avgScore >= 5.0 
+                ? 'Good progress! Focus on adding examples and simplifying complex ideas.'
+                : 'Practice breaking down concepts into smaller, teachable parts.',
+        priority: 1,
+        confidenceScore: 0.8,
+        reasons: ['Explanation quality assessment', 'Learning behavior analysis'],
+      ),
+      PersonalizedRecommendation(
+        id: 'fallback_feynman_rec_2',
+        type: RecommendationType.studyTiming,
+        title: 'Optimize Explanation Sessions',
+        description: 'Improve your Feynman technique timing and approach.',
+        actionableAdvice: 'Spend 15-20 minutes per explanation attempt and review feedback carefully.',
+        priority: 2,
+        confidenceScore: 0.7,
+        reasons: ['Session duration analysis', 'Feedback patterns'],
+      ),
+    ];
+
+    final insights = [
+      AnalyticsInsight(
+        id: 'fallback_feynman_insight_1',
+        category: InsightCategory.performance,
+        title: 'Explanation Quality Assessment',
+        insight: 'Your explanation attempts show ${avgScore >= 6.0 ? 'good' : 'developing'} understanding of the topic.',
+        significance: 0.9,
+        supportingData: [
+          'Average explanation score: ${avgScore.toStringAsFixed(1)}/10',
+          'Total attempts: ${sessionData['total_explanations'] ?? 0}',
+          'Session duration: ${sessionData['session_duration_minutes'] ?? 0} minutes',
+        ],
+      ),
+      AnalyticsInsight(
+        id: 'fallback_feynman_insight_2',
+        category: InsightCategory.behavior,
+        title: 'Learning Approach',
+        insight: 'You engaged with the Feynman technique by attempting to teach the concept.',
+        significance: 0.7,
+        supportingData: [
+          'Teaching-to-learn approach demonstrated',
+          'Active explanation attempts completed',
+        ],
+      ),
+    ];
+
+    final studyPlan = StudyPlan(
+      id: 'fallback_feynman_plan',
+      activities: [
+        StudyActivity(
+          type: 'concept_review',
+          description: avgScore < 6.0 
+              ? 'Review fundamental concepts and practice simple explanations'
+              : 'Expand explanations with examples and real-world applications',
+          duration: const Duration(minutes: 25),
+          priority: 1,
+          materials: ['Study materials', 'Core concepts'],
+        ),
+        StudyActivity(
+          type: 'explanation_practice',
+          description: 'Practice explaining the topic using different approaches',
+          duration: const Duration(minutes: 20),
+          priority: 2,
+          materials: [sessionData['topic'] ?? 'Current topic'],
+        ),
+      ],
+      estimatedDuration: const Duration(minutes: 45),
+      focusAreas: {
+        'explanation_quality': avgScore < 6.0 ? 'Improve' : 'Maintain',
+        'concept_understanding': 'Continue developing',
+        'teaching_approach': 'Refine',
+      },
+      objectives: [
+        if (avgScore < 6.0) 'Strengthen conceptual understanding',
+        'Improve explanation clarity',
+        'Develop teaching-style communication',
+        'Practice iterative explanation refinement',
+      ],
+    );
+
+    return {
+      'recommendations': recommendations,
+      'insights': insights,
+      'studyPlan': studyPlan,
+    };
   }
 
   Future<bool> testConnection() async {

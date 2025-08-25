@@ -58,6 +58,9 @@ dependencies:
   
   # PDF Text Extraction
   syncfusion_flutter_pdf: ^24.2.9
+  
+  # Equatable for value equality
+  equatable: ^2.0.5
 
 dev_dependencies:
   flutter_test:
