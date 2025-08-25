@@ -15,7 +15,7 @@ class InsightsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayInsights = showAll ? insights : insights.take(3).toList();
+    final displayInsights = insights;
     
     return Container(
       padding: const EdgeInsets.all(16),
@@ -140,8 +140,8 @@ class InsightsWidget extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 3,
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
           
           const SizedBox(height: 8),
@@ -154,8 +154,8 @@ class InsightsWidget extends StatelessWidget {
               color: AppColors.textSecondary,
               height: 1.4,
             ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 6,
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
           
           // Supporting data
@@ -165,7 +165,7 @@ class InsightsWidget extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 4,
-              children: insight.supportingData.take(3).map((data) {
+              children: insight.supportingData.map((data) {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -178,8 +178,8 @@ class InsightsWidget extends StatelessWidget {
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 2,
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
                   ),
                 );
               }).toList(),

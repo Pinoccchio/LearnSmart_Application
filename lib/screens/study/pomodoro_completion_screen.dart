@@ -158,6 +158,8 @@ class PomodoroCompletionScreen extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
           
           const SizedBox(height: 20),
@@ -211,6 +213,9 @@ class PomodoroCompletionScreen extends StatelessWidget {
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
           ),
+          textAlign: TextAlign.center,
+          softWrap: true,
+          overflow: TextOverflow.visible,
         ),
         Text(
           label,
@@ -218,6 +223,9 @@ class PomodoroCompletionScreen extends StatelessWidget {
             fontSize: 12,
             color: AppColors.textSecondary,
           ),
+          textAlign: TextAlign.center,
+          softWrap: true,
+          overflow: TextOverflow.visible,
         ),
       ],
     );
@@ -700,9 +708,14 @@ class PomodoroCompletionScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          ...behavior.commonErrorTypes.take(3).map((error) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text('• $error', style: const TextStyle(fontSize: 13)),
+          ...behavior.commonErrorTypes.map((error) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '• $error', 
+              style: const TextStyle(fontSize: 13),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
       ],
@@ -728,9 +741,14 @@ class PomodoroCompletionScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          ...cognitive.cognitiveStrengths.take(3).map((strength) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text('• $strength', style: const TextStyle(fontSize: 13)),
+          ...cognitive.cognitiveStrengths.map((strength) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '• $strength', 
+              style: const TextStyle(fontSize: 13),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
         if (cognitive.cognitiveWeaknesses.isNotEmpty) ...[
@@ -740,9 +758,14 @@ class PomodoroCompletionScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          ...cognitive.cognitiveWeaknesses.take(3).map((weakness) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text('• $weakness', style: const TextStyle(fontSize: 13)),
+          ...cognitive.cognitiveWeaknesses.map((weakness) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '• $weakness', 
+              style: const TextStyle(fontSize: 13),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
       ],
@@ -766,9 +789,14 @@ class PomodoroCompletionScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          ...patterns.strongConcepts.take(3).map((concept) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text('• $concept', style: const TextStyle(fontSize: 13)),
+          ...patterns.strongConcepts.map((concept) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '• $concept', 
+              style: const TextStyle(fontSize: 13),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
         if (patterns.weakConcepts.isNotEmpty) ...[
@@ -778,9 +806,14 @@ class PomodoroCompletionScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          ...patterns.weakConcepts.take(3).map((concept) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text('• $concept', style: const TextStyle(fontSize: 13)),
+          ...patterns.weakConcepts.map((concept) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '• $concept', 
+              style: const TextStyle(fontSize: 13),
+              softWrap: true,
+              overflow: TextOverflow.visible,
+            ),
           )),
         ],
       ],
@@ -788,25 +821,34 @@ class PomodoroCompletionScreen extends StatelessWidget {
   }
 
   Widget _buildAnalyticsRow(String label, String value) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: Text(
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
             label,
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 13, 
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 1,
-          child: Text(
+          const SizedBox(height: 2),
+          Text(
             value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            textAlign: TextAlign.right,
+            style: const TextStyle(
+              fontSize: 14, 
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

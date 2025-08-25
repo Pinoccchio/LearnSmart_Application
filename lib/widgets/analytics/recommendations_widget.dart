@@ -75,18 +75,7 @@ class RecommendationsWidget extends StatelessWidget {
           if (sortedRecommendations.isEmpty)
             _buildEmptyState()
           else
-            ...sortedRecommendations.take(3).map((rec) => _buildRecommendationCard(rec)),
-          
-          if (sortedRecommendations.length > 3) ...[
-            const SizedBox(height: 12),
-            Center(
-              child: TextButton.icon(
-                onPressed: () => _showAllRecommendations(context, sortedRecommendations),
-                icon: const Icon(LucideIcons.plus, size: 16),
-                label: Text('View ${sortedRecommendations.length - 3} More'),
-              ),
-            ),
-          ],
+            ...sortedRecommendations.map((rec) => _buildRecommendationCard(rec)),
         ],
       ),
     );
@@ -158,8 +147,8 @@ class RecommendationsWidget extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 2,
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
           
           const SizedBox(height: 6),
@@ -173,8 +162,7 @@ class RecommendationsWidget extends StatelessWidget {
               height: 1.3,
             ),
             softWrap: true,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
+            overflow: TextOverflow.visible,
           ),
           
           const SizedBox(height: 12),
@@ -218,8 +206,7 @@ class RecommendationsWidget extends StatelessWidget {
                     height: 1.3,
                   ),
                   softWrap: true,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow.visible,
                 ),
               ],
             ),
@@ -232,7 +219,7 @@ class RecommendationsWidget extends StatelessWidget {
             Wrap(
               spacing: 6,
               runSpacing: 4,
-              children: recommendation.reasons.take(2).map((reason) {
+              children: recommendation.reasons.map((reason) {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
@@ -245,8 +232,8 @@ class RecommendationsWidget extends StatelessWidget {
                       fontSize: 10,
                       color: _getTypeColor(recommendation.type),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+                    softWrap: true,
+                    overflow: TextOverflow.visible,
                   ),
                 );
               }).toList(),
