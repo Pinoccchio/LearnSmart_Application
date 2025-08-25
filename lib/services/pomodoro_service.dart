@@ -608,6 +608,44 @@ class PomodoroService extends ChangeNotifier {
     }
   }
 
+  /// Mark current cycle as interrupted
+  Future<void> markCurrentCycleAsInterrupted() async {
+    if (_currentCycle == null || _currentCycle?.type != PomodoroCycleType.work) {
+      print('⚠️ [POMODORO] Cannot mark interruption - no active work cycle');
+      return;
+    }
+
+    try {
+      print('⚠️ [POMODORO] Marking current work cycle as interrupted');
+      
+      // Update cycle in database
+      await SupabaseService.client
+          .from('pomodoro_cycles')
+          .update({'was_interrupted': true})
+          .eq('id', _currentCycle!.id);
+
+      // Update local state
+      _currentCycle = _currentCycle!.copyWith(wasInterrupted: true);
+      
+      // Pause timer to get user focus on interruption
+      pauseTimer();
+      
+      // Trigger focus score dialog if callback is available
+      if (onWorkCycleComplete != null) {
+        _awaitingFocusScore = true;
+        notifyListeners();
+        onWorkCycleComplete!();
+      }
+      
+      print('✅ [POMODORO] Interruption recorded for cycle ${_currentCycle!.cycleNumber}');
+      notifyListeners();
+      
+    } catch (e) {
+      print('❌ [POMODORO] Failed to mark interruption: $e');
+      rethrow;
+    }
+  }
+
   /// Get session results and analytics
   Future<PomodoroSessionResults> getSessionResults() async {
     if (_currentSession == null) {

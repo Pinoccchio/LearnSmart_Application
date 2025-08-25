@@ -162,6 +162,35 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     _showFocusScoreDialog();
   }
 
+  Future<void> _markInterruption() async {
+    try {
+      await _pomodoroService.markCurrentCycleAsInterrupted();
+      
+      // Show confirmation message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Interruption recorded'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+    } catch (e) {
+      print('❌ [POMODORO SCREEN] Failed to mark interruption: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to record interruption: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _onSessionComplete() async {
     try {
       print('🎉 [POMODORO SCREEN] Session completed, generating results...');
@@ -429,6 +458,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
                 onStartSession: _startSession,
                 onPauseResume: _pauseResumeSession,
                 onSkipCycle: null, // Skip functionality removed
+                onMarkInterruption: _markInterruption,
                 onStopSession: _stopSession,
               ),
             ),

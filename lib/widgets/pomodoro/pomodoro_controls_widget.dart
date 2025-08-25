@@ -9,6 +9,7 @@ class PomodoroControlsWidget extends StatelessWidget {
   final VoidCallback? onStartSession;
   final VoidCallback? onPauseResume;
   final VoidCallback? onSkipCycle;
+  final VoidCallback? onMarkInterruption;
   final VoidCallback? onStopSession;
 
   const PomodoroControlsWidget({
@@ -17,6 +18,7 @@ class PomodoroControlsWidget extends StatelessWidget {
     this.onStartSession,
     this.onPauseResume,
     this.onSkipCycle,
+    this.onMarkInterruption,
     this.onStopSession,
   });
 
@@ -82,88 +84,94 @@ class PomodoroControlsWidget extends StatelessWidget {
   Widget _buildActiveControls(BuildContext context, PomodoroService service) {
     final isRunning = service.isRunning;
     final canSkip = service.remainingTime.inSeconds > 0;
+    final isWorkCycle = service.currentCycle?.type == PomodoroCycleType.work;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Row(
+      child: Column(
         children: [
-          // Pause/Resume Button
-          Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: onPauseResume,
-                icon: Icon(
-                  isRunning ? LucideIcons.pause : LucideIcons.play,
-                  size: 20,
+          // Primary row with Pause/Resume and Stop
+          Row(
+            children: [
+              // Pause/Resume Button
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: onPauseResume,
+                    icon: Icon(
+                      isRunning ? LucideIcons.pause : LucideIcons.play,
+                      size: 20,
+                    ),
+                    label: Text(
+                      isRunning ? 'Pause' : 'Resume',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isRunning ? Colors.orange : Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-                label: Text(
-                  isRunning ? 'Pause' : 'Resume',
-                  style: const TextStyle(
-                    fontSize: 16,
+              ),
+              
+              const SizedBox(width: 12),
+              
+              // Stop Button
+              SizedBox(
+                width: 56,
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: () => _showStopConfirmation(context),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Icon(LucideIcons.square, size: 20),
+                ),
+              ),
+            ],
+          ),
+          
+          // Interruption button (only during work cycles)
+          if (isWorkCycle && isRunning) ...[
+            const SizedBox(height: 12),
+            
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: OutlinedButton.icon(
+                onPressed: onMarkInterruption,
+                icon: const Icon(LucideIcons.alertTriangle, size: 18),
+                label: const Text(
+                  'Report Interruption',
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isRunning ? Colors.orange : Colors.green,
-                  foregroundColor: Colors.white,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.amber.shade700,
+                  side: BorderSide(color: Colors.amber.shade300),
+                  backgroundColor: Colors.amber.shade50,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
             ),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Skip Button
-          if (canSkip) ...[
-            Expanded(
-              child: SizedBox(
-                height: 56,
-                child: OutlinedButton.icon(
-                  onPressed: onSkipCycle,
-                  icon: const Icon(LucideIcons.skipForward, size: 18),
-                  label: const Text(
-                    'Skip',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textSecondary,
-                    side: BorderSide(color: AppColors.grey300),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            
-            const SizedBox(width: 12),
           ],
-          
-          // Stop Button
-          SizedBox(
-            width: 56,
-            height: 56,
-            child: OutlinedButton(
-              onPressed: () => _showStopConfirmation(context),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: EdgeInsets.zero,
-              ),
-              child: const Icon(LucideIcons.square, size: 20),
-            ),
-          ),
         ],
       ),
     );
