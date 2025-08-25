@@ -3,16 +3,19 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 import '../models/course_models.dart';
 import '../models/active_recall_models.dart';
+import 'pdf_extraction_service.dart';
 
 class GeminiAIService {
   static const String _apiKey = 'AIzaSyDyFbfNS8XwzcBtnpYY-5lovrTKH5-NXLM';
   late final GenerativeModel _model;
+  late final PdfExtractionService _pdfExtractor;
   
   GeminiAIService() {
     _model = GenerativeModel(
       model: 'gemini-1.5-flash',
       apiKey: _apiKey,
     );
+    _pdfExtractor = PdfExtractionService();
   }
 
   Future<List<ActiveRecallFlashcard>> generateFlashcardsFromMaterials(
@@ -148,34 +151,64 @@ Important rules:
   }
 
   Future<String> _extractContentFromMaterial(CourseMaterial material) async {
-    // For now, we'll create context based on material metadata
-    // In a full implementation, you'd extract actual content from PDFs, docs, etc.
-    
     String contentContext = '';
     
     switch (material.fileType.toLowerCase()) {
       case 'pdf':
-        contentContext = 'PDF document containing detailed information about ${material.title}';
+        // Extract actual PDF content
+        if (_pdfExtractor.isPdfUrl(material.fileUrl)) {
+          try {
+            print('📄 [CONTENT EXTRACTION] Processing PDF: ${material.title}');
+            final pdfContent = await _pdfExtractor.extractTextFromPdfUrl(material.fileUrl);
+            
+            if (pdfContent.isNotEmpty && pdfContent != 'No readable text content found in this PDF document.') {
+              // Use actual PDF content
+              final preview = _pdfExtractor.getSampleContent(pdfContent, sampleLength: 150);
+              contentContext = '''PDF Document: "${material.title}"
+
+Key Content:
+$pdfContent
+
+Summary: This PDF contains educational material covering concepts related to ${material.title}.''';
+              
+              print('✅ [CONTENT EXTRACTION] Successfully extracted PDF content (${pdfContent.length} chars)');
+              print('📖 [CONTENT PREVIEW] ${preview}');
+            } else {
+              contentContext = 'PDF document "${material.title}" - content extraction was attempted but no readable text was found. This may be an image-based or encrypted PDF.';
+              print('⚠️ [CONTENT EXTRACTION] No text found in PDF: ${material.title}');
+            }
+          } catch (e) {
+            print('❌ [CONTENT EXTRACTION] PDF extraction failed for ${material.title}: $e');
+            contentContext = 'PDF document "${material.title}" containing detailed information about the topic. (Content extraction failed, using metadata only)';
+          }
+        } else {
+          contentContext = 'PDF document "${material.title}" containing detailed information about the topic.';
+        }
         break;
+        
       case 'mp4':
       case 'avi':
       case 'mov':
-        contentContext = 'Video content explaining ${material.title}';
+        contentContext = 'Video content "${material.title}" explaining key concepts through visual demonstration and narration.';
         break;
+        
       case 'ppt':
       case 'pptx':
-        contentContext = 'Presentation slides about ${material.title}';
+        contentContext = 'Presentation slides "${material.title}" covering structured information with visual aids and bullet points.';
         break;
+        
       case 'doc':
       case 'docx':
-        contentContext = 'Document with comprehensive information on ${material.title}';
+        contentContext = 'Document "${material.title}" with comprehensive written information and detailed explanations.';
         break;
+        
       default:
-        contentContext = 'Educational material covering ${material.title}';
+        contentContext = 'Educational material "${material.title}" covering important concepts and information.';
     }
     
+    // Add description if available
     if (material.description?.isNotEmpty == true) {
-      contentContext += '. ${material.description}';
+      contentContext += '\n\nMaterial Description: ${material.description}';
     }
     
     return contentContext;

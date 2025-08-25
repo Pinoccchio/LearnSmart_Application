@@ -55,6 +55,9 @@ dependencies:
   
   # HTTP for file processing
   http: ^1.2.2
+  
+  # PDF Text Extraction
+  syncfusion_flutter_pdf: ^24.2.9
 
 dev_dependencies:
   flutter_test:
