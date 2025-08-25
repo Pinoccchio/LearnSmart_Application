@@ -49,6 +49,12 @@ dependencies:
   
   # URL Launcher
   url_launcher: ^6.3.1
+  
+  # AI Integration
+  google_generative_ai: ^0.4.3
+  
+  # HTTP for file processing
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:

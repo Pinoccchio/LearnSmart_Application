@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../providers/app_provider.dart';
 import '../../models/course_models.dart';
+import '../study/active_recall_session_screen.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;
@@ -23,17 +24,29 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
+    final screenHeight = MediaQuery.of(context).size.height;
+    final topPadding = MediaQuery.of(context).padding.top;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = screenHeight - topPadding - bottomPadding - keyboardHeight - 100; // 100px margin from top
+    
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight,
+          minHeight: 400,
         ),
-      ),
-      child: Column(
-        children: [
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
           // Header
           Container(
             padding: const EdgeInsets.all(24),
@@ -77,7 +90,7 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
           ),
           
           // Study techniques list
-          Expanded(
+          Flexible(
             child: Consumer<AppProvider>(
               builder: (context, appProvider, child) {
                 final techniques = appProvider.studyTechniques;
@@ -184,7 +197,12 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
           
           // Continue button
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.only(
+              left: 24,
+              right: 24,
+              top: 16,
+              bottom: 24 + MediaQuery.of(context).padding.bottom,
+            ),
             child: SizedBox(
               width: double.infinity,
               height: 56,
@@ -205,18 +223,56 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
               ),
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
 
   void _startStudySession() {
-    // Show a simple dialog for now since this is just UI
+    if (selectedTechnique == null) return;
+    
+    // Handle different study techniques
+    switch (selectedTechnique) {
+      case 'active_recall':
+        _startActiveRecallSession();
+        break;
+      case 'pomodoro_technique':
+        _showComingSoonDialog('Pomodoro Technique');
+        break;
+      case 'feynman_technique':
+        _showComingSoonDialog('Feynman Technique');
+        break;
+      case 'retrieval_practice':
+        _showComingSoonDialog('Retrieval Practice');
+        break;
+      case 'spaced_repetition':
+        _showComingSoonDialog('Spaced Repetition');
+        break;
+      default:
+        _showComingSoonDialog('Selected technique');
+    }
+  }
+  
+  void _startActiveRecallSession() {
+    // Navigate to Active Recall session screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ActiveRecallSessionScreen(
+          course: widget.course,
+          module: widget.module,
+        ),
+      ),
+    );
+  }
+  
+  void _showComingSoonDialog(String techniqueName) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Study Session Started'),
-        content: Text('Starting "${widget.module.title}" from ${widget.course.title} with selected technique!'),
+        title: const Text('Coming Soon'),
+        content: Text('$techniqueName is coming soon! For now, try Active Recall to experience our AI-powered study sessions.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

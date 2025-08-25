@@ -11,7 +11,8 @@
       "mcp__supabase__list_tables",
       "mcp__supabase__execute_sql",
       "mcp__supabase__list_projects",
-      "mcp__supabase__get_anon_key"
+      "mcp__supabase__get_anon_key",
+      "mcp__supabase__apply_migration"
     ],
     "deny": [],
     "ask": []
