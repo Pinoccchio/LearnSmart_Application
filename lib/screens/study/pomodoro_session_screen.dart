@@ -39,6 +39,10 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
   bool _showFocusScore = false;
   StudySessionAnalytics? _sessionAnalytics;
   PomodoroSessionResults? _sessionResults;
+  
+  // Smart pause tracking
+  bool _isAccessingMaterials = false;
+  bool _wasRunningBeforeBackground = false;
 
   @override
   void initState() {
@@ -62,11 +66,27 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    // Pause timer when app goes to background
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      if (_pomodoroService.isRunning) {
+      // Store timer state before going to background
+      _wasRunningBeforeBackground = _pomodoroService.isRunning;
+      
+      // Only pause if NOT accessing materials (true interruption)
+      if (!_isAccessingMaterials && _pomodoroService.isRunning) {
         _pomodoroService.pauseTimer();
+        print('⏸️ [POMODORO] Timer paused due to app going to background');
+      } else if (_isAccessingMaterials) {
+        print('📚 [POMODORO] App backgrounded for material access - timer continues');
       }
+    } else if (state == AppLifecycleState.resumed) {
+      // Handle return from background
+      if (_isAccessingMaterials && _wasRunningBeforeBackground) {
+        // User was accessing materials and timer was running
+        _showResumeDialog();
+      }
+      
+      // Reset flags
+      _isAccessingMaterials = false;
+      _wasRunningBeforeBackground = false;
     }
   }
 
@@ -189,6 +209,92 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
         );
       }
     }
+  }
+
+  void _showResumeDialog() {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(LucideIcons.bookOpen, color: Colors.blue, size: 24),
+            const SizedBox(width: 12),
+            const Text('Welcome Back!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'You were accessing study materials. How would you like to continue your Pomodoro session?',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.clock, color: Colors.blue, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Timer: ${_formatDuration(_pomodoroService.remainingTime)}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _markInterruption();
+            },
+            icon: const Icon(LucideIcons.alertTriangle, size: 16),
+            label: const Text('Mark Interruption'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.orange,
+              side: const BorderSide(color: Colors.orange),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (!_pomodoroService.isRunning) {
+                _pomodoroService.resumeTimer();
+              }
+            },
+            icon: const Icon(LucideIcons.play, size: 16),
+            label: const Text('Continue Timer'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.clamp(0, 999);
+    final seconds = (duration.inSeconds % 60).clamp(0, 59);
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   Future<void> _onSessionComplete() async {
@@ -669,9 +775,39 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
 
   void _openMaterial(CourseMaterial material) async {
     try {
+      // Set flag to indicate intentional material access
+      setState(() {
+        _isAccessingMaterials = true;
+      });
+      
+      print('📚 [POMODORO] Opening study material: ${material.fileName}');
+      
       final Uri url = Uri.parse(material.fileUrl);
       await launchUrl(url, mode: LaunchMode.externalApplication);
+      
+      // Show brief info message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(LucideIcons.bookOpen, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                Text('Opening ${material.fileName} - Timer continues'),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
     } catch (e) {
+      // Reset flag on error
+      setState(() {
+        _isAccessingMaterials = false;
+      });
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
