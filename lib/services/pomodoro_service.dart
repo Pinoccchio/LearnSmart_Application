@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import '../models/pomodoro_models.dart';
 import '../models/course_models.dart';
@@ -82,26 +82,72 @@ class PomodoroService extends ChangeNotifier {
   Future<PomodoroSession> initializeSession({
     required String userId,
     required Module module,
-    int workDurationMinutes = _defaultWorkDuration,
-    int shortBreakDurationMinutes = _defaultShortBreakDuration,
-    int longBreakDurationMinutes = _defaultLongBreakDuration,
-    int totalCycles = _defaultTotalCycles,
+    PomodoroSettings? customSettings,
+    @Deprecated('Use customSettings parameter instead') 
+    int? workDurationMinutes,
+    @Deprecated('Use customSettings parameter instead')
+    int? shortBreakDurationMinutes,
+    @Deprecated('Use customSettings parameter instead')
+    int? longBreakDurationMinutes,
+    @Deprecated('Use customSettings parameter instead')
+    int? totalCycles,
   }) async {
     try {
       print('🍅 [POMODORO] Initializing session for module: ${module.title}');
       
-      // Create session in database
+      // Resolve settings - use custom settings or load from database or use defaults
+      PomodoroSettings settings;
+      if (customSettings != null) {
+        settings = customSettings;
+        print('🍅 [POMODORO] Using provided custom settings: $settings');
+      } else {
+        // Try loading user settings, fall back to legacy parameters or defaults
+        try {
+          settings = await getUserPomodoroSettings(userId);
+          print('🍅 [POMODORO] Loaded user settings: $settings');
+        } catch (e) {
+          print('⚠️ [POMODORO] Failed to load user settings, using defaults: $e');
+          settings = PomodoroSettings.classic();
+        }
+        
+        // Apply legacy parameters if provided (for backward compatibility)
+        if (workDurationMinutes != null || shortBreakDurationMinutes != null || 
+            longBreakDurationMinutes != null || totalCycles != null) {
+          settings = PomodoroSettings(
+            workDuration: Duration(minutes: workDurationMinutes ?? settings.workDuration.inMinutes),
+            shortBreakDuration: Duration(minutes: shortBreakDurationMinutes ?? settings.shortBreakDuration.inMinutes),
+            longBreakDuration: Duration(minutes: longBreakDurationMinutes ?? settings.longBreakDuration.inMinutes),
+            totalCycles: totalCycles ?? settings.totalCycles,
+            presetName: 'legacy',
+          );
+          print('🍅 [POMODORO] Applied legacy parameters: $settings');
+        }
+      }
+      
+      // Validate settings with detailed error messages
+      final validationError = _validateSettings(settings);
+      if (validationError != null) {
+        throw Exception('Invalid Pomodoro settings: $validationError');
+      }
+      
+      // Create session in database with Duration-based settings
+      // Convert seconds to minutes, ensuring minimum 1 minute to satisfy database constraints
+      final workMinutes = math.max(1, (settings.workDuration.inSeconds / 60.0).ceil());
+      final shortBreakMinutes = math.max(1, (settings.shortBreakDuration.inSeconds / 60.0).ceil());
+      final longBreakMinutes = math.max(1, (settings.longBreakDuration.inSeconds / 60.0).ceil());
+      
       final sessionData = {
         'user_id': userId,
         'module_id': module.id,
         'status': PomodoroSessionStatus.preparing.value,
-        'total_cycles_planned': totalCycles,
-        'work_duration_minutes': workDurationMinutes,
-        'short_break_duration_minutes': shortBreakDurationMinutes,
-        'long_break_duration_minutes': longBreakDurationMinutes,
+        'total_cycles_planned': settings.totalCycles,
+        'work_duration_minutes': workMinutes,
+        'short_break_duration_minutes': shortBreakMinutes,
+        'long_break_duration_minutes': longBreakMinutes,
         'session_data': {
           'module_title': module.title,
           'total_materials': module.materials.length,
+          'custom_settings': settings.toJson(), // Store full settings for analytics
         },
       };
 
@@ -153,6 +199,13 @@ class PomodoroService extends ChangeNotifier {
     try {
       print('🍅 [POMODORO] Starting work cycle ${_currentSession!.currentCycle}');
       
+      // Get work duration from session settings
+      final sessionData = _currentSession!.sessionData;
+      final customSettings = sessionData?['custom_settings'] as Map<String, dynamic>?;
+      final workDuration = customSettings != null 
+          ? Duration(seconds: customSettings['work_duration_seconds'] ?? (_currentSession!.workDurationMinutes * 60))
+          : Duration(minutes: _currentSession!.workDurationMinutes);
+      
       // Create new cycle in database
       final cycleData = {
         'session_id': _currentSession!.id,
@@ -169,10 +222,10 @@ class PomodoroService extends ChangeNotifier {
 
       _currentCycle = PomodoroCycle.fromJson(response);
       
-      // Start timer
-      _startTimer(Duration(minutes: _currentSession!.workDurationMinutes));
+      // Start timer with actual Duration object
+      _startTimer(workDuration);
       
-      print('✅ [POMODORO] Work cycle started');
+      print('✅ [POMODORO] Work cycle started with duration: ${workDuration.inMinutes}m ${workDuration.inSeconds % 60}s');
       notifyListeners();
       
     } catch (e) {
@@ -186,12 +239,31 @@ class PomodoroService extends ChangeNotifier {
     if (_currentSession == null) return;
 
     try {
-      // Determine break type and duration
+      // Determine break type
       final isLongBreak = _currentSession!.currentCycle % 4 == 0;
       final breakType = isLongBreak ? PomodoroCycleType.longBreak : PomodoroCycleType.shortBreak;
-      final duration = isLongBreak 
-          ? _currentSession!.longBreakDurationMinutes 
-          : _currentSession!.shortBreakDurationMinutes;
+      
+      // Get break duration from session settings
+      final sessionData = _currentSession!.sessionData;
+      final customSettings = sessionData?['custom_settings'] as Map<String, dynamic>?;
+      
+      Duration breakDuration;
+      int durationMinutes;
+      
+      if (customSettings != null) {
+        if (isLongBreak) {
+          breakDuration = Duration(seconds: customSettings['long_break_duration_seconds'] ?? (_currentSession!.longBreakDurationMinutes * 60));
+          durationMinutes = _currentSession!.longBreakDurationMinutes;
+        } else {
+          breakDuration = Duration(seconds: customSettings['short_break_duration_seconds'] ?? (_currentSession!.shortBreakDurationMinutes * 60));
+          durationMinutes = _currentSession!.shortBreakDurationMinutes;
+        }
+      } else {
+        durationMinutes = isLongBreak 
+            ? _currentSession!.longBreakDurationMinutes 
+            : _currentSession!.shortBreakDurationMinutes;
+        breakDuration = Duration(minutes: durationMinutes);
+      }
 
       print('🍅 [POMODORO] Starting ${isLongBreak ? 'long' : 'short'} break');
 
@@ -203,7 +275,7 @@ class PomodoroService extends ChangeNotifier {
         'session_id': _currentSession!.id,
         'cycle_number': _currentSession!.currentCycle,
         'type': breakType.value,
-        'duration_minutes': duration,
+        'duration_minutes': durationMinutes,
       };
 
       final response = await SupabaseService.client
@@ -214,10 +286,10 @@ class PomodoroService extends ChangeNotifier {
 
       _currentCycle = PomodoroCycle.fromJson(response);
       
-      // Start timer
-      _startTimer(Duration(minutes: duration));
+      // Start timer with actual Duration object
+      _startTimer(breakDuration);
       
-      print('✅ [POMODORO] Break started');
+      print('✅ [POMODORO] Break started with duration: ${breakDuration.inMinutes}m ${breakDuration.inSeconds % 60}s');
       notifyListeners();
       
     } catch (e) {
@@ -611,6 +683,157 @@ class PomodoroService extends ChangeNotifier {
     } else {
       return 'moderate_performance';
     }
+  }
+
+  /// Save user Pomodoro settings to database
+  Future<void> saveUserPomodoroSettings(String userId, PomodoroSettings settings) async {
+    try {
+      print('💾 [POMODORO SETTINGS] Saving settings for user: $userId');
+      
+      // Validate settings first
+      final validationError = _validateSettings(settings);
+      if (validationError != null) {
+        throw ArgumentError('Invalid settings: $validationError');
+      }
+      
+      // Validate user ID
+      if (userId.isEmpty) {
+        throw ArgumentError('User ID cannot be empty');
+      }
+      
+      final settingsData = {
+        'user_id': userId,
+        ...settings.toJson(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      // Check if user settings exist
+      final existingSettings = await SupabaseService.client
+          .from('user_pomodoro_settings')
+          .select('user_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existingSettings != null) {
+        // Update existing settings
+        await SupabaseService.client
+            .from('user_pomodoro_settings')
+            .update(settingsData)
+            .eq('user_id', userId);
+        print('✅ [POMODORO SETTINGS] Settings updated for existing user');
+      } else {
+        // Insert new settings
+        settingsData['created_at'] = DateTime.now().toIso8601String();
+        await SupabaseService.client
+            .from('user_pomodoro_settings')
+            .insert(settingsData);
+        print('✅ [POMODORO SETTINGS] Settings created for new user');
+      }
+
+      print('✅ [POMODORO SETTINGS] Settings saved successfully: ${settings.presetName}');
+      
+    } catch (e) {
+      print('❌ [POMODORO SETTINGS] Failed to save settings: $e');
+      
+      // Provide more specific error messages
+      if (e.toString().contains('check constraint')) {
+        throw Exception('Settings contain invalid values that violate database constraints. Please adjust your settings.');
+      } else if (e.toString().contains('foreign key')) {
+        throw Exception('User not found. Please ensure you are logged in.');
+      } else if (e.toString().contains('duplicate key')) {
+        throw Exception('Settings conflict detected. Please try again.');
+      } else if (e is ArgumentError) {
+        rethrow; // Re-throw validation errors as-is
+      } else {
+        throw Exception('Failed to save settings. Please check your connection and try again.');
+      }
+    }
+  }
+
+  /// Load user Pomodoro settings from database
+  Future<PomodoroSettings> getUserPomodoroSettings(String userId) async {
+    try {
+      print('📖 [POMODORO SETTINGS] Loading settings for user: $userId');
+      
+      final response = await SupabaseService.client
+          .from('user_pomodoro_settings')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response != null) {
+        final settings = PomodoroSettings.fromJson(response);
+        print('✅ [POMODORO SETTINGS] Settings loaded: $settings');
+        return settings;
+      } else {
+        print('📝 [POMODORO SETTINGS] No saved settings found, using defaults');
+        return PomodoroSettings.classic();
+      }
+      
+    } catch (e) {
+      print('❌ [POMODORO SETTINGS] Failed to load settings: $e, using defaults');
+      return PomodoroSettings.classic();
+    }
+  }
+
+  /// Create user settings table if it doesn't exist
+  static Future<void> createUserSettingsTable() async {
+    try {
+      await SupabaseService.client.rpc('create_user_pomodoro_settings_table');
+      print('✅ [POMODORO SETTINGS] User settings table created/verified');
+    } catch (e) {
+      print('❌ [POMODORO SETTINGS] Failed to create settings table: $e');
+    }
+  }
+
+  /// Validate Pomodoro settings and return detailed error message if invalid
+  String? _validateSettings(PomodoroSettings settings) {
+    // Check work duration
+    if (settings.workDuration < const Duration(seconds: 5)) {
+      return 'Work duration must be at least 5 seconds';
+    }
+    if (settings.workDuration > const Duration(minutes: 90)) {
+      return 'Work duration cannot exceed 90 minutes';
+    }
+
+    // Check short break duration
+    if (settings.shortBreakDuration < const Duration(seconds: 5)) {
+      return 'Short break duration must be at least 5 seconds';
+    }
+    if (settings.shortBreakDuration > const Duration(minutes: 30)) {
+      return 'Short break duration cannot exceed 30 minutes';
+    }
+
+    // Check long break duration
+    if (settings.longBreakDuration < const Duration(seconds: 5)) {
+      return 'Long break duration must be at least 5 seconds';
+    }
+    if (settings.longBreakDuration > const Duration(minutes: 60)) {
+      return 'Long break duration cannot exceed 60 minutes';
+    }
+
+    // Check total cycles
+    if (settings.totalCycles < 1) {
+      return 'Must have at least 1 cycle';
+    }
+    if (settings.totalCycles > 10) {
+      return 'Cannot exceed 10 cycles';
+    }
+
+    // Check estimated session time
+    if (settings.estimatedSessionTime > const Duration(hours: 8)) {
+      return 'Total session time cannot exceed 8 hours';
+    }
+
+    // Check logical relationships - allow equal durations for micro-sessions
+    if (settings.workDuration.inSeconds > 30 && settings.shortBreakDuration >= settings.workDuration) {
+      return 'Short break should be shorter than work duration for sessions longer than 30 seconds';
+    }
+    if (settings.longBreakDuration > settings.workDuration * 2) {
+      return 'Long break should not be more than twice the work duration';
+    }
+
+    return null; // Valid settings
   }
 
   /// Clean up resources

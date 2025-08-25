@@ -530,3 +530,209 @@ class PomodoroSessionResults {
   double get interruptionRate => 
       totalCyclesCompleted > 0 ? totalInterruptions / totalCyclesCompleted : 0.0;
 }
+
+/// Pomodoro user settings for customizable timer durations and cycles
+class PomodoroSettings {
+  final Duration workDuration;
+  final Duration shortBreakDuration;
+  final Duration longBreakDuration;
+  final int totalCycles;
+  final String presetName;
+
+  const PomodoroSettings({
+    required this.workDuration,
+    required this.shortBreakDuration,
+    required this.longBreakDuration,
+    required this.totalCycles,
+    this.presetName = 'custom',
+  });
+
+  /// Default classic Pomodoro settings (25/5/15, 4 cycles)
+  factory PomodoroSettings.classic() {
+    return const PomodoroSettings(
+      workDuration: Duration(minutes: 25),
+      shortBreakDuration: Duration(minutes: 5),
+      longBreakDuration: Duration(minutes: 15),
+      totalCycles: 4,
+      presetName: 'classic',
+    );
+  }
+
+  /// Deep focus settings (45/10/20, 3 cycles)
+  factory PomodoroSettings.deepFocus() {
+    return const PomodoroSettings(
+      workDuration: Duration(minutes: 45),
+      shortBreakDuration: Duration(minutes: 10),
+      longBreakDuration: Duration(minutes: 20),
+      totalCycles: 3,
+      presetName: 'deep_focus',
+    );
+  }
+
+  /// Quick sprint settings (15/3/8, 6 cycles)
+  factory PomodoroSettings.quickSprint() {
+    return const PomodoroSettings(
+      workDuration: Duration(minutes: 15),
+      shortBreakDuration: Duration(minutes: 3),
+      longBreakDuration: Duration(minutes: 8),
+      totalCycles: 6,
+      presetName: 'quick_sprint',
+    );
+  }
+
+  /// Micro sessions for testing (30s/10s/20s, 2 cycles)
+  factory PomodoroSettings.microTest() {
+    return const PomodoroSettings(
+      workDuration: Duration(seconds: 30),
+      shortBreakDuration: Duration(seconds: 10),
+      longBreakDuration: Duration(seconds: 20),
+      totalCycles: 2,
+      presetName: 'micro_test',
+    );
+  }
+
+  /// Create from JSON data
+  factory PomodoroSettings.fromJson(Map<String, dynamic> json) {
+    return PomodoroSettings(
+      workDuration: Duration(seconds: json['work_duration_seconds'] ?? 1500),
+      shortBreakDuration: Duration(seconds: json['short_break_duration_seconds'] ?? 300),
+      longBreakDuration: Duration(seconds: json['long_break_duration_seconds'] ?? 900),
+      totalCycles: json['total_cycles'] ?? 4,
+      presetName: json['preset_name'] ?? 'custom',
+    );
+  }
+
+  /// Convert to JSON for database storage
+  Map<String, dynamic> toJson() {
+    return {
+      'work_duration_seconds': workDuration.inSeconds,
+      'short_break_duration_seconds': shortBreakDuration.inSeconds,
+      'long_break_duration_seconds': longBreakDuration.inSeconds,
+      'total_cycles': totalCycles,
+      'preset_name': presetName,
+    };
+  }
+
+  /// Create a copy with updated values
+  PomodoroSettings copyWith({
+    Duration? workDuration,
+    Duration? shortBreakDuration,
+    Duration? longBreakDuration,
+    int? totalCycles,
+    String? presetName,
+  }) {
+    return PomodoroSettings(
+      workDuration: workDuration ?? this.workDuration,
+      shortBreakDuration: shortBreakDuration ?? this.shortBreakDuration,
+      longBreakDuration: longBreakDuration ?? this.longBreakDuration,
+      totalCycles: totalCycles ?? this.totalCycles,
+      presetName: presetName ?? this.presetName,
+    );
+  }
+
+  /// Calculate estimated total session time
+  Duration get estimatedSessionTime {
+    // Work cycles + short breaks + long breaks
+    final workTime = workDuration * totalCycles;
+    final shortBreaks = shortBreakDuration * (totalCycles - 1); // Between work cycles
+    final longBreaks = longBreakDuration * (totalCycles ~/ 4); // Every 4th cycle
+    
+    return workTime + shortBreaks + longBreaks;
+  }
+
+  /// Check if settings are within valid ranges
+  bool get isValid {
+    return workDuration >= const Duration(seconds: 5) &&
+           workDuration <= const Duration(minutes: 90) &&
+           shortBreakDuration >= const Duration(seconds: 5) &&
+           shortBreakDuration <= const Duration(minutes: 30) &&
+           longBreakDuration >= const Duration(seconds: 5) &&
+           longBreakDuration <= const Duration(minutes: 60) &&
+           totalCycles >= 1 &&
+           totalCycles <= 10 &&
+           estimatedSessionTime <= const Duration(hours: 8);
+  }
+
+  /// Get preset settings by name
+  static PomodoroSettings getPreset(String presetName) {
+    switch (presetName) {
+      case 'classic':
+        return PomodoroSettings.classic();
+      case 'deep_focus':
+        return PomodoroSettings.deepFocus();
+      case 'quick_sprint':
+        return PomodoroSettings.quickSprint();
+      case 'micro_test':
+        return PomodoroSettings.microTest();
+      default:
+        return PomodoroSettings.classic();
+    }
+  }
+
+  /// Get all available presets
+  static List<String> get availablePresets => [
+    'classic',
+    'deep_focus', 
+    'quick_sprint',
+    'micro_test',
+  ];
+
+  /// Get preset display name
+  static String getPresetDisplayName(String presetName) {
+    switch (presetName) {
+      case 'classic':
+        return 'Classic Pomodoro';
+      case 'deep_focus':
+        return 'Deep Focus';
+      case 'quick_sprint':
+        return 'Quick Sprint';
+      case 'micro_test':
+        return 'Micro Test';
+      default:
+        return 'Custom';
+    }
+  }
+
+  /// Format duration for display
+  static String formatDuration(Duration duration) {
+    if (duration.inMinutes >= 1) {
+      final minutes = duration.inMinutes;
+      final seconds = duration.inSeconds % 60;
+      if (seconds == 0) {
+        return '${minutes}m';
+      } else {
+        return '${minutes}m ${seconds}s';
+      }
+    } else {
+      return '${duration.inSeconds}s';
+    }
+  }
+
+  @override
+  String toString() {
+    return 'PomodoroSettings(work: ${formatDuration(workDuration)}, '
+           'short break: ${formatDuration(shortBreakDuration)}, '
+           'long break: ${formatDuration(longBreakDuration)}, '
+           'cycles: $totalCycles, preset: $presetName)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is PomodoroSettings &&
+           other.workDuration == workDuration &&
+           other.shortBreakDuration == shortBreakDuration &&
+           other.longBreakDuration == longBreakDuration &&
+           other.totalCycles == totalCycles &&
+           other.presetName == presetName;
+  }
+
+  @override
+  int get hashCode {
+    return workDuration.hashCode ^
+           shortBreakDuration.hashCode ^
+           longBreakDuration.hashCode ^
+           totalCycles.hashCode ^
+           presetName.hashCode;
+  }
+}

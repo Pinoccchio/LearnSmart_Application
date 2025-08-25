@@ -22,11 +22,13 @@ import '../../widgets/analytics/study_plan_widget.dart';
 class PomodoroSessionScreen extends StatefulWidget {
   final Course course;
   final Module module;
+  final PomodoroSettings? customSettings;
 
   const PomodoroSessionScreen({
     super.key,
     required this.course,
     required this.module,
+    this.customSettings,
   });
 
   @override
@@ -92,6 +94,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
       await _pomodoroService.initializeSession(
         userId: currentUser.id,
         module: widget.module,
+        customSettings: widget.customSettings,
       );
 
       setState(() {

@@ -68,6 +68,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   Future<void> _initializeSession() async {
     try {
       print('🚀 [ACTIVE RECALL] Starting session initialization');
+      if (!mounted) return;
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -79,6 +80,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
       final pdfMaterials = widget.module.materials.where((m) => m.fileType.toLowerCase() == 'pdf').length;
       if (pdfMaterials > 0) {
         print('📄 [ACTIVE RECALL] Found $pdfMaterials PDF material(s), extracting content for better flashcards...');
+        if (!mounted) return;
         setState(() {
           _errorMessage = 'Analyzing PDF content to create better study questions...\nThis may take a moment.';
         });
@@ -101,6 +103,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
       // Save flashcards to database
       await _saveFlashcardsToDatabase(flashcards);
 
+      if (!mounted) return;
       setState(() {
         _flashcards = flashcards;
         _currentStatus = StudySessionStatus.preStudy;
@@ -112,6 +115,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
 
     } catch (e) {
       print('❌ [ACTIVE RECALL] Session initialization failed: $e');
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Failed to generate study materials: $e';
         _isLoading = false;
@@ -209,6 +213,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
 
   void _moveToNextFlashcard() {
     if (_currentFlashcardIndex < _flashcards.length - 1) {
+      if (!mounted) return;
       setState(() {
         _currentFlashcardIndex++;
       });
@@ -230,12 +235,14 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   void _completeCurrentPhase() {
     if (_currentStatus == StudySessionStatus.preStudy) {
       // Move to study phase
+      if (!mounted) return;
       setState(() {
         _currentStatus = StudySessionStatus.studying;
       });
       _showStudyMaterialsScreen();
     } else if (_currentStatus == StudySessionStatus.postStudy) {
       // Start analytics generation phase
+      if (!mounted) return;
       setState(() {
         _currentStatus = StudySessionStatus.generatingAnalytics;
       });
@@ -601,6 +608,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   }
 
   void _startPostStudyPhase() {
+    if (!mounted) return;
     setState(() {
       _currentStatus = StudySessionStatus.postStudy;
       _currentFlashcardIndex = 0;
@@ -1805,6 +1813,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
         print('💡 [AUTH] Error: User not logged in. Redirect to login screen.');
         // In a real app, you'd navigate to login screen here
         _sessionId = null;
+        if (!mounted) return;
         setState(() {
           _errorMessage = 'Please log in to start a study session';
           _isLoading = false;

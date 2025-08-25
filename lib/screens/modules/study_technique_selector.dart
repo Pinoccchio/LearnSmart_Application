@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../providers/app_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../models/course_models.dart';
+import '../../models/pomodoro_models.dart';
 import '../study/active_recall_session_screen.dart';
 import '../study/pomodoro_session_screen.dart';
+import '../../widgets/pomodoro/pomodoro_settings_widget.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;
@@ -22,6 +25,7 @@ class StudyTechniqueSelector extends StatefulWidget {
 
 class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
   String? selectedTechnique;
+  PomodoroSettings? customPomodoroSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +120,7 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: isSelected 
-                                ? AppColors.bgPrimary.withOpacity(0.1)
+                                ? AppColors.bgPrimary.withValues(alpha: 0.1)
                                 : AppColors.grey100,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
@@ -148,15 +152,43 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      technique.name,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: isSelected 
-                                            ? AppColors.bgPrimary
-                                            : AppColors.textPrimary,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            technique.name,
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: isSelected 
+                                                  ? AppColors.bgPrimary
+                                                  : AppColors.textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                        // Settings button for Pomodoro Technique
+                                        if (technique.id == 'pomodoro_technique')
+                                          GestureDetector(
+                                            onTap: () => _showPomodoroSettings(),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.grey100,
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: customPomodoroSettings != null
+                                                    ? Border.all(color: AppColors.bgPrimary, width: 1)
+                                                    : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.settings,
+                                                size: 16,
+                                                color: customPomodoroSettings != null
+                                                    ? AppColors.bgPrimary
+                                                    : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -168,6 +200,19 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                                       maxLines: 3,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    // Show custom settings info if configured
+                                    if (technique.id == 'pomodoro_technique' && customPomodoroSettings != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Custom: ${customPomodoroSettings!.workDuration.inMinutes}m work, ${customPomodoroSettings!.shortBreakDuration.inMinutes}m break',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.bgPrimary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -266,15 +311,51 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
   }
   
   void _startPomodoroSession() {
-    // Navigate to Pomodoro session screen
+    // Navigate to Pomodoro session screen with custom settings
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => PomodoroSessionScreen(
           course: widget.course,
           module: widget.module,
+          customSettings: customPomodoroSettings,
         ),
       ),
     );
+  }
+  
+  void _showPomodoroSettings() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.id;
+    
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to customize settings')),
+      );
+      return;
+    }
+
+    final result = await showModalBottomSheet<PomodoroSettings>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => PomodoroSettingsWidget(
+        userId: userId,
+        initialSettings: PomodoroSettings.classic(), // Fallback only, widget will load saved settings
+        onSettingsChanged: (settings) {
+          if (mounted) {
+            setState(() {
+              customPomodoroSettings = settings;
+            });
+          }
+        },
+      ),
+    );
+    
+    if (result != null && mounted) {
+      setState(() {
+        customPomodoroSettings = result;
+      });
+    }
   }
   
   void _showComingSoonDialog(String techniqueName) {
