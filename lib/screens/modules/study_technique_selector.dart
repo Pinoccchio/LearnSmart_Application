@@ -4,6 +4,7 @@ import '../../constants/app_colors.dart';
 import '../../providers/app_provider.dart';
 import '../../models/course_models.dart';
 import '../study/active_recall_session_screen.dart';
+import '../study/pomodoro_session_screen.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;
@@ -239,7 +240,7 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
         _startActiveRecallSession();
         break;
       case 'pomodoro_technique':
-        _showComingSoonDialog('Pomodoro Technique');
+        _startPomodoroSession();
         break;
       case 'feynman_technique':
         _showComingSoonDialog('Feynman Technique');
@@ -257,6 +258,18 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ActiveRecallSessionScreen(
+          course: widget.course,
+          module: widget.module,
+        ),
+      ),
+    );
+  }
+  
+  void _startPomodoroSession() {
+    // Navigate to Pomodoro session screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PomodoroSessionScreen(
           course: widget.course,
           module: widget.module,
         ),

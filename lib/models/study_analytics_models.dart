@@ -14,6 +14,8 @@ enum LearningPatternType {
   slowStarter,
   inconsistent,
   strugglingConcepts,
+  acceleratedLearning,
+  fatiguePattern,
 }
 
 enum RecommendationType {
@@ -23,6 +25,13 @@ enum RecommendationType {
   practiceFrequency,
   difficultyAdjustment,
   conceptReinforcement,
+  studyMethods,
+  pomodoroOptimization,
+  focusImprovement,
+  cycleManagement,
+  breakStrategy,
+  timeBlocking,
+  distractionControl,
 }
 
 enum InsightCategory {

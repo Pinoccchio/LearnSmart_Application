@@ -30,7 +30,7 @@ class RecommendationsWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -45,7 +45,7 @@ class RecommendationsWidget extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -97,10 +97,10 @@ class RecommendationsWidget extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _getTypeColor(recommendation.type).withOpacity(0.05),
+        color: _getTypeColor(recommendation.type).withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _getTypeColor(recommendation.type).withOpacity(0.2),
+          color: _getTypeColor(recommendation.type).withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -116,7 +116,7 @@ class RecommendationsWidget extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _getTypeColor(recommendation.type).withOpacity(0.1),
+                  color: _getTypeColor(recommendation.type).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -236,7 +236,7 @@ class RecommendationsWidget extends StatelessWidget {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _getTypeColor(recommendation.type).withOpacity(0.1),
+                    color: _getTypeColor(recommendation.type).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -273,7 +273,7 @@ class RecommendationsWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -298,7 +298,7 @@ class RecommendationsWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -374,6 +374,20 @@ class RecommendationsWidget extends StatelessWidget {
         return Colors.red;
       case RecommendationType.conceptReinforcement:
         return Colors.green;
+      case RecommendationType.studyMethods:
+        return Colors.indigo;
+      case RecommendationType.pomodoroOptimization:
+        return Colors.redAccent;
+      case RecommendationType.focusImprovement:
+        return Colors.deepOrange;
+      case RecommendationType.cycleManagement:
+        return Colors.blueGrey;
+      case RecommendationType.breakStrategy:
+        return Colors.cyan;
+      case RecommendationType.timeBlocking:
+        return Colors.brown;
+      case RecommendationType.distractionControl:
+        return Colors.pink;
     }
   }
 
@@ -391,6 +405,20 @@ class RecommendationsWidget extends StatelessWidget {
         return LucideIcons.trendingUp;
       case RecommendationType.conceptReinforcement:
         return LucideIcons.target;
+      case RecommendationType.studyMethods:
+        return LucideIcons.bookMarked;
+      case RecommendationType.pomodoroOptimization:
+        return LucideIcons.timer;
+      case RecommendationType.focusImprovement:
+        return LucideIcons.focus;
+      case RecommendationType.cycleManagement:
+        return LucideIcons.rotateCw;
+      case RecommendationType.breakStrategy:
+        return LucideIcons.coffee;
+      case RecommendationType.timeBlocking:
+        return LucideIcons.calendar;
+      case RecommendationType.distractionControl:
+        return LucideIcons.eyeOff;
     }
   }
 
@@ -408,6 +436,20 @@ class RecommendationsWidget extends StatelessWidget {
         return 'Difficulty';
       case RecommendationType.conceptReinforcement:
         return 'Concepts';
+      case RecommendationType.studyMethods:
+        return 'Methods';
+      case RecommendationType.pomodoroOptimization:
+        return 'Pomodoro';
+      case RecommendationType.focusImprovement:
+        return 'Focus';
+      case RecommendationType.cycleManagement:
+        return 'Cycles';
+      case RecommendationType.breakStrategy:
+        return 'Breaks';
+      case RecommendationType.timeBlocking:
+        return 'Time Blocks';
+      case RecommendationType.distractionControl:
+        return 'Distractions';
     }
   }
 

@@ -557,6 +557,163 @@ Return ONLY the JSON response, no other text.
     }
   }
 
+  /// Generate comprehensive analytics insights for Pomodoro Technique sessions
+  Future<Map<String, dynamic>> generatePomodoroAnalyticsInsights(Map<String, dynamic> analyticsData) async {
+    try {
+      print('🍅 [GEMINI AI] Generating Pomodoro-specific analytics insights...');
+      
+      final prompt = '''
+You are an expert educational data scientist specializing in productivity and focus optimization through the Pomodoro Technique. Analyze the following Pomodoro study session data and provide DESCRIPTIVE ANALYTICS (what happened) and PRESCRIPTIVE ANALYTICS (what to do next).
+
+POMODORO SESSION DATA:
+Course: ${analyticsData['course']}
+Module: ${analyticsData['module']}
+Study Technique: Pomodoro Technique
+
+SESSION OVERVIEW:
+- Total Cycles: ${analyticsData['session_data']['total_cycles']}
+- Completed Cycles: ${analyticsData['session_data']['completed_cycles']}
+- Total Duration: ${analyticsData['session_data']['total_duration_minutes']} minutes
+- Work Cycles: ${analyticsData['session_data']['work_cycles']}
+- Break Cycles: ${analyticsData['session_data']['break_cycles']}
+- Notes Taken: ${analyticsData['session_data']['notes_taken']}
+
+FOCUS ANALYSIS:
+- Average Focus Score: ${analyticsData['focus_analysis']['average_focus_score']}/10
+- Focus Progression: ${analyticsData['focus_analysis']['focus_progression']}
+- Pattern Type: ${analyticsData['focus_analysis']['pattern_type']}
+
+PERFORMANCE METRICS:
+- Productivity Score: ${analyticsData['performance']['productivity_score']}%
+- Completion Rate: ${analyticsData['performance']['completion_rate']}%
+- Improvement: ${analyticsData['performance']['improvement']}
+
+BEHAVIOR PATTERNS:
+- Persistence Score: ${analyticsData['behavior']['persistence_score']}
+- Engagement Level: ${analyticsData['behavior']['engagement_level']}
+- Break Adherence: ${analyticsData['behavior']['break_adherence']}
+- Common Challenges: ${analyticsData['behavior']['common_challenges']}
+
+COGNITIVE FACTORS:
+- Cognitive Load: ${analyticsData['cognitive']['cognitive_load']}
+- Processing Efficiency: ${analyticsData['cognitive']['processing_efficiency']}
+- Attention Span: ${analyticsData['cognitive']['attention_span']}
+- Strengths: ${analyticsData['cognitive']['strengths']}
+- Weaknesses: ${analyticsData['cognitive']['weaknesses']}
+
+NOTE-TAKING ANALYSIS:
+- Study Notes: ${analyticsData['notes_analysis']['study_notes']}
+- Reflections: ${analyticsData['notes_analysis']['reflections']}
+- Quiz Answers: ${analyticsData['notes_analysis']['quiz_answers']}
+
+Generate the following in JSON format:
+
+{
+  "insights": [
+    {
+      "id": "pomodoro_descriptive_insight_id",
+      "category": "performance|behavior|cognitive|focus_patterns",
+      "title": "Pomodoro Session Insight Title",
+      "insight": "DESCRIPTIVE ANALYTICS: Analysis of focus patterns, cycle completion, productivity trends, and Pomodoro technique effectiveness. Focus on what the data reveals about the student's ability to maintain focused work periods, take effective breaks, and sustain attention throughout the session.",
+      "significance": 0.0-1.0,
+      "supporting_data": ["focus score data", "cycle completion patterns", "productivity metrics"]
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "pomodoro_prescriptive_action_id",
+      "type": "pomodoroOptimization|focusImprovement|cycleManagement|breakStrategy|timeBlocking|distractionControl",
+      "title": "Pomodoro Technique Optimization",
+      "description": "PRESCRIPTIVE ANALYTICS: Evidence-based recommendations to improve Pomodoro technique effectiveness",
+      "actionable_advice": "Specific adjustments to Pomodoro cycle length, break duration, distraction management, or focus enhancement strategies. Include timing recommendations, environmental modifications, and technique adaptations.",
+      "priority": 1-5,
+      "confidence_score": 0.0-1.0,
+      "reasons": ["focus pattern analysis", "productivity data", "attention span observations"]
+    }
+  ],
+  "study_plan": {
+    "id": "pomodoro_plan_${DateTime.now().millisecondsSinceEpoch}",
+    "activities": [
+      {
+        "type": "pomodoro_technique",
+        "description": "Optimized Pomodoro session based on performance analysis",
+        "duration_minutes": 25-50,
+        "priority": 1,
+        "materials": ["specific concepts to focus on", "distraction management tools"]
+      }
+    ],
+    "estimated_duration_minutes": 25-90,
+    "focus_areas": {
+      "cycle_optimization": "recommended cycle length adjustments",
+      "break_strategy": "break management improvements",
+      "focus_enhancement": "attention improvement techniques"
+    },
+    "objectives": ["improve focus consistency", "increase cycle completion rate", "enhance productivity"]
+  }
+}
+
+POMODORO-SPECIFIC ANALYTICS REQUIREMENTS:
+
+DESCRIPTIVE ANALYTICS (Focus on Pomodoro Elements):
+1. Analyze focus score progression throughout work cycles
+2. Examine cycle completion patterns and break adherence
+3. Identify productivity trends and attention patterns
+4. Evaluate note-taking engagement during work periods
+5. Assess overall Pomodoro technique effectiveness
+
+PRESCRIPTIVE ANALYTICS (Pomodoro Optimizations):
+1. Recommend optimal cycle lengths based on focus patterns
+2. Suggest break strategies based on attention span data
+3. Advise on distraction management and environmental setup
+4. Provide cycle scheduling recommendations
+5. Suggest focus enhancement techniques specific to Pomodoro
+
+FOCUS PATTERN ANALYSIS:
+- High focus (7-10): Recommend maintaining or extending cycles
+- Medium focus (4-6): Suggest moderate adjustments and distraction reduction
+- Low focus (1-3): Recommend shorter cycles and environment optimization
+
+PRODUCTIVITY OPTIMIZATION:
+- High completion rate (>80%): Consider cycle extension or advanced techniques
+- Medium completion rate (50-80%): Focus on consistency and minor adjustments
+- Low completion rate (<50%): Recommend cycle shortening and motivation strategies
+
+Return ONLY the JSON response, no other text.
+''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Empty response from Gemini AI for Pomodoro analytics insights');
+      }
+
+      print('🍅 [GEMINI AI] Pomodoro analytics response received: ${responseText.substring(0, responseText.length.clamp(0, 300))}...');
+
+      // Clean up the response to extract JSON
+      String jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      }
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      jsonText = jsonText.trim();
+
+      final Map<String, dynamic> aiResponse = jsonDecode(jsonText);
+      
+      // Convert AI response to our model objects
+      return _processAIAnalyticsResponse(aiResponse);
+      
+    } catch (e) {
+      print('❌ [GEMINI AI] Error generating Pomodoro analytics insights: $e');
+      throw Exception('Failed to generate Pomodoro AI insights: $e');
+    }
+  }
+
   /// Generate study insights for a specific learning pattern
   Future<List<String>> generateLearningPatternAdvice(String patternType, Map<String, dynamic> contextData) async {
     try {
