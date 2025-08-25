@@ -245,13 +245,13 @@ Summary: This PDF contains educational material covering concepts related to ${m
     ];
   }
 
-  /// Generate comprehensive analytics insights and recommendations
+  /// Generate comprehensive descriptive and prescriptive analytics
   Future<Map<String, dynamic>> generateStudyAnalyticsInsights(Map<String, dynamic> analyticsData) async {
     try {
-      print('🤖 [GEMINI AI] Generating analytics insights and recommendations...');
+      print('🤖 [GEMINI AI] Generating descriptive and prescriptive analytics...');
       
       final prompt = '''
-You are an expert educational data scientist and learning psychologist. Analyze the following comprehensive study session data and provide actionable insights and personalized recommendations.
+You are an expert educational data scientist and learning psychologist. Analyze the following comprehensive study session data and provide proper DESCRIPTIVE ANALYTICS (what happened) and PRESCRIPTIVE ANALYTICS (what to do next).
 
 STUDY SESSION DATA:
 Course: ${analyticsData['course']}
@@ -283,59 +283,73 @@ COGNITIVE ANALYSIS:
 - Cognitive Strengths: ${analyticsData['cognitive']['strengths']}
 - Cognitive Weaknesses: ${analyticsData['cognitive']['weaknesses']}
 
-Based on this comprehensive analysis, provide the following in JSON format:
+Generate the following in JSON format:
 
 {
   "insights": [
     {
-      "id": "unique_insight_id",
-      "category": "performance|behavior|cognitive|temporal|material",
-      "title": "Brief insight title",
-      "insight": "Detailed insight explanation with specific observations",
+      "id": "descriptive_insight_id",
+      "category": "performance|behavior|cognitive|learning_patterns",
+      "title": "Descriptive Insight Title",
+      "insight": "DESCRIPTIVE ANALYTICS: Detailed analysis of what actually happened in the learning session. Focus on patterns, trends, correlations, and statistical observations about the student's learning behavior and performance.",
       "significance": 0.0-1.0,
-      "supporting_data": ["key data point 1", "key data point 2"]
+      "supporting_data": ["quantitative evidence", "behavioral patterns identified", "performance metrics"]
     }
   ],
   "recommendations": [
     {
-      "id": "unique_recommendation_id",
-      "type": "studyTiming|materialFocus|studyTechnique|practiceFrequency|difficultyAdjustment|conceptReinforcement",
-      "title": "Recommendation title",
-      "description": "Why this recommendation matters",
-      "actionable_advice": "Specific actionable steps to take",
+      "id": "prescriptive_action_id",
+      "type": "studyStrategy|timeManagement|conceptMastery|practiceMethod|cognitiveOptimization|behaviorModification",
+      "title": "Prescriptive Action Title",
+      "description": "PRESCRIPTIVE ANALYTICS: Specific evidence-based strategy to optimize learning outcomes",
+      "actionable_advice": "Detailed step-by-step actions the student should take, based on data analysis. Include timing, methods, and measurable goals.",
       "priority": 1-5,
       "confidence_score": 0.0-1.0,
-      "reasons": ["reason 1", "reason 2", "reason 3"]
+      "reasons": ["data-driven justification", "expected outcome", "success probability"]
     }
   ],
   "study_plan": {
-    "id": "study_plan_${DateTime.now().millisecondsSinceEpoch}",
+    "id": "technique_recommendation_${DateTime.now().millisecondsSinceEpoch}",
     "activities": [
       {
-        "type": "review|practice|deep_study|assessment",
-        "description": "Activity description",
-        "duration_minutes": 15-60,
+        "type": "active_recall|pomodoro_technique|feynman_technique|retrieval_practice",
+        "description": "Recommended study technique based on performance analysis and learning patterns",
+        "duration_minutes": 25-45,
         "priority": 1-3,
-        "materials": ["material or concept to focus on"]
+        "materials": ["specific concepts to focus on based on weak areas identified"]
       }
     ],
-    "estimated_duration_minutes": 30-120,
+    "estimated_duration_minutes": 25-90,
     "focus_areas": {
-      "primary_focus": "main area to focus on",
-      "secondary_focus": "secondary area"
+      "primary_technique": "recommended study technique based on performance data",
+      "secondary_technique": "alternative study technique if needed"
     },
-    "objectives": ["objective 1", "objective 2", "objective 3"]
+    "objectives": ["technique-specific learning goal", "performance improvement target"]
   }
 }
 
-ANALYSIS GUIDELINES:
-1. Provide 3-5 meaningful insights that identify patterns, strengths, and areas for improvement
-2. Generate 2-4 personalized recommendations with high confidence scores
-3. Create a realistic study plan with 3-5 activities totaling 30-90 minutes
-4. Focus on actionable advice that the student can implement immediately
-5. Consider the student's learning patterns and cognitive profile
-6. Be encouraging but honest about areas needing improvement
-7. Prioritize recommendations based on potential impact
+ANALYTICS REQUIREMENTS:
+
+DESCRIPTIVE ANALYTICS (Insights):
+1. Analyze WHAT HAPPENED during the learning session
+2. Identify patterns, correlations, and trends in the data
+3. Provide statistical observations about performance, behavior, and cognition
+4. Focus on data interpretation and pattern recognition
+5. Answer: "What can we learn from this session data?"
+
+PRESCRIPTIVE ANALYTICS (Recommendations):  
+1. Determine WHAT ACTION TO TAKE based on the descriptive analysis
+2. Provide specific, data-driven strategies for optimization
+3. Include step-by-step actionable plans with measurable outcomes
+4. Prioritize actions by expected impact and feasibility
+5. Answer: "What should the student do to improve based on this data?"
+
+STUDY TECHNIQUE RECOMMENDATIONS (Prescriptive Implementation):
+1. Recommend specific study techniques from our available options: Active Recall, Pomodoro Technique, Feynman Technique, Retrieval Practice
+2. Base recommendations on student's performance patterns, learning velocity, and cognitive analysis
+3. Match technique characteristics to student's strengths and weaknesses
+4. Prioritize techniques that will maximize learning efficiency for this student's profile
+5. Consider: Quick learners → Active Recall or Retrieval Practice; Attention issues → Pomodoro Technique; Conceptual struggles → Feynman Technique
 
 Return ONLY the JSON response, no other text.
 ''';

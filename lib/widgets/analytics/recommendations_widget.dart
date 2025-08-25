@@ -55,12 +55,16 @@ class RecommendationsWidget extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
-                'Personalized Recommendations',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              const Expanded(
+                child: Text(
+                  'Personalized Recommendations',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -104,7 +108,10 @@ class RecommendationsWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header with type, priority, and confidence
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            alignment: WrapAlignment.spaceBetween,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -128,16 +135,14 @@ class RecommendationsWidget extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                         color: _getTypeColor(recommendation.type),
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ],
                 ),
               ),
               
-              const SizedBox(width: 8),
-              
               _buildPriorityBadge(recommendation.priority),
-              
-              const Spacer(),
               
               _buildConfidenceBadge(recommendation.confidenceScore),
             ],
@@ -153,6 +158,8 @@ class RecommendationsWidget extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
           ),
           
           const SizedBox(height: 6),
@@ -165,6 +172,9 @@ class RecommendationsWidget extends StatelessWidget {
               color: AppColors.textSecondary,
               height: 1.3,
             ),
+            softWrap: true,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
           ),
           
           const SizedBox(height: 12),
@@ -207,6 +217,9 @@ class RecommendationsWidget extends StatelessWidget {
                     color: AppColors.textSecondary,
                     height: 1.3,
                   ),
+                  softWrap: true,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -232,6 +245,8 @@ class RecommendationsWidget extends StatelessWidget {
                       fontSize: 10,
                       color: _getTypeColor(recommendation.type),
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 );
               }).toList(),

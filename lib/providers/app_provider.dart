@@ -111,12 +111,6 @@ class AppProvider with ChangeNotifier {
       description: 'Answer short quizzes and open-ended questions immediately after reading material, without notes or references.',
       icon: LucideIcons.bookOpen,
     ),
-    StudyTechnique(
-      id: 'spaced_repetition',
-      name: 'Spaced Repetition',
-      description: 'Boost comprehension through spaced practice and repetition with optimal review timing for maximum retention.',
-      icon: LucideIcons.repeat,
-    ),
   ];
 
   List<StudyTechnique> get studyTechniques => _studyTechniques;

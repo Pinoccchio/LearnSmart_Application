@@ -247,9 +247,6 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
       case 'retrieval_practice':
         _showComingSoonDialog('Retrieval Practice');
         break;
-      case 'spaced_repetition':
-        _showComingSoonDialog('Spaced Repetition');
-        break;
       default:
         _showComingSoonDialog('Selected technique');
     }

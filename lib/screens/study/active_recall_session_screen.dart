@@ -776,7 +776,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
                   ),
                   Tab(
                     icon: Icon(LucideIcons.calendar, size: 16),
-                    text: 'Study Plan',
+                    text: 'Study Techniques',
                   ),
                 ],
               ),
@@ -973,28 +973,15 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   }
 
   Widget _buildPrescriptiveAnalyticsTab() {
-    // Show prescriptive analytics: recommendations and insights
+    // Show prescriptive analytics: actionable recommendations
     if (_sessionAnalytics != null) {
       return SingleChildScrollView(
         child: Column(
           children: [
-            // AI Insights Section
-            if (_sessionAnalytics!.insights.isNotEmpty) ...[
-              _buildPrescriptiveSection(
-                title: 'AI-Generated Insights',
-                icon: LucideIcons.lightbulb,
-                content: InsightsWidget(
-                  insights: _sessionAnalytics!.insights,
-                  showAll: true,
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            
-            // Personalized Recommendations Section
+            // Actionable Recommendations Section
             if (_sessionAnalytics!.recommendations.isNotEmpty) ...[
               _buildPrescriptiveSection(
-                title: 'Personalized Recommendations',
+                title: 'Actionable Recommendations',
                 icon: LucideIcons.target,
                 content: RecommendationsWidget(
                   recommendations: _sessionAnalytics!.recommendations,
@@ -1008,25 +995,24 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
     
     return _buildEmptyTab(
       'Prescriptive Analytics Unavailable',
-      'Unable to generate actionable recommendations for this session.',
+      'Unable to generate prescriptive analytics for this session.',
       LucideIcons.target,
     );
   }
 
   Widget _buildStudyPlanTab() {
-    // Always show study plan if analytics exist, even if AI generation partially failed
+    // Show recommended study techniques based on performance analysis
     if (_sessionAnalytics?.suggestedStudyPlan != null) {
       return SingleChildScrollView(
         child: StudyPlanWidget(
           studyPlan: _sessionAnalytics!.suggestedStudyPlan,
-          onStartStudyPlan: null, // Remove button functionality
         ),
       );
     }
     
     return _buildEmptyTab(
-      'Study Plan Unavailable',
-      'Unable to create a study plan for this session.',
+      'Study Techniques Unavailable',
+      'Unable to recommend study techniques for this session.',
       LucideIcons.calendar,
     );
   }
@@ -1104,12 +1090,16 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             children: [
               Icon(icon, size: 20, color: AppColors.bgPrimary),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -1140,12 +1130,16 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             children: [
               Icon(icon, size: 20, color: Colors.green),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
             ],
@@ -1476,7 +1470,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
       case StudySessionStatus.postStudy:
         return 'Test your memory after studying';
       case StudySessionStatus.generatingAnalytics:
-        return 'AI is analyzing your learning patterns and generating personalized insights...';
+        return 'Generating comprehensive descriptive and prescriptive analytics...';
       case StudySessionStatus.completed:
         return 'Great work! Review your results below';
       case StudySessionStatus.paused:

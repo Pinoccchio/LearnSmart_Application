@@ -5,12 +5,10 @@ import '../../models/study_analytics_models.dart';
 
 class StudyPlanWidget extends StatelessWidget {
   final StudyPlan studyPlan;
-  final VoidCallback? onStartStudyPlan;
 
   const StudyPlanWidget({
     super.key,
     required this.studyPlan,
-    this.onStartStudyPlan,
   });
 
   @override
@@ -49,7 +47,7 @@ class StudyPlanWidget extends StatelessWidget {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Recommended Study Plan',
+                  'Recommended Study Techniques',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -78,11 +76,7 @@ class StudyPlanWidget extends StatelessWidget {
           // Activities
           if (studyPlan.activities.isNotEmpty) ...[
             _buildActivities(),
-            const SizedBox(height: 20),
           ],
-          
-          // Start button
-          _buildStartButton(),
         ],
       ),
     );
@@ -271,7 +265,7 @@ class StudyPlanWidget extends StatelessWidget {
             ),
             SizedBox(width: 6),
             Text(
-              'Study Activities',
+              'Recommended Techniques',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
@@ -406,50 +400,37 @@ class StudyPlanWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildStartButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: ElevatedButton.icon(
-        onPressed: onStartStudyPlan,
-        icon: const Icon(LucideIcons.play, size: 18),
-        label: const Text(
-          'Start Study Plan',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.indigo,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 2,
-        ),
-      ),
-    );
-  }
 
   Color _getActivityTypeColor(String type) {
     switch (type.toLowerCase()) {
+      case 'active_recall':
+        return Colors.blue;
+      case 'pomodoro_technique':
+        return Colors.orange;
+      case 'feynman_technique':
+        return Colors.purple;
+      case 'retrieval_practice':
+        return Colors.green;
       case 'review':
         return Colors.blue;
       case 'practice':
         return Colors.orange;
-      case 'deep_study':
-        return Colors.purple;
-      case 'assessment':
-        return Colors.red;
       default:
         return Colors.grey;
     }
   }
 
   String _formatFocusAreaKey(String key) {
-    return key.split('_')
-        .map((word) => word[0].toUpperCase() + word.substring(1))
-        .join(' ');
+    // Handle technique-specific keys
+    switch (key.toLowerCase()) {
+      case 'primary_technique':
+        return 'Primary Technique';
+      case 'secondary_technique':
+        return 'Secondary Technique';
+      default:
+        return key.split('_')
+            .map((word) => word[0].toUpperCase() + word.substring(1))
+            .join(' ');
+    }
   }
 }
