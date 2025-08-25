@@ -14,7 +14,6 @@ class FeynmanCompletionScreen extends StatelessWidget {
   final FeynmanSessionResults sessionResults;
   final StudySessionAnalytics? sessionAnalytics;
   final VoidCallback onBackToModule;
-  final VoidCallback onStudyAgain;
 
   const FeynmanCompletionScreen({
     super.key,
@@ -23,7 +22,6 @@ class FeynmanCompletionScreen extends StatelessWidget {
     required this.sessionResults,
     this.sessionAnalytics,
     required this.onBackToModule,
-    required this.onStudyAgain,
   });
 
   @override
@@ -557,35 +555,21 @@ class FeynmanCompletionScreen extends StatelessWidget {
         ),
       ),
       child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onBackToModule,
-                icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                label: const Text('Back to Module'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: AppColors.grey300),
-                ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: onBackToModule,
+            icon: const Icon(LucideIcons.arrowLeft, size: 20),
+            label: const Text('Back to Module'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.bgPrimary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
             ),
-            
-            const SizedBox(width: 16),
-            
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: onStudyAgain,
-                icon: const Icon(LucideIcons.repeat, size: 20),
-                label: const Text('Study Again'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.bgPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

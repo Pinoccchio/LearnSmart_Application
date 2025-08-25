@@ -40,6 +40,9 @@ enum InsightCategory {
   cognitive,
   temporal,
   material,
+  contentFocus,
+  contentMastery,
+  depth,
 }
 
 // Core Analytics Models
@@ -325,14 +328,14 @@ class PersonalizedRecommendation {
 
   factory PersonalizedRecommendation.fromJson(Map<String, dynamic> json) {
     return PersonalizedRecommendation(
-      id: json['id'],
-      type: RecommendationType.values.byName(json['type']),
-      title: json['title'],
-      description: json['description'],
-      actionableAdvice: json['actionable_advice'],
-      priority: json['priority'],
-      confidenceScore: json['confidence_score'].toDouble(),
-      reasons: List<String>.from(json['reasons']),
+      id: json['id']?.toString() ?? '',
+      type: RecommendationType.values.byName(json['type']?.toString() ?? 'studyMethods'),
+      title: json['title']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      actionableAdvice: json['actionableAdvice']?.toString() ?? json['actionable_advice']?.toString() ?? '',
+      priority: json['priority']?.toInt() ?? 1,
+      confidenceScore: (json['confidenceScore'] ?? json['confidence_score'] ?? 0.5).toDouble(),
+      reasons: List<String>.from(json['reasons'] ?? []),
       parameters: json['parameters'] ?? {},
     );
   }
@@ -374,13 +377,13 @@ class AnalyticsInsight {
 
   factory AnalyticsInsight.fromJson(Map<String, dynamic> json) {
     return AnalyticsInsight(
-      id: json['id'],
-      category: InsightCategory.values.byName(json['category']),
-      title: json['title'],
-      insight: json['insight'],
-      significance: json['significance'].toDouble(),
-      supportingData: List<String>.from(json['supporting_data']),
-      visualizationData: json['visualization_data'] ?? {},
+      id: json['id']?.toString() ?? '',
+      category: InsightCategory.values.byName(json['category']?.toString() ?? 'performance'),
+      title: json['title']?.toString() ?? '',
+      insight: json['insight']?.toString() ?? '',
+      significance: (json['significance'] ?? 0.5).toDouble(),
+      supportingData: List<String>.from(json['supportingData'] ?? json['supporting_data'] ?? []),
+      visualizationData: json['visualizationData'] ?? json['visualization_data'] ?? {},
     );
   }
 
@@ -415,13 +418,13 @@ class StudyPlan {
 
   factory StudyPlan.fromJson(Map<String, dynamic> json) {
     return StudyPlan(
-      id: json['id'],
-      activities: (json['activities'] as List)
-          .map((a) => StudyActivity.fromJson(a))
+      id: json['id']?.toString() ?? '',
+      activities: (json['activities'] as List? ?? [])
+          .map((a) => StudyActivity.fromJson(a as Map<String, dynamic>))
           .toList(),
-      estimatedDuration: Duration(minutes: json['estimated_duration_minutes']),
-      focusAreas: Map<String, String>.from(json['focus_areas']),
-      objectives: List<String>.from(json['objectives']),
+      estimatedDuration: Duration(minutes: (json['estimated_duration_minutes'] ?? json['estimatedDurationMinutes'] ?? 0).toInt()),
+      focusAreas: Map<String, String>.from(json['focus_areas'] ?? json['focusAreas'] ?? {}),
+      objectives: List<String>.from(json['objectives'] ?? []),
     );
   }
 
@@ -454,11 +457,11 @@ class StudyActivity {
 
   factory StudyActivity.fromJson(Map<String, dynamic> json) {
     return StudyActivity(
-      type: json['type'],
-      description: json['description'],
-      duration: Duration(minutes: json['duration_minutes']),
-      priority: json['priority'],
-      materials: List<String>.from(json['materials']),
+      type: json['type']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
+      duration: Duration(minutes: (json['duration_minutes'] ?? json['durationMinutes'] ?? 0).toInt()),
+      priority: (json['priority'] ?? 1).toInt(),
+      materials: List<String>.from(json['materials'] ?? []),
     );
   }
 
@@ -489,10 +492,10 @@ class TimeBasedPattern {
 
   factory TimeBasedPattern.fromJson(Map<String, dynamic> json) {
     return TimeBasedPattern(
-      timeframe: json['timeframe'],
-      performanceScore: json['performance_score'].toDouble(),
-      pattern: json['pattern'],
-      observations: List<String>.from(json['observations']),
+      timeframe: json['timeframe']?.toString() ?? '',
+      performanceScore: (json['performance_score'] ?? json['performanceScore'] ?? 0.0).toDouble(),
+      pattern: json['pattern']?.toString() ?? '',
+      observations: List<String>.from(json['observations'] ?? []),
     );
   }
 

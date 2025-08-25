@@ -85,7 +85,8 @@ enum FeynmanFeedbackType {
   accuracy('accuracy'),
   simplification('simplification'),
   examples('examples'),
-  overall('overall');
+  overall('overall'),
+  depth('depth');
 
   const FeynmanFeedbackType(this.value);
   final String value;
@@ -111,6 +112,8 @@ enum FeynmanFeedbackType {
         return 'Examples';
       case FeynmanFeedbackType.overall:
         return 'Overall';
+      case FeynmanFeedbackType.depth:
+        return 'Depth';
     }
   }
 }
@@ -154,7 +157,8 @@ enum StudySuggestionType {
   retrievalPractice('retrieval_practice'),
   additionalReading('additional_reading'),
   videoContent('video_content'),
-  examplesPractice('examples_practice');
+  examplesPractice('examples_practice'),
+  conceptApplication('concept_application');
 
   const StudySuggestionType(this.value);
   final String value;
@@ -182,6 +186,8 @@ enum StudySuggestionType {
         return 'Video Content';
       case StudySuggestionType.examplesPractice:
         return 'Examples Practice';
+      case StudySuggestionType.conceptApplication:
+        return 'Concept Application';
     }
   }
 }

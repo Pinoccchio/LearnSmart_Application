@@ -912,14 +912,14 @@ Return a JSON array of strings with specific advice:
       Analyze this comprehensive Feynman Technique study session data and generate personalized insights and recommendations:
 
       COURSE & MODULE:
-      Course: ${analyticsData['course'] ?? 'Unknown'}
-      Module: ${analyticsData['module'] ?? 'Unknown'}
+      Course: ${analyticsData['course']?.toString() ?? 'Unknown'}
+      Module: ${analyticsData['module']?.toString() ?? 'Unknown'}
 
       SESSION DATA:
-      Topic: ${sessionData['topic'] ?? 'Unknown'}
-      Total Explanations: ${sessionData['total_explanations'] ?? 0}
-      Session Duration: ${sessionData['session_duration_minutes'] ?? 0} minutes
-      Explanation Types: ${sessionData['explanation_types'] ?? []}
+      Topic: ${sessionData['topic']?.toString() ?? 'Unknown'}
+      Total Explanations: ${sessionData['total_explanations']?.toString() ?? '0'}
+      Session Duration: ${sessionData['session_duration_minutes']?.toString() ?? '0'} minutes
+      Explanation Types: ${sessionData['explanation_types']?.toString() ?? '[]'}
 
       EXPLANATION ANALYSIS:
       Average Overall Score: ${explanationAnalysis['average_overall_score']?.toStringAsFixed(1) ?? 'N/A'}/10
@@ -930,38 +930,38 @@ Return a JSON array of strings with specific advice:
 
       PERFORMANCE METRICS:
       Overall Improvement: ${performance['overall_improvement']?.toStringAsFixed(1) ?? 'N/A'}%
-      Pattern Type: ${performance['pattern_type'] ?? 'Unknown'}
-      Strong Concepts: ${performance['strong_concepts'] ?? []}
-      Weak Concepts: ${performance['weak_concepts'] ?? []}
+      Pattern Type: ${performance['pattern_type']?.toString() ?? 'Unknown'}
+      Strong Concepts: ${performance['strong_concepts']?.toString() ?? '[]'}
+      Weak Concepts: ${performance['weak_concepts']?.toString() ?? '[]'}
 
       BEHAVIOR ANALYSIS:
       Persistence Score: ${behavior['persistence_score']?.toStringAsFixed(0) ?? 'N/A'}%
       Engagement Level: ${behavior['engagement_level']?.toStringAsFixed(0) ?? 'N/A'}%
-      Study Time: ${behavior['total_study_minutes'] ?? 0} minutes
-      Common Challenges: ${behavior['common_challenges'] ?? []}
+      Study Time: ${behavior['total_study_minutes']?.toString() ?? '0'} minutes
+      Common Challenges: ${behavior['common_challenges']?.toString() ?? '[]'}
 
       COGNITIVE ANALYSIS:
       Cognitive Load: ${cognitive['cognitive_load']?.toStringAsFixed(0) ?? 'N/A'}%
       Processing Speed: ${cognitive['processing_speed']?.toStringAsFixed(0) ?? 'N/A'}%
       Attention Span: ${cognitive['attention_span']?.toStringAsFixed(0) ?? 'N/A'}%
-      Strengths: ${cognitive['strengths'] ?? []}
-      Weaknesses: ${cognitive['weaknesses'] ?? []}
+      Strengths: ${cognitive['strengths']?.toString() ?? '[]'}
+      Weaknesses: ${cognitive['weaknesses']?.toString() ?? '[]'}
 
       FEEDBACK ANALYSIS:
-      Total Feedback Items: ${feedbackAnalysis['total_feedback'] ?? 0}
-      Critical Issues: ${feedbackAnalysis['critical_issues'] ?? 0}
-      High Priority Items: ${feedbackAnalysis['high_priority_items'] ?? 0}
-      Feedback Categories: ${feedbackAnalysis['feedback_categories'] ?? []}
+      Total Feedback Items: ${feedbackAnalysis['total_feedback']?.toString() ?? '0'}
+      Critical Issues: ${feedbackAnalysis['critical_issues']?.toString() ?? '0'}
+      High Priority Items: ${feedbackAnalysis['high_priority_items']?.toString() ?? '0'}
+      Feedback Categories: ${feedbackAnalysis['feedback_categories']?.toString() ?? '[]'}
 
       HISTORICAL CONTEXT:
-      Total Module Sessions: ${historicalContext['total_module_sessions'] ?? 0}
-      Total Module Explanations: ${historicalContext['total_module_explanations'] ?? 0}
+      Total Module Sessions: ${historicalContext['total_module_sessions']?.toString() ?? '0'}
+      Total Module Explanations: ${historicalContext['total_module_explanations']?.toString() ?? '0'}
       Historical Average Score: ${historicalContext['historical_avg_score']?.toStringAsFixed(1) ?? 'N/A'}/10
-      Improvement Trend: ${historicalContext['improvement_trend'] ?? 'stable'}
-      Strong Concepts (History): ${historicalContext['strong_concepts_history'] ?? []}
-      Struggling Concepts (History): ${historicalContext['struggling_concepts_history'] ?? []}
-      Best Topic: ${historicalContext['best_topic'] ?? 'Unknown'}
-      Sessions by Topic: ${historicalContext['sessions_by_topic'] ?? {}}
+      Improvement Trend: ${historicalContext['improvement_trend']?.toString() ?? 'stable'}
+      Strong Concepts (History): ${historicalContext['strong_concepts_history']?.toString() ?? '[]'}
+      Struggling Concepts (History): ${historicalContext['struggling_concepts_history']?.toString() ?? '[]'}
+      Best Topic: ${historicalContext['best_topic']?.toString() ?? 'Unknown'}
+      Sessions by Topic: ${historicalContext['sessions_by_topic']?.toString() ?? '{}'}
 
       Based on this comprehensive analysis, provide insights and recommendations in JSON format:
       {
@@ -1028,16 +1028,19 @@ Return a JSON array of strings with specific advice:
         final jsonString = jsonMatch.group(0)!;
         final insights = json.decode(jsonString) as Map<String, dynamic>;
         
+        // Validate and clean AI-generated data before parsing
+        final cleanedInsights = _validateAndCleanAnalyticsResponse(insights);
+
         // Convert the parsed data to proper model objects
-        final recommendations = (insights['recommendations'] as List? ?? [])
+        final recommendations = (cleanedInsights['recommendations'] as List? ?? [])
             .map((rec) => PersonalizedRecommendation.fromJson(rec))
             .toList();
             
-        final analyticsInsights = (insights['insights'] as List? ?? [])
+        final analyticsInsights = (cleanedInsights['insights'] as List? ?? [])
             .map((insight) => AnalyticsInsight.fromJson(insight))
             .toList();
             
-        final studyPlanData = insights['studyPlan'] as Map<String, dynamic>? ?? {};
+        final studyPlanData = cleanedInsights['studyPlan'] as Map<String, dynamic>? ?? {};
         final studyPlan = StudyPlan.fromJson(studyPlanData);
         
         print('✅ [FEYNMAN ANALYTICS AI] Generated ${recommendations.length} recommendations and ${analyticsInsights.length} insights');
@@ -1171,5 +1174,99 @@ Return a JSON array of strings with specific advice:
       print('❌ [GEMINI AI] Connection test failed: $e');
       return false;
     }
+  }
+
+  /// Validates and cleans AI-generated analytics response to prevent enum errors
+  Map<String, dynamic> _validateAndCleanAnalyticsResponse(Map<String, dynamic> response) {
+    final cleaned = Map<String, dynamic>.from(response);
+    
+    // Valid enum values for validation
+    final validInsightCategories = ['performance', 'behavior', 'cognitive', 'temporal', 'material', 'contentFocus', 'contentMastery', 'depth'];
+    final validRecommendationTypes = ['studyTiming', 'materialFocus', 'studyTechnique', 'practiceFrequency', 'difficultyAdjustment', 'conceptReinforcement', 'studyMethods', 'pomodoroOptimization', 'focusImprovement', 'cycleManagement', 'breakStrategy', 'timeBlocking', 'distractionControl'];
+    final validFeedbackTypes = ['clarity', 'completeness', 'accuracy', 'simplification', 'examples', 'overall', 'depth'];
+    final validSuggestionTypes = ['material_review', 'concept_practice', 'active_recall', 'retrieval_practice', 'additional_reading', 'video_content', 'examples_practice', 'concept_application'];
+    
+    // Mapping for invalid enum values to valid ones
+    final insightCategoryMapping = {
+      'efficiency': 'performance',
+      'strengths': 'performance', 
+      'learningPatterns': 'behavior',
+    };
+    
+    final recommendationTypeMapping = {
+      'contentFocus': 'materialFocus',
+      'studyTechniques': 'studyTechnique',
+      'knowledgeConsolidation': 'conceptReinforcement',
+      'timeManagement': 'studyTiming',
+    };
+    
+    final suggestionTypeMapping = {
+      'term_definition': 'concept_practice',
+    };
+    
+    // Clean insights
+    if (cleaned['insights'] is List) {
+      final insights = cleaned['insights'] as List;
+      for (var insight in insights) {
+        if (insight is Map<String, dynamic>) {
+          // Validate and fix category
+          if (insight.containsKey('category')) {
+            final category = insight['category']?.toString();
+            if (category != null) {
+              if (!validInsightCategories.contains(category)) {
+                // Try to map to a valid category first
+                final mappedCategory = insightCategoryMapping[category] ?? 'performance';
+                print('! [FEYNMAN] Unknown insight category: $category, mapping to $mappedCategory');
+                insight['category'] = mappedCategory;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Clean recommendations
+    if (cleaned['recommendations'] is List) {
+      final recommendations = cleaned['recommendations'] as List;
+      for (var rec in recommendations) {
+        if (rec is Map<String, dynamic>) {
+          // Validate and fix type
+          if (rec.containsKey('type')) {
+            final type = rec['type']?.toString();
+            if (type != null) {
+              if (!validRecommendationTypes.contains(type)) {
+                // Try to map to a valid type first
+                final mappedType = recommendationTypeMapping[type] ?? 'studyMethods';
+                print('! [FEYNMAN] Unknown recommendation type: $type, mapping to $mappedType');
+                rec['type'] = mappedType;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Clean study plan suggestions if present
+    if (cleaned['studyPlan'] is Map<String, dynamic>) {
+      final studyPlan = cleaned['studyPlan'] as Map<String, dynamic>;
+      if (studyPlan['activities'] is List) {
+        final activities = studyPlan['activities'] as List;
+        for (var activity in activities) {
+          if (activity is Map<String, dynamic> && activity.containsKey('type')) {
+            final type = activity['type']?.toString();
+            if (type != null) {
+              if (!validSuggestionTypes.contains(type)) {
+                // Try to map to a valid type first
+                final mappedType = suggestionTypeMapping[type] ?? 'material_review';
+                print('! [FEYNMAN] Unknown suggestion type: $type, mapping to $mappedType');
+                activity['type'] = mappedType;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return cleaned;
   }
 }

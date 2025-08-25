@@ -61,6 +61,12 @@ dependencies:
   
   # Equatable for value equality
   equatable: ^2.0.5
+  
+  # Speech to Text
+  speech_to_text: ^7.0.0
+  
+  # Permission handling
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:

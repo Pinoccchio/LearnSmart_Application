@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:speech_to_text/speech_to_text.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../constants/app_colors.dart';
 import '../../models/feynman_models.dart';
 import '../../services/feynman_service.dart';
@@ -22,13 +24,21 @@ class ExplanationInputWidget extends StatefulWidget {
   State<ExplanationInputWidget> createState() => _ExplanationInputWidgetState();
 }
 
-class _ExplanationInputWidgetState extends State<ExplanationInputWidget> {
+class _ExplanationInputWidgetState extends State<ExplanationInputWidget> with TickerProviderStateMixin {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   
   bool _isSubmitting = false;
   String? _errorMessage;
   int _wordCount = 0;
+  
+  // Speech to text
+  final SpeechToText _speechToText = SpeechToText();
+  bool _speechEnabled = false;
+  bool _speechAvailable = false;
+  bool _isListening = false;
+  String? _speechError;
+  late AnimationController _micAnimationController;
 
   @override
   void initState() {
@@ -36,12 +46,22 @@ class _ExplanationInputWidgetState extends State<ExplanationInputWidget> {
     _controller = TextEditingController(text: widget.initialText ?? '');
     _controller.addListener(_updateWordCount);
     _updateWordCount();
+    
+    // Initialize speech recognition
+    _initializeSpeech();
+    
+    // Initialize animation controller
+    _micAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
+    _micAnimationController.dispose();
     super.dispose();
   }
 
@@ -106,6 +126,126 @@ class _ExplanationInputWidgetState extends State<ExplanationInputWidget> {
     });
   }
 
+  Future<void> _initializeSpeech() async {
+    try {
+      _speechAvailable = await _speechToText.initialize(
+        onError: (error) {
+          setState(() {
+            _speechError = error.errorMsg;
+            _isListening = false;
+          });
+          _micAnimationController.stop();
+        },
+        onStatus: (status) {
+          if (status == 'done' || status == 'notListening') {
+            setState(() {
+              _isListening = false;
+            });
+            _micAnimationController.stop();
+          }
+        },
+      );
+      
+      setState(() {
+        _speechEnabled = _speechAvailable;
+      });
+    } catch (e) {
+      setState(() {
+        _speechError = 'Failed to initialize speech recognition: $e';
+        _speechEnabled = false;
+      });
+    }
+  }
+
+  Future<void> _toggleListening() async {
+    if (!_speechEnabled) {
+      // Request permission if not available
+      final permission = await Permission.microphone.request();
+      if (permission.isGranted) {
+        await _initializeSpeech();
+      } else {
+        setState(() {
+          _speechError = 'Microphone permission is required for voice input';
+        });
+        return;
+      }
+    }
+
+    if (_isListening) {
+      await _stopListening();
+    } else {
+      await _startListening();
+    }
+  }
+
+  Future<void> _startListening() async {
+    if (!_speechAvailable) return;
+
+    setState(() {
+      _speechError = null;
+    });
+
+    try {
+      await _speechToText.listen(
+        onResult: (result) {
+          if (result.hasConfidenceRating && result.confidence > 0) {
+            final currentText = _controller.text;
+            final newText = result.recognizedWords;
+            
+            // Smart text insertion: add space if needed and capitalize first letter
+            String finalText;
+            if (currentText.isEmpty) {
+              finalText = newText.isNotEmpty 
+                  ? '${newText[0].toUpperCase()}${newText.substring(1)}'
+                  : newText;
+            } else {
+              final needsSpace = !currentText.endsWith(' ') && !currentText.endsWith('\n');
+              finalText = currentText + (needsSpace ? ' ' : '') + newText;
+            }
+            
+            _controller.text = finalText;
+            _controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: finalText.length),
+            );
+          }
+        },
+        listenFor: const Duration(minutes: 2),
+        pauseFor: const Duration(seconds: 3),
+        localeId: 'en_US',
+        listenOptions: SpeechListenOptions(
+          partialResults: true,
+          listenMode: ListenMode.confirmation,
+        ),
+      );
+
+      setState(() {
+        _isListening = true;
+      });
+      
+      _micAnimationController.repeat();
+    } catch (e) {
+      setState(() {
+        _speechError = 'Failed to start listening: $e';
+        _isListening = false;
+      });
+    }
+  }
+
+  Future<void> _stopListening() async {
+    try {
+      await _speechToText.stop();
+      setState(() {
+        _isListening = false;
+      });
+      _micAnimationController.stop();
+    } catch (e) {
+      setState(() {
+        _speechError = 'Failed to stop listening: $e';
+        _isListening = false;
+      });
+    }
+  }
+
   Color get _wordCountColor {
     if (_wordCount < 50) return Colors.red;
     if (_wordCount < 100) return Colors.orange;
@@ -162,6 +302,25 @@ class _ExplanationInputWidgetState extends State<ExplanationInputWidget> {
                     color: AppColors.textPrimary,
                   ),
                 ),
+              ),
+              // Voice input button
+              AnimatedBuilder(
+                animation: _micAnimationController,
+                builder: (context, child) {
+                  return IconButton(
+                    onPressed: widget.enabled ? _toggleListening : null,
+                    icon: Icon(
+                      _isListening ? LucideIcons.micOff : LucideIcons.mic,
+                      size: 18,
+                      color: _isListening 
+                          ? Colors.red.withOpacity(0.5 + 0.5 * _micAnimationController.value)
+                          : _speechEnabled
+                              ? Colors.blue
+                              : AppColors.textSecondary,
+                    ),
+                    tooltip: _isListening ? 'Stop listening' : 'Voice input',
+                  );
+                },
               ),
               if (_controller.text.isNotEmpty)
                 IconButton(
@@ -348,6 +507,96 @@ class _ExplanationInputWidgetState extends State<ExplanationInputWidget> {
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.red.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          // Speech error message
+          if (_speechError != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.orange.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.micOff,
+                    size: 16,
+                    color: Colors.orange.shade600,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _speechError!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _speechError = null;
+                      });
+                    },
+                    icon: Icon(
+                      LucideIcons.x,
+                      size: 14,
+                      color: Colors.orange.shade600,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          // Listening indicator
+          if (_isListening) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.blue.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  AnimatedBuilder(
+                    animation: _micAnimationController,
+                    builder: (context, child) {
+                      return Icon(
+                        LucideIcons.mic,
+                        size: 16,
+                        color: Colors.blue.withOpacity(0.5 + 0.5 * _micAnimationController.value),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Listening... Speak now or tap the microphone to stop.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue.shade700,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ),

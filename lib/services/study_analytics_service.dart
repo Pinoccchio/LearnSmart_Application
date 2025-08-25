@@ -2321,13 +2321,13 @@ class StudyAnalyticsService {
       // Get historical context for enhanced AI prompts
       final historicalData = await aggregateFeynmanModulePerformance(session.userId, session.moduleId);
       
-      // Create comprehensive data summary for AI
+      // Create comprehensive data summary for AI with null safety
       final analyticsData = {
         'technique': 'feynman',
-        'course': course.title,
-        'module': module.title,
+        'course': course.title ?? 'Unknown Course',
+        'module': module.title ?? 'Unknown Module',
         'session_data': {
-          'topic': session.topic,
+          'topic': session.topic ?? 'Unknown Topic',
           'total_explanations': explanations.length,
           'session_duration_minutes': session.totalDuration.inMinutes,
           'explanation_types': explanations.map((e) => e.explanationType.value).toSet().toList(),
@@ -2382,8 +2382,11 @@ class StudyAnalyticsService {
         },
       };
       
+      // Validate and clean analytics data before sending to AI
+      final cleanedAnalyticsData = _validateAndCleanAnalyticsData(analyticsData);
+      
       // Generate AI insights using the Gemini service
-      final aiResults = await _aiService.generateFeynmanAnalyticsInsights(analyticsData);
+      final aiResults = await _aiService.generateFeynmanAnalyticsInsights(cleanedAnalyticsData);
       
       return aiResults;
       
@@ -2393,6 +2396,36 @@ class StudyAnalyticsService {
       // Return fallback insights
       return _generateFallbackFeynmanInsights(performance, patterns, behavior, cognitive, session, explanations, feedback);
     }
+  }
+
+  /// Validate and clean analytics data to prevent null value errors
+  Map<String, dynamic> _validateAndCleanAnalyticsData(Map<String, dynamic> data) {
+    // Recursively clean the data structure
+    return _cleanMapData(data);
+  }
+  
+  dynamic _cleanMapData(dynamic value) {
+    if (value == null) {
+      return 'Unknown';
+    }
+    
+    if (value is Map<String, dynamic>) {
+      final cleaned = <String, dynamic>{};
+      for (final entry in value.entries) {
+        cleaned[entry.key] = _cleanMapData(entry.value);
+      }
+      return cleaned;
+    }
+    
+    if (value is List) {
+      return value.map((item) => _cleanMapData(item)).toList();
+    }
+    
+    if (value is String && value.isEmpty) {
+      return 'Not specified';
+    }
+    
+    return value;
   }
 
   // Helper methods for Feynman analytics

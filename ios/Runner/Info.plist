@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app uses speech recognition to help you explain concepts using voice input in the Feynman technique learning method.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to your microphone to convert your voice explanations into text for the Feynman learning technique.</string>
 </dict>
 </plist>

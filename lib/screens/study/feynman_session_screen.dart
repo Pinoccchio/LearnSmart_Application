@@ -11,18 +11,22 @@ import '../../services/feynman_service.dart';
 import '../../widgets/feynman/feynman_progress_widget.dart';
 import '../../widgets/feynman/explanation_input_widget.dart';
 import '../../widgets/feynman/explanation_feedback_widget.dart';
+import '../modules/study_technique_selector.dart';
+import '../modules/module_details_screen.dart';
 import 'feynman_completion_screen.dart';
 
 class FeynmanSessionScreen extends StatefulWidget {
   final Course course;
   final Module module;
   final String? initialTopic;
+  final bool isStudyAgainFlow;
 
   const FeynmanSessionScreen({
     super.key,
     required this.course,
     required this.module,
     this.initialTopic,
+    this.isStudyAgainFlow = false,
   });
 
   @override
@@ -41,6 +45,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
   // Topic selection
   final TextEditingController _topicController = TextEditingController();
   bool _topicSelected = false;
+  bool _isStudyAgainFlow = false;
 
   @override
   void initState() {
@@ -50,6 +55,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
     _feynmanService = FeynmanService();
     _topicController.text = widget.initialTopic ?? '';
     _topicSelected = widget.initialTopic != null;
+    _isStudyAgainFlow = widget.isStudyAgainFlow;
     
     // Listen for text changes to update button state in real-time
     _topicController.addListener(() {
@@ -163,6 +169,12 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
   }
 
   Future<void> _onSessionComplete() async {
+    // Safety guard: Never generate analytics in Study Again flow
+    if (_isStudyAgainFlow) {
+      print('🛑 [FEYNMAN SCREEN] Blocked analytics generation in Study Again flow');
+      return;
+    }
+    
     try {
       print('🎉 [FEYNMAN SCREEN] Session completed, generating results...');
       
@@ -265,17 +277,16 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
           sessionResults: _sessionResults!,
           sessionAnalytics: _sessionAnalytics,
           onBackToModule: () {
-            // Navigate back to module details by popping multiple screens:
-            // 1st pop: Close completion screen
-            // 2nd pop: Close Feynman session screen
-            // 3rd pop: Close study technique selector modal
-            Navigator.of(context).pop(); // Close completion screen
-            Navigator.of(context).pop(); // Close Feynman screen
-            Navigator.of(context).pop(); // Close technique selector modal
-          },
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close completion screen
-            _resetSession(); // Start new session
+            // Navigate directly to module details screen, clearing the navigation stack
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => ModuleDetailsScreen(
+                  course: widget.course,
+                  module: widget.module,
+                ),
+              ),
+              (route) => route.isFirst, // Keep only the first route (home/courses)
+            );
           },
         ),
       ),
@@ -294,13 +305,59 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
 
   Future<void> _stopSession() async {
     try {
+      print('🛑 [FEYNMAN SCREEN] Stopping session (Study Again: $_isStudyAgainFlow)');
+      
       await _feynmanService.forceStopSession();
+      
+      // Clear analytics state if this is Study Again flow
+      if (_isStudyAgainFlow) {
+        setState(() {
+          _sessionAnalytics = null;
+          _sessionResults = null;
+        });
+      }
+      
       if (mounted) {
         Navigator.of(context).pop();
       }
     } catch (e) {
       print('❌ [FEYNMAN SCREEN] Failed to stop session: $e');
       _showErrorDialog('Failed to stop session: $e');
+    }
+  }
+
+  /// Handle back to module navigation with proper cleanup for Study Again flow
+  Future<void> _handleBackToModule() async {
+    try {
+      // If this is a Study Again flow, we need to clean up without triggering analytics
+      if (_isStudyAgainFlow) {
+        print('🔄 [FEYNMAN SCREEN] Study Again flow: navigating back without analytics');
+        
+        // Force stop the session to prevent any lingering analytics generation
+        await _feynmanService.forceStopSession();
+        
+        // Clear any pending operations
+        setState(() {
+          _sessionAnalytics = null;
+          _sessionResults = null;
+        });
+        
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        // Normal flow - just navigate back
+        print('↩️ [FEYNMAN SCREEN] Normal flow: navigating back to module');
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      print('❌ [FEYNMAN SCREEN] Failed to handle back navigation: $e');
+      // Fallback: just navigate back regardless of error
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     }
   }
 
@@ -512,7 +569,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
                 TextField(
                   controller: _topicController,
                   decoration: InputDecoration(
-                    hintText: 'e.g., "Machine Learning Algorithms", "Photosynthesis Process"',
+                    hintText: 'e.g., "Criminal Law Principles", "Forensic Evidence Analysis"',
                     hintStyle: const TextStyle(color: AppColors.textSecondary),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -726,11 +783,19 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
           return const Center(child: Text('No active session'));
         }
 
-        // Check if session is completed
-        if (session.isCompleted && _sessionResults == null) {
+        // Check if session is completed (but skip analytics for Study Again flow)
+        // Additional safety check to prevent analytics generation in Study Again flow
+        if (session.isCompleted && _sessionResults == null && !_isStudyAgainFlow && mounted) {
+          print('🎯 [FEYNMAN SCREEN] Session completed, triggering analytics generation');
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _onSessionComplete();
+            if (mounted && !_isStudyAgainFlow) {
+              _onSessionComplete();
+            } else {
+              print('⚠️ [FEYNMAN SCREEN] Skipping analytics: Study Again flow or unmounted');
+            }
           });
+        } else if (session.isCompleted && _isStudyAgainFlow) {
+          print('🔄 [FEYNMAN SCREEN] Session completed in Study Again flow - skipping analytics');
         }
 
         return Column(
@@ -907,7 +972,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
       case FeynmanSessionStatus.completed:
       case FeynmanSessionStatus.paused:
         return ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => _handleBackToModule(),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.grey,
             foregroundColor: Colors.white,

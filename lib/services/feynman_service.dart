@@ -553,7 +553,7 @@ class FeynmanService extends ChangeNotifier {
           'explanation_id': explanationId,
           'feedback_type': _validateFeedbackType(item['type']),
           'feedback_text': item['text'] ?? '',
-          'severity': item['severity'] ?? 'medium',
+          'severity': _validateSeverity(item['severity']),
           'suggested_improvement': item['suggestion'],
           'related_concepts': item['related_concepts'] ?? [],
           'priority': item['priority'] ?? 1,
@@ -630,13 +630,18 @@ class FeynmanService extends ChangeNotifier {
         return 'completeness';
       case 'accuracy':
       case 'conceptual_accuracy':
+      case 'differentiation':
+      case 'conceptual_understanding':
         return 'accuracy';
       case 'simplification':
         return 'simplification';
       case 'examples':
         return 'examples';
       case 'overall':
+      case 'teaching_quality':
         return 'overall';
+      case 'explanation_depth':
+        return 'completeness';
       default:
         // Default to 'overall' for unknown types
         print('⚠️ [FEYNMAN] Unknown feedback type: $typeString, defaulting to overall');
@@ -665,14 +670,52 @@ class FeynmanService extends ChangeNotifier {
       case 'video_content':
         return 'video_content';
       case 'examples_practice':
+      case 'application_exercise':
+      case 'practical_application':
         return 'examples_practice';
       case 'concept_mapping':
       case 'mind_mapping':
+      case 'concept_explanation':
+      case 'conceptual_review':
         return 'concept_practice';
       default:
         // Default to 'material_review' for unknown types
         print('⚠️ [FEYNMAN] Unknown suggestion type: $typeString, defaulting to material_review');
         return 'material_review';
+    }
+  }
+
+  /// Validate and map AI severity values to database-allowed values
+  String _validateSeverity(dynamic severity) {
+    if (severity == null) return 'medium';
+    
+    final severityString = severity.toString().toLowerCase().trim();
+    
+    // Map AI response severity to valid constraint values
+    switch (severityString) {
+      case 'low':
+      case 'minor':
+      case 'small':
+        return 'low';
+      case 'medium':
+      case 'moderate':
+      case 'mid':
+      case 'average':
+        return 'medium';
+      case 'high':
+      case 'major':
+      case 'important':
+      case 'significant':
+        return 'high';
+      case 'critical':
+      case 'severe':
+      case 'urgent':
+      case 'crucial':
+        return 'critical';
+      default:
+        // Log the invalid value and default to 'medium'
+        print('⚠️ [FEYNMAN] Invalid severity value received from AI: "$severityString", defaulting to medium');
+        return 'medium';
     }
   }
 

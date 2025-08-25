@@ -285,6 +285,12 @@ class InsightsWidget extends StatelessWidget {
         return Colors.orange;
       case InsightCategory.material:
         return Colors.teal;
+      case InsightCategory.contentFocus:
+        return Colors.indigo;
+      case InsightCategory.contentMastery:
+        return Colors.deepPurple;
+      case InsightCategory.depth:
+        return Colors.cyan;
     }
   }
 
@@ -300,6 +306,12 @@ class InsightsWidget extends StatelessWidget {
         return LucideIcons.clock;
       case InsightCategory.material:
         return LucideIcons.bookOpen;
+      case InsightCategory.contentFocus:
+        return LucideIcons.target;
+      case InsightCategory.contentMastery:
+        return LucideIcons.award;
+      case InsightCategory.depth:
+        return LucideIcons.layers;
     }
   }
 
@@ -315,6 +327,12 @@ class InsightsWidget extends StatelessWidget {
         return 'Timing';
       case InsightCategory.material:
         return 'Material';
+      case InsightCategory.contentFocus:
+        return 'Content Focus';
+      case InsightCategory.contentMastery:
+        return 'Content Mastery';
+      case InsightCategory.depth:
+        return 'Depth';
     }
   }
 
