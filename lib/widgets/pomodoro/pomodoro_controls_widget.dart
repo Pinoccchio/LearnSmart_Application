@@ -317,7 +317,7 @@ class PomodoroControlsWidget extends StatelessWidget {
                     onPressed: () {}, // Handled by parent screen
                     icon: const Icon(LucideIcons.barChart3, size: 20),
                     label: const Text(
-                      'View Analytics',
+                      'Analytics',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

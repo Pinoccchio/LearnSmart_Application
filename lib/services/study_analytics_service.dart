@@ -68,7 +68,7 @@ class StudyAnalyticsService {
       );
       
       // Save to database (but continue even if it fails)
-      await _saveAnalyticsToDatabase(analytics);
+      await _saveAnalyticsToDatabase(analytics, sessionType: 'active_recall');
       
       print('✅ [ANALYTICS] Analytics generation completed successfully');
       return analytics;
@@ -302,15 +302,18 @@ class StudyAnalyticsService {
     }
   }
 
-  /// Save analytics to database
-  Future<void> _saveAnalyticsToDatabase(StudySessionAnalytics analytics) async {
+  /// Save analytics to database with session type
+  Future<void> _saveAnalyticsToDatabase(StudySessionAnalytics analytics, {String sessionType = 'active_recall'}) async {
     try {
-      print('💾 [ANALYTICS] Saving analytics to database...');
+      print('💾 [ANALYTICS] Saving analytics to database with session type: $sessionType');
       
       final analyticsData = analytics.toJson();
       
       // Remove the empty id field to let database auto-generate UUID
       analyticsData.remove('id');
+      
+      // Add session_type to the data
+      analyticsData['session_type'] = sessionType;
       
       await SupabaseService.client
           .from('study_session_analytics')
@@ -328,6 +331,8 @@ class StudyAnalyticsService {
         print('💡 [ANALYTICS] RLS policy error - user may not have insert permission');
       } else if (e.toString().contains('foreign key')) {
         print('💡 [ANALYTICS] Foreign key constraint error - check session/user/module IDs');
+      } else if (e.toString().contains('session_type')) {
+        print('💡 [ANALYTICS] Session type error - check that session_type is valid');
       }
       
       // Don't throw - analytics generation should continue even if saving fails
@@ -769,7 +774,7 @@ class StudyAnalyticsService {
       );
       
       // Save to database (but continue even if it fails)
-      await _saveAnalyticsToDatabase(analytics);
+      await _saveAnalyticsToDatabase(analytics, sessionType: 'pomodoro');
       
       print('✅ [POMODORO ANALYTICS] Analytics generation completed successfully');
       return analytics;

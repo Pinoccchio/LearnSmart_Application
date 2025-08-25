@@ -140,6 +140,8 @@ class InsightsWidget extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 3,
           ),
           
           const SizedBox(height: 8),
@@ -152,6 +154,8 @@ class InsightsWidget extends StatelessWidget {
               color: AppColors.textSecondary,
               height: 1.4,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 6,
           ),
           
           // Supporting data
@@ -174,6 +178,8 @@ class InsightsWidget extends StatelessWidget {
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
                   ),
                 );
               }).toList(),
@@ -222,6 +228,8 @@ class InsightsWidget extends StatelessWidget {
               fontWeight: FontWeight.w500,
               color: color,
             ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
         ],
       ),

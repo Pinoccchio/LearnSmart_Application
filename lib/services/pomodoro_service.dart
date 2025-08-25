@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import '../models/pomodoro_models.dart';
 import '../models/course_models.dart';
+import '../models/study_analytics_models.dart';
 import '../services/supabase_service.dart';
 import '../services/study_analytics_service.dart';
 
@@ -22,11 +23,13 @@ class PomodoroService extends ChangeNotifier {
   PomodoroSession? _currentSession;
   PomodoroCycle? _currentCycle;
   List<PomodoroNote> _sessionNotes = [];
+  StudySessionAnalytics? _sessionAnalytics;
   
   // Getters
   PomodoroSession? get currentSession => _currentSession;
   PomodoroCycle? get currentCycle => _currentCycle;
   List<PomodoroNote> get sessionNotes => List.unmodifiable(_sessionNotes);
+  StudySessionAnalytics? get sessionAnalytics => _sessionAnalytics;
   Duration get remainingTime => _remainingTime;
   Duration get totalTime => _totalTime;
   bool get isRunning => _isRunning;
@@ -605,12 +608,12 @@ class PomodoroService extends ChangeNotifier {
   }
 
   /// Generate comprehensive analytics for the session
-  Future<void> generateSessionAnalytics({
+  Future<StudySessionAnalytics?> generateSessionAnalytics({
     required String userId,
     required Module module,
     required Course course,
   }) async {
-    if (_currentSession == null) return;
+    if (_currentSession == null) return null;
 
     try {
       print('📊 [POMODORO ANALYTICS] Generating session analytics...');
@@ -638,7 +641,7 @@ class PomodoroService extends ChangeNotifier {
       final analyticsService = StudyAnalyticsService();
       
       // Generate analytics using the correct method signature
-      await analyticsService.generatePomodoroAnalytics(
+      _sessionAnalytics = await analyticsService.generatePomodoroAnalytics(
         sessionId: _currentSession!.id,
         userId: userId,
         moduleId: module.id,
@@ -650,9 +653,13 @@ class PomodoroService extends ChangeNotifier {
       );
       
       print('✅ [POMODORO ANALYTICS] Analytics generated successfully');
+      notifyListeners(); // Notify UI that analytics are available
+      
+      return _sessionAnalytics;
       
     } catch (e) {
       print('❌ [POMODORO ANALYTICS] Failed to generate analytics: $e');
+      return null;
     }
   }
 

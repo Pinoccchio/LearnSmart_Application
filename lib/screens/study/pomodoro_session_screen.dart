@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -9,12 +8,10 @@ import '../../models/pomodoro_models.dart';
 import '../../models/study_analytics_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/pomodoro_service.dart';
-import '../../services/study_analytics_service.dart';
 import '../../widgets/pomodoro/pomodoro_timer_widget.dart';
 import '../../widgets/pomodoro/pomodoro_controls_widget.dart';
 import '../../widgets/pomodoro/pomodoro_notes_widget.dart';
 import '../../widgets/pomodoro/focus_score_widget.dart';
-import '../../widgets/analytics/performance_chart_widget.dart';
 import '../../widgets/analytics/insights_widget.dart';
 import '../../widgets/analytics/recommendations_widget.dart';
 import '../../widgets/analytics/study_plan_widget.dart';
@@ -38,7 +35,6 @@ class PomodoroSessionScreen extends StatefulWidget {
 class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     with WidgetsBindingObserver {
   late final PomodoroService _pomodoroService;
-  late final StudyAnalyticsService _analyticsService;
   
   bool _isInitializing = true;
   String? _errorMessage;
@@ -52,7 +48,6 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     WidgetsBinding.instance.addObserver(this);
     
     _pomodoroService = PomodoroService();
-    _analyticsService = StudyAnalyticsService();
     _initializeSession();
   }
 
@@ -230,23 +225,95 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     try {
       print('🎉 [POMODORO SCREEN] Session completed, generating results...');
       
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                const Text(
+                  'Generating Analytics...',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Analyzing your session performance',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Loading dialog is already shown above
+      
       // Get session results
       _sessionResults = await _pomodoroService.getSessionResults();
       
       // Generate comprehensive analytics
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      await _pomodoroService.generateSessionAnalytics(
+      _sessionAnalytics = await _pomodoroService.generateSessionAnalytics(
         userId: authProvider.currentUser!.id,
         module: widget.module,
         course: widget.course,
       );
       
-      // Get the analytics (this would be implemented in the service)
-      // For now, we'll show the results dialog
-      _showSessionResultsDialog();
+      // Analytics generation completed
+
+      // Close loading dialog and show results
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        _showSessionResultsDialog();
+      }
       
     } catch (e) {
       print('❌ [POMODORO SCREEN] Failed to process session completion: $e');
+      
+      // Close loading dialog if it's open
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        
+        // Show error dialog
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(LucideIcons.alertTriangle, color: Colors.red, size: 24),
+                const SizedBox(width: 12),
+                const Text('Analytics Error'),
+              ],
+            ),
+            content: const Text('Failed to generate session analytics. You can still view your basic session results.'),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close error dialog
+                  if (_sessionResults != null) {
+                    _showSessionResultsDialog(); // Show results without analytics
+                  }
+                },
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        );
+      }
     }
   }
 
@@ -415,37 +482,6 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     );
   }
 
-  Widget _buildSessionContent_WithControls() {
-    return Column(
-      children: [
-        // Timer and content area
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                PomodoroTimerWidget(
-                  pomodoroService: _pomodoroService,
-                ),
-                
-                PomodoroNotesWidget(
-                  pomodoroService: _pomodoroService,
-                ),
-              ],
-            ),
-          ),
-        ),
-        
-        // Controls at bottom
-        PomodoroControlsWidget(
-          pomodoroService: _pomodoroService,
-          onStartSession: _startSession,
-          onPauseResume: _pauseResumeSession,
-          onSkipCycle: _skipCycle,
-          onStopSession: _stopSession,
-        ),
-      ],
-    );
-  }
 
   Widget _buildResultsDialog(PomodoroSessionResults results) {
     return Container(
@@ -454,7 +490,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
         maxWidth: MediaQuery.of(context).size.width * 0.95,
       ),
       child: DefaultTabController(
-        length: 4,
+        length: 2,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -538,14 +574,6 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
                     icon: Icon(LucideIcons.pieChart, size: 16),
                     text: 'Analytics',
                   ),
-                  Tab(
-                    icon: Icon(LucideIcons.target, size: 16),
-                    text: 'Insights',
-                  ),
-                  Tab(
-                    icon: Icon(LucideIcons.calendar, size: 16),
-                    text: 'Next Steps',
-                  ),
                 ],
               ),
             ),
@@ -558,8 +586,6 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
                   children: [
                     _buildSummaryTab(results),
                     _buildAnalyticsTab(results),
-                    _buildInsightsTab(results),
-                    _buildNextStepsTab(results),
                   ],
                 ),
               ),
@@ -573,8 +599,14 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
-                        Navigator.of(context).pop(); // Close dialog
-                        Navigator.of(context).pop(); // Go back to module details
+                        // Close the dialog first
+                        Navigator.of(context).pop();
+                        
+                        // Pop twice to go back to module details:
+                        // 1st pop: Close Pomodoro session screen
+                        // 2nd pop: Close study technique selector modal
+                        Navigator.of(context).pop(); // Close Pomodoro screen
+                        Navigator.of(context).pop(); // Close technique selector modal
                       },
                       icon: const Icon(LucideIcons.arrowLeft, size: 16),
                       label: const Text('Back to Module'),
@@ -638,71 +670,473 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
   }
 
   Widget _buildAnalyticsTab(PomodoroSessionResults results) {
-    // This would show detailed analytics if available
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(LucideIcons.pieChart, size: 48, color: AppColors.textSecondary),
-          SizedBox(height: 16),
-          Text(
-            'Detailed Analytics',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+    // Show comprehensive analytics if available
+    if (_sessionAnalytics != null) {
+      return SingleChildScrollView(
+        child: Column(
+          children: [
+            // DESCRIPTIVE ANALYTICS SECTION
+            _buildAnalyticsMainSection(
+              title: 'Descriptive Analytics',
+              subtitle: 'Data-driven insights about your study session',
+              icon: LucideIcons.pieChart,
+              color: Colors.blue,
+              children: [
+                // Behavior Analysis
+                _buildDescriptiveSection(
+                  title: 'Focus Behavior Analysis',
+                  icon: LucideIcons.activity,
+                  content: _buildPomodoroFocusBehaviorContent(),
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Cognitive Analysis
+                _buildDescriptiveSection(
+                  title: 'Cognitive Performance',
+                  icon: LucideIcons.brain,
+                  content: _buildPomodoroCognitiveAnalysisContent(),
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Learning Patterns
+                _buildDescriptiveSection(
+                  title: 'Focus Patterns',
+                  icon: LucideIcons.trendingUp,
+                  content: _buildPomodoroLearningPatternsContent(),
+                ),
+              ],
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // PRESCRIPTIVE ANALYTICS SECTION
+            _buildAnalyticsMainSection(
+              title: 'Prescriptive Analytics',
+              subtitle: 'AI-powered recommendations and next steps',
+              icon: LucideIcons.target,
+              color: Colors.orange,
+              children: [
+                // AI Insights
+                if (_sessionAnalytics!.insights.isNotEmpty) ...[ 
+                  _buildPrescriptiveSection(
+                    title: 'AI-Generated Insights',
+                    icon: LucideIcons.lightbulb,
+                    content: InsightsWidget(
+                      insights: _sessionAnalytics!.insights,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                
+                // Actionable Recommendations
+                if (_sessionAnalytics!.recommendations.isNotEmpty) ...[ 
+                  _buildPrescriptiveSection(
+                    title: 'Personalized Recommendations',
+                    icon: LucideIcons.checkSquare,
+                    content: RecommendationsWidget(
+                      recommendations: _sessionAnalytics!.recommendations,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                
+                // Study Plan (Next Steps)
+                _buildPrescriptiveSection(
+                  title: 'Recommended Next Steps',
+                  icon: LucideIcons.calendar,
+                  content: StudyPlanWidget(
+                    studyPlan: _sessionAnalytics!.suggestedStudyPlan,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return _buildEmptyTab(
+      'Analytics Unavailable',
+      'Unable to generate detailed analytics for this session.',
+      LucideIcons.pieChart,
+    );
+  }
+
+
+  // Helper methods for analytics content
+  Widget _buildAnalyticsMainSection({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required List<Widget> children,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.grey200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          SizedBox(height: 8),
-          Text(
-            'Advanced analytics will be available here.',
-            style: TextStyle(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Main section header
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.08),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 24, color: color),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Content area
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: children,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildInsightsTab(PomodoroSessionResults results) {
-    return const Center(
+  Widget _buildDescriptiveSection({
+    required String title,
+    required IconData icon,
+    required Widget content,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(LucideIcons.target, size: 48, color: AppColors.textSecondary),
-          SizedBox(height: 16),
-          Text(
-            'AI Insights',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: Colors.blue),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 8),
-          Text(
-            'AI-generated insights about your focus patterns will appear here.',
-            style: TextStyle(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: content,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNextStepsTab(PomodoroSessionResults results) {
-    return const Center(
+  Widget _buildPrescriptiveSection({
+    required String title,
+    required IconData icon,
+    required Widget content,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.grey200),
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(LucideIcons.calendar, size: 48, color: AppColors.textSecondary),
-          SizedBox(height: 16),
-          Text(
-            'Recommended Next Steps',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.05),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: Colors.orange),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+                ),
+              ],
+            ),
           ),
-          SizedBox(height: 8),
-          Text(
-            'Personalized study recommendations will be shown here.',
-            style: TextStyle(color: AppColors.textSecondary),
-            textAlign: TextAlign.center,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: content,
           ),
         ],
       ),
     );
   }
+
+  Widget _buildEmptyTab(String title, String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 48, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              message,
+              style: const TextStyle(color: AppColors.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPomodoroFocusBehaviorContent() {
+    final analytics = _sessionAnalytics!;
+    final behavior = analytics.behaviorAnalysis;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAnalyticsRow('Engagement Level', '${(behavior.engagementLevel * 100).toStringAsFixed(1)}%'),
+        const SizedBox(height: 8),
+        _buildAnalyticsRow('Persistence Score', '${(behavior.persistenceScore * 100).toStringAsFixed(1)}%'),
+        const SizedBox(height: 8),
+        _buildAnalyticsRow('Total Study Time', '${behavior.totalStudyTime.inMinutes} minutes'),
+        const SizedBox(height: 8),
+        _buildAnalyticsRow('Hint Usage', '${behavior.hintUsageCount}'),
+        const SizedBox(height: 12),
+        if (behavior.commonErrorTypes.isNotEmpty) ...[
+          const Text(
+            'Common Error Patterns:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          ...behavior.commonErrorTypes.map((error) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $error', 
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 3,
+            ),
+          )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPomodoroCognitiveAnalysisContent() {
+    final analytics = _sessionAnalytics!;
+    final cognitive = analytics.cognitiveAnalysis;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAnalyticsRow('Cognitive Load Score', '${cognitive.cognitiveLoadScore.toStringAsFixed(1)}/10'),
+        const SizedBox(height: 8),
+        _buildAnalyticsRow('Processing Speed', '${cognitive.processingSpeed.toStringAsFixed(2)}s avg'),
+        const SizedBox(height: 8),
+        _buildAnalyticsRow('Attention Span', '${cognitive.attentionSpan.toStringAsFixed(1)} minutes'),
+        const SizedBox(height: 12),
+        if (cognitive.cognitiveStrengths.isNotEmpty) ...[
+          const Text(
+            'Cognitive Strengths:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          ...cognitive.cognitiveStrengths.map((strength) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $strength', 
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 3,
+            ),
+          )),
+          const SizedBox(height: 8),
+        ],
+        if (cognitive.cognitiveWeaknesses.isNotEmpty) ...[
+          const Text(
+            'Areas for Improvement:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          ...cognitive.cognitiveWeaknesses.map((weakness) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $weakness', 
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 3,
+            ),
+          )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPomodoroLearningPatternsContent() {
+    final analytics = _sessionAnalytics!;
+    final patterns = analytics.learningPatterns;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildAnalyticsRow('Learning Pattern', patterns.patternType.name.replaceAll('_', ' ').toUpperCase()),
+        const SizedBox(height: 8),
+        _buildAnalyticsRow('Learning Velocity', '${patterns.learningVelocity.toStringAsFixed(2)}x'),
+        const SizedBox(height: 12),
+        if (patterns.strongConcepts.isNotEmpty) ...[
+          const Text(
+            'Strong Concepts:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          ...patterns.strongConcepts.map((concept) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $concept', 
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 3,
+            ),
+          )),
+          const SizedBox(height: 8),
+        ],
+        if (patterns.weakConcepts.isNotEmpty) ...[
+          const Text(
+            'Areas to Focus:',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          ...patterns.weakConcepts.map((concept) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '• $concept', 
+              style: const TextStyle(fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 3,
+            ),
+          )),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAnalyticsRow(String label, String value) {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 1,
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
+            textAlign: TextAlign.right,
+          ),
+        ),
+      ],
+    );
+  }
+
 
   Widget _buildSummaryCard(String title, List<Widget> stats, Color color) {
     return Container(
