@@ -85,37 +85,37 @@ class AppProvider with ChangeNotifier {
 
   List<Course> get courses => _courses;
 
-  // Study techniques
+  // Study techniques - IDs match database schema
   final List<StudyTechnique> _studyTechniques = [
     StudyTechnique(
-      id: '1',
+      id: 'active_recall',
       name: 'Active Recall',
-      description: 'Strengthen memory by practicing retrieval patterns and understanding.',
+      description: 'Present AI-generated flashcards before showing learning material. Answer from memory before revealing correct answers.',
       icon: LucideIcons.brain,
     ),
     StudyTechnique(
-      id: '2',
+      id: 'pomodoro_technique',
       name: 'Pomodoro Technique',
-      description: 'Focus efficiently through timed sessions (e.g., 25 minutes focused followed by a 5-minute break) to enhance concentration.',
+      description: 'Focus efficiently through timed sessions (25 minutes study + 5 minute break) with built-in timer and distraction control.',
       icon: LucideIcons.timer,
     ),
     StudyTechnique(
-      id: '3',
+      id: 'feynman_technique',
       name: 'Feynman Technique',
-      description: 'Enhance understanding by explaining topics in your own terms and to understand complex topics.',
+      description: 'Explain topics in your own words using text or voice notes. Fill knowledge gaps by re-reading material after submission.',
       icon: LucideIcons.messageSquare,
     ),
     StudyTechnique(
-      id: '4',
-      name: 'Spaced Repetition',
-      description: 'Boost comprehension through spaced practice and repetition.',
-      icon: LucideIcons.repeat,
+      id: 'retrieval_practice',
+      name: 'Retrieval Practice',
+      description: 'Answer short quizzes and open-ended questions immediately after reading material, without notes or references.',
+      icon: LucideIcons.bookOpen,
     ),
     StudyTechnique(
-      id: '5',
-      name: 'Retrieval Practice',
-      description: 'Answer questions or quizzes from memory without any reference or information from notes.',
-      icon: LucideIcons.bookOpen,
+      id: 'spaced_repetition',
+      name: 'Spaced Repetition',
+      description: 'Boost comprehension through spaced practice and repetition with optimal review timing for maximum retention.',
+      icon: LucideIcons.repeat,
     ),
   ];
 

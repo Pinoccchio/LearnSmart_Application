@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
@@ -514,25 +515,165 @@ class _ModuleDetailsScreenState extends State<ModuleDetailsScreen> {
 
   void _openMaterial(CourseMaterial material) async {
     try {
+      print('🔗 [URL LAUNCHER] Attempting to open: ${material.fileUrl}');
+      print('📄 [FILE INFO] Type: ${material.fileType}, Name: ${material.fileName}');
+      
       final Uri url = Uri.parse(material.fileUrl);
-      if (await canLaunchUrl(url)) {
-        await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
+      
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('Opening ${material.fileName}...'),
+              ],
+            ),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+      
+      // Try different launch modes for better compatibility
+      bool launched = false;
+      String? lastError;
+      
+      // Check if URL can be launched first
+      bool canLaunch = await canLaunchUrl(url);
+      print('🔍 [URL LAUNCHER] canLaunchUrl result: $canLaunch');
+      
+      if (!canLaunch) {
+        print('⚠️ [URL LAUNCHER] canLaunchUrl returned false, but trying anyway...');
+      }
+      
+      // First try: Platform default (recommended approach)
+      try {
+        await launchUrl(url, mode: LaunchMode.platformDefault);
+        launched = true;
+        print('✅ [URL LAUNCHER] Successfully launched with platformDefault mode');
+      } catch (e) {
+        lastError = e.toString();
+        print('⚠️ [URL LAUNCHER] platformDefault mode failed: $e');
+      }
+      
+      // Second try: External application (for PDFs, this opens in default PDF viewer)
+      if (!launched) {
+        try {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+          launched = true;
+          print('✅ [URL LAUNCHER] Successfully launched with externalApplication mode');
+        } catch (e) {
+          lastError = e.toString();
+          print('⚠️ [URL LAUNCHER] externalApplication mode failed: $e');
+        }
+      }
+      
+      // Third try: In-app web view (fallback)
+      if (!launched) {
+        try {
+          await launchUrl(url, mode: LaunchMode.inAppWebView);
+          launched = true;
+          print('✅ [URL LAUNCHER] Successfully launched with inAppWebView mode');
+        } catch (e) {
+          lastError = e.toString();
+          print('⚠️ [URL LAUNCHER] inAppWebView mode failed: $e');
+        }
+      }
+      
+      if (!launched) {
+        print('❌ [URL LAUNCHER] All launch attempts failed. Last error: $lastError');
         if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Could not open the material'),
+            SnackBar(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Could not open ${material.fileName}'),
+                  const SizedBox(height: 4),
+                  Text(
+                    'No app found to handle PDF files. Please install a PDF reader.',
+                    style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8)),
+                  ),
+                ],
+              ),
               backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'Copy URL',
+                textColor: Colors.white,
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: material.fileUrl));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('URL copied to clipboard!'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
           );
         }
+      } else {
+        // Hide loading indicator on success
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        }
       }
+      
     } catch (e) {
+      print('❌ [URL LAUNCHER ERROR] Exception: $e');
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error opening material'),
+          SnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Error opening ${material.fileName}'),
+                const SizedBox(height: 4),
+                Text(
+                  e.toString(),
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8)),
+                ),
+              ],
+            ),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Copy URL',
+              textColor: Colors.white,
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: material.fileUrl));
+                if (mounted) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('URL copied to clipboard!'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
           ),
         );
       }

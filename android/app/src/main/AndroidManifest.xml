@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Internet permission for URL launcher -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Query for activities that can handle web/http intents -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    
     <application
         android:label="learnsmart_app"
         android:name="${applicationName}"
@@ -40,6 +45,20 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Query for web browsers -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <!-- Query for PDF viewers -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/pdf" />
         </intent>
     </queries>
 </manifest>

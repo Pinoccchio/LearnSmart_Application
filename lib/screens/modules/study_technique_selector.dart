@@ -80,35 +80,13 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
           Expanded(
             child: Consumer<AppProvider>(
               builder: (context, appProvider, child) {
-                final allTechniques = appProvider.studyTechniques;
-                
-                // Filter techniques based on module's available techniques
-                final availableTechniques = widget.module.availableTechniques.isNotEmpty
-                    ? allTechniques.where((technique) => 
-                        widget.module.availableTechniques.contains(technique.id)).toList()
-                    : allTechniques;
-                
-                if (availableTechniques.isEmpty) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'No study techniques available for this module.',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: AppColors.textSecondary,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  );
-                }
+                final techniques = appProvider.studyTechniques;
                 
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: availableTechniques.length,
+                  itemCount: techniques.length,
                   itemBuilder: (context, index) {
-                    final technique = availableTechniques[index];
+                    final technique = techniques[index];
                     final isSelected = selectedTechnique == technique.id;
                     
                     return Container(
