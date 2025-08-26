@@ -895,6 +895,220 @@ Return a JSON array of strings with specific advice:
     }
   }
 
+  /// Generate content from course materials for Retrieval Practice questions
+  Future<String> generateContentFromMaterials(
+    List<CourseMaterial> materials,
+    String prompt,
+  ) async {
+    try {
+      print('🔍 [RETRIEVAL PRACTICE AI] Generating content from ${materials.length} materials');
+      
+      if (materials.isEmpty) {
+        throw Exception('No materials provided for content generation');
+      }
+      
+      // Extract content from all materials
+      String combinedContent = '';
+      for (final material in materials) {
+        final content = await _extractContentFromMaterial(material);
+        combinedContent += '\n\n--- Material: ${material.title} ---\n$content';
+      }
+      
+      // Create comprehensive prompt with material content
+      final fullPrompt = '''
+$prompt
+
+MATERIAL CONTENT:
+$combinedContent
+
+Please analyze the above material content and generate questions as requested in the original prompt.
+''';
+
+      final response = await _model.generateContent([Content.text(fullPrompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Empty response from Gemini AI for content generation');
+      }
+
+      print('✅ [RETRIEVAL PRACTICE AI] Content generated successfully (${responseText.length} chars)');
+      return responseText;
+      
+    } catch (e) {
+      print('❌ [RETRIEVAL PRACTICE AI] Error generating content: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate comprehensive analytics insights for Retrieval Practice sessions
+  Future<Map<String, dynamic>> generateRetrievalPracticeAnalyticsInsights(Map<String, dynamic> analyticsData) async {
+    try {
+      print('🔍 [RETRIEVAL PRACTICE AI] Generating analytics insights...');
+      
+      final prompt = '''
+You are an expert educational data scientist specializing in retrieval practice and spaced repetition learning. Analyze the following Retrieval Practice study session data and provide DESCRIPTIVE ANALYTICS (what happened) and PRESCRIPTIVE ANALYTICS (what to do next).
+
+RETRIEVAL PRACTICE SESSION DATA:
+Course: ${analyticsData['course']}
+Module: ${analyticsData['module']}
+Study Technique: Retrieval Practice
+
+SESSION OVERVIEW:
+- Total Questions: ${analyticsData['session_data']['total_questions']}
+- Questions Completed: ${analyticsData['session_data']['questions_completed']}
+- Session Duration: ${analyticsData['session_data']['session_duration_minutes']} minutes
+- Question Types Used: ${analyticsData['session_data']['question_types']}
+- Difficulty Levels: ${analyticsData['session_data']['difficulty_levels']}
+- Concept Tags: ${analyticsData['session_data']['concept_tags']}
+
+PERFORMANCE METRICS:
+- Overall Accuracy: ${analyticsData['performance']['overall_accuracy']}%
+- Accuracy by Question Type: ${analyticsData['performance']['accuracy_by_type']}
+- Accuracy by Difficulty: ${analyticsData['performance']['accuracy_by_difficulty']}
+- Average Response Time: ${analyticsData['performance']['average_response_time']} seconds
+- Improvement Over Session: ${analyticsData['performance']['improvement']}%
+
+RETRIEVAL ANALYSIS:
+- Recognition vs Retrieval Performance: ${analyticsData['retrieval_analysis']['recognition_vs_retrieval']}
+- Question Format Effectiveness: ${analyticsData['retrieval_analysis']['format_effectiveness']}
+- Memory Retrieval Success Rate: ${analyticsData['retrieval_analysis']['retrieval_success_rate']}%
+- Forgetting Curve Indicators: ${analyticsData['retrieval_analysis']['forgetting_indicators']}
+
+BEHAVIOR PATTERNS:
+- Persistence Score: ${analyticsData['behavior']['persistence_score']}
+- Engagement Level: ${analyticsData['behavior']['engagement_level']}
+- Hint Usage: ${analyticsData['behavior']['hints_used']} hints used
+- Confidence Levels: ${analyticsData['behavior']['confidence_levels']}
+- Common Error Patterns: ${analyticsData['behavior']['error_patterns']}
+
+COGNITIVE ANALYSIS:
+- Processing Speed: ${analyticsData['cognitive']['processing_speed']}
+- Attention Consistency: ${analyticsData['cognitive']['attention_consistency']}
+- Memory Retrieval Efficiency: ${analyticsData['cognitive']['retrieval_efficiency']}
+- Cognitive Load: ${analyticsData['cognitive']['cognitive_load']}
+
+SPACED REPETITION DATA:
+- Concepts Due for Review: ${analyticsData['spaced_repetition']['concepts_due']}
+- Review Intervals: ${analyticsData['spaced_repetition']['intervals']}
+- Success Streaks: ${analyticsData['spaced_repetition']['success_streaks']}
+- Failing Concepts: ${analyticsData['spaced_repetition']['failing_concepts']}
+
+HISTORICAL CONTEXT:
+- Previous Sessions: ${analyticsData['historical_context']['previous_sessions']}
+- Historical Accuracy Trends: ${analyticsData['historical_context']['accuracy_trends']}
+- Strong Concept Areas: ${analyticsData['historical_context']['strong_concepts']}
+- Weak Concept Areas: ${analyticsData['historical_context']['weak_concepts']}
+- Optimal Question Types: ${analyticsData['historical_context']['optimal_types']}
+
+Generate the following in JSON format:
+
+{
+  "insights": [
+    {
+      "id": "retrieval_descriptive_insight_id",
+      "category": "performance|behavior|cognitive|retrieval_patterns",
+      "title": "Retrieval Practice Insight Title",
+      "insight": "DESCRIPTIVE ANALYTICS: Detailed analysis of retrieval effectiveness, question type performance, memory patterns, and spaced repetition indicators. Focus on what the data reveals about the student's ability to retrieve information from memory without cues.",
+      "significance": 0.0-1.0,
+      "supporting_data": ["retrieval success rates", "question format analysis", "memory pattern indicators"]
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "retrieval_prescriptive_action_id",
+      "type": "practiceFrequency|difficultyAdjustment|studyMethods|conceptReinforcement",
+      "title": "Retrieval Practice Optimization",
+      "description": "PRESCRIPTIVE ANALYTICS: Evidence-based recommendations to improve retrieval practice effectiveness and memory consolidation",
+      "actionable_advice": "Specific adjustments to question types, difficulty progression, review intervals, or retrieval strategies. Include spaced repetition optimizations and memory strengthening techniques.",
+      "priority": 1-5,
+      "confidence_score": 0.0-1.0,
+      "reasons": ["retrieval performance analysis", "memory pattern recognition", "spaced repetition effectiveness"]
+    }
+  ],
+  "study_plan": {
+    "id": "retrieval_plan_${DateTime.now().millisecondsSinceEpoch}",
+    "activities": [
+      {
+        "type": "retrieval_practice",
+        "description": "Optimized retrieval practice session based on performance analysis",
+        "duration_minutes": 15-45,
+        "priority": 1,
+        "materials": ["concepts needing reinforcement", "question format optimizations"]
+      }
+    ],
+    "estimated_duration_minutes": 20-60,
+    "focus_areas": {
+      "question_type_optimization": "recommended question format adjustments",
+      "spaced_repetition_schedule": "review interval optimizations",
+      "concept_reinforcement": "weak area strengthening"
+    },
+    "objectives": ["improve retrieval accuracy", "optimize review intervals", "strengthen weak concepts"]
+  }
+}
+
+RETRIEVAL PRACTICE ANALYTICS REQUIREMENTS:
+
+DESCRIPTIVE ANALYTICS (Focus on Retrieval Elements):
+1. Analyze retrieval vs. recognition question performance differences
+2. Examine question type effectiveness (MCQ vs. short answer vs. fill-in-blank)
+3. Identify memory retrieval patterns and forgetting curve indicators
+4. Evaluate spaced repetition schedule adherence and effectiveness
+5. Assess concept-level mastery progression over time
+
+PRESCRIPTIVE ANALYTICS (Retrieval Optimizations):
+1. Recommend optimal question type mix based on performance data
+2. Suggest review interval adjustments for spaced repetition
+3. Identify concepts requiring increased retrieval practice frequency
+4. Recommend difficulty progression strategies
+5. Suggest integration with other study techniques (Active Recall, etc.)
+6. Optimize session length and question distribution
+
+MEMORY & RETRIEVAL ANALYSIS:
+- Strong retrieval (>80% accuracy): Increase difficulty or extend intervals
+- Moderate retrieval (60-80%): Maintain current approach with minor adjustments
+- Weak retrieval (<60%): Increase practice frequency and reduce difficulty
+
+SPACED REPETITION OPTIMIZATION:
+- Successful concepts: Extend review intervals
+- Struggling concepts: Shorten intervals and increase exposure
+- New concepts: Establish optimal initial learning sequence
+
+Return ONLY the JSON response, no other text.
+''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Empty response from Gemini AI for Retrieval Practice analytics insights');
+      }
+
+      print('🔍 [RETRIEVAL PRACTICE AI] Analytics response received: ${responseText.substring(0, responseText.length.clamp(0, 300))}...');
+
+      // Clean up the response to extract JSON
+      String jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      }
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      jsonText = jsonText.trim();
+
+      final Map<String, dynamic> aiResponse = jsonDecode(jsonText);
+      
+      // Convert AI response to our model objects
+      return _processAIAnalyticsResponse(aiResponse);
+      
+    } catch (e) {
+      print('❌ [RETRIEVAL PRACTICE AI] Error generating analytics insights: $e');
+      throw Exception('Failed to generate Retrieval Practice AI insights: $e');
+    }
+  }
+
   /// Generate comprehensive analytics insights for Feynman sessions
   Future<Map<String, dynamic>> generateFeynmanAnalyticsInsights(Map<String, dynamic> analyticsData) async {
     try {

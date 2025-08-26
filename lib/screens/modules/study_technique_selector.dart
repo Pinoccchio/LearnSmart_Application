@@ -8,6 +8,7 @@ import '../../models/pomodoro_models.dart';
 import '../study/active_recall_session_screen.dart';
 import '../study/pomodoro_session_screen.dart';
 import '../study/feynman_session_screen.dart';
+import '../study/retrieval_practice_session_screen.dart';
 import '../../widgets/pomodoro/pomodoro_settings_widget.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
@@ -292,7 +293,7 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
         _startFeynmanSession();
         break;
       case 'retrieval_practice':
-        _showComingSoonDialog('Retrieval Practice');
+        _startRetrievalPracticeSession();
         break;
       default:
         _showComingSoonDialog('Selected technique');
@@ -329,6 +330,18 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => FeynmanSessionScreen(
+          course: widget.course,
+          module: widget.module,
+        ),
+      ),
+    );
+  }
+  
+  void _startRetrievalPracticeSession() {
+    // Navigate to Retrieval Practice session screen
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RetrievalPracticeSessionScreen(
           course: widget.course,
           module: widget.module,
         ),

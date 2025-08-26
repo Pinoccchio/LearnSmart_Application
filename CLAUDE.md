@@ -56,9 +56,10 @@ npm run lint
 ## Architecture Overview
 
 ### Flutter App Structure
-- Basic Flutter starter template with minimal customization
+- Educational mobile application with multiple study techniques
 - Standard Flutter project structure with `lib/main.dart` as entry point
-- Uses Material Design with default theme
+- Uses Material Design with custom theme
+- Implements comprehensive study analytics and AI-powered learning
 
 ### Next.js Web Application Architecture
 - **App Router**: Next.js 15 with App Router for routing
@@ -128,11 +129,66 @@ The application uses Supabase with the following key tables:
 - `nextjs_web/learnsmart_web/complete-schema.sql` - Complete database schema
 - Various SQL files for specific features and fixes
 
+### Flutter Study Techniques Implementation
+The Flutter app implements four comprehensive study techniques:
+
+#### 1. Active Recall
+- **Purpose**: Test knowledge retrieval from memory using flashcards
+- **Implementation**: AI-generated flashcards with multiple question types
+- **Database**: `active_recall_sessions`, `active_recall_attempts` tables
+- **Analytics**: Performance tracking, learning pattern analysis
+- **Key Features**: Spaced repetition, difficulty adjustment, hint system
+
+#### 2. Pomodoro Technique  
+- **Purpose**: Time-based focused study sessions with breaks
+- **Implementation**: Customizable work/break intervals with focus tracking
+- **Database**: `pomodoro_sessions` with detailed cycle tracking
+- **Analytics**: Focus score analysis, productivity metrics, session optimization
+- **Key Features**: Focus scoring, break management, interruption tracking
+
+#### 3. Feynman Technique
+- **Purpose**: Learn by teaching - explain concepts in simple terms
+- **Implementation**: AI-powered explanation analysis and feedback
+- **Database**: `feynman_sessions` with explanation tracking
+- **Analytics**: Explanation quality assessment, concept mastery analysis
+- **Key Features**: Iterative explanation improvement, AI feedback, concept gaps identification
+
+#### 4. Retrieval Practice
+- **Purpose**: Strengthen memory through varied question formats and spaced repetition
+- **Implementation**: AI-generated diverse question types with spaced repetition algorithm
+- **Database**: `retrieval_practice_sessions`, `retrieval_practice_questions`, `retrieval_practice_attempts`, `retrieval_practice_schedules` tables
+- **Analytics**: Question type performance, memory retention analysis, spaced repetition optimization
+- **Key Features**: 
+  - Multiple question formats (MCQ, short answer, fill-in-blank, true/false)
+  - SM-2 spaced repetition algorithm implementation
+  - Concept-based scheduling and review intervals
+  - Performance tracking by question type and difficulty
+  - Adaptive difficulty progression
+
+### Study Analytics System
+- **Comprehensive Analytics**: Descriptive and prescriptive analytics for all study techniques
+- **AI Integration**: Gemini AI for content analysis and personalized recommendations
+- **Database**: `study_session_analytics` table for cross-technique analysis
+- **Performance Metrics**: Accuracy, response time, improvement tracking
+- **Learning Patterns**: Pattern recognition, cognitive analysis, behavioral insights
+- **Personalized Recommendations**: AI-generated study plans and technique suggestions
+
+### Database Schema Overview
+The application uses comprehensive database schemas for each study technique:
+- **Sessions Tables**: Track user study sessions with status, duration, and settings
+- **Attempts/Questions Tables**: Store detailed interaction data for analysis
+- **Analytics Tables**: Comprehensive analytics data with AI-generated insights
+- **Schedules Tables**: Spaced repetition scheduling (for Retrieval Practice)
+- **RLS Policies**: Row-level security ensuring users only access their own data
+
 ## Development Notes
 
-- The Flutter app is currently a basic template and can be extended for mobile functionality
-- The Next.js web app is the primary application with full CRUD operations
-- Supabase handles authentication, database, and file storage
-- Environment variables are required for Supabase connection
-- The application supports dark/light theme switching
-- Material upload and quiz generation features use AI integration
+- The Flutter app implements a complete educational platform with advanced study techniques
+- Each study technique follows consistent patterns: Service → UI → Analytics → AI Integration
+- The Next.js web app serves as the admin/instructor platform for content management
+- Supabase handles authentication, database, file storage, and real-time features
+- Gemini AI provides content generation, question creation, and analytics insights
+- Environment variables are required for Supabase connection and AI API keys
+- The application supports comprehensive learning analytics with both descriptive and prescriptive insights
+- Material upload and AI-powered question generation work across all study techniques
+- Spaced repetition algorithm (SM-2) implemented for optimal learning retention
