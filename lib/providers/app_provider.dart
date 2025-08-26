@@ -11,6 +11,13 @@ class AppProvider with ChangeNotifier {
   List<Activity> _activities = [];
   bool _activitiesLoading = false;
   String? _activitiesError;
+  
+  // Home screen data state
+  List<Course> _realCourses = [];
+  Map<String, dynamic>? _homeScreenData;
+  bool _homeScreenLoading = false;
+  String? _homeScreenError;
+  
   final StudyAnalyticsService _analyticsService = StudyAnalyticsService();
   
   int get currentIndex => _currentIndex;
@@ -19,6 +26,13 @@ class AppProvider with ChangeNotifier {
   bool get activitiesLoading => _activitiesLoading;
   bool get activitiesHasError => _activitiesError != null;
   String? get activitiesError => _activitiesError;
+  
+  // Home screen getters
+  List<Course> get realCourses => _realCourses;
+  Map<String, dynamic>? get homeScreenData => _homeScreenData;
+  bool get homeScreenLoading => _homeScreenLoading;
+  bool get homeScreenHasError => _homeScreenError != null;
+  String? get homeScreenError => _homeScreenError;
   
   void setCurrentIndex(int index) {
     _currentIndex = index;
@@ -94,7 +108,7 @@ class AppProvider with ChangeNotifier {
     ),
   ];
 
-  List<Course> get courses => _courses;
+  List<Course> get courses => _realCourses.isNotEmpty ? _realCourses : _courses;
 
   // Study techniques - IDs match database schema
   final List<StudyTechnique> _studyTechniques = [
@@ -220,12 +234,78 @@ class AppProvider with ChangeNotifier {
     await loadActivities();
   }
 
+  // Load home screen data from database
+  Future<void> loadHomeScreenData({String? userId}) async {
+    print('🏠 [APP PROVIDER] Loading home screen data...');
+    
+    try {
+      // Set loading state
+      _homeScreenLoading = true;
+      _homeScreenError = null;
+      notifyListeners();
+
+      // Get current user ID if not provided
+      String? currentUserId = userId;
+      if (currentUserId == null) {
+        final currentUser = SupabaseService.currentAuthUser;
+        if (currentUser == null) {
+          print('⚠️ [APP PROVIDER] No authenticated user found for home screen');
+          _realCourses = [];
+          _homeScreenData = null;
+          _homeScreenLoading = false;
+          notifyListeners();
+          return;
+        }
+        currentUserId = currentUser.id;
+      }
+
+      print('🏠 [APP PROVIDER] Loading home screen data for user: $currentUserId');
+
+      // Load real home screen data from service
+      final data = await _analyticsService.getHomeScreenData(currentUserId);
+      
+      // Convert courses data to Course objects
+      final coursesData = data['courses'] as List<Map<String, dynamic>>? ?? [];
+      _realCourses = coursesData.map((courseData) => Course.fromDatabaseData(courseData)).toList();
+      _homeScreenData = data;
+      
+      print('✅ [APP PROVIDER] Home screen data loaded successfully: ${_realCourses.length} courses');
+      _homeScreenLoading = false;
+      notifyListeners();
+      
+    } catch (e) {
+      print('❌ [APP PROVIDER] Error loading home screen data: $e');
+      _homeScreenError = 'Failed to load home screen data. Please try again.';
+      _homeScreenLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Refresh home screen data
+  Future<void> refreshHomeScreenData() async {
+    await loadHomeScreenData();
+  }
+
+  // Get today's study plan from loaded data
+  List<Map<String, dynamic>> get todaysStudyPlan {
+    if (_homeScreenData == null) return [];
+    final studyPlan = _homeScreenData!['studyPlan'] as Map<String, dynamic>? ?? {};
+    return (studyPlan['recommendations'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+  }
+
+  // Get current learning path from loaded data
+  Map<String, dynamic>? get currentLearningPath {
+    if (_homeScreenData == null) return null;
+    return _homeScreenData!['currentLearningPath'] as Map<String, dynamic>?;
+  }
+
   // Initialize provider - call this when app starts or user logs in
   Future<void> initialize() async {
     print('🚀 [APP PROVIDER] Initializing...');
     await Future.wait([
       loadStudyStats(),
       loadActivities(),
+      loadHomeScreenData(),
     ]);
   }
 }

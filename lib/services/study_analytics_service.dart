@@ -3899,6 +3899,245 @@ class StudyAnalyticsService {
     }
   }
 
+  // ==================== HOME SCREEN METHODS ====================
+
+  /// Get comprehensive home screen data including courses, progress, and study recommendations
+  Future<Map<String, dynamic>> getHomeScreenData(String userId) async {
+    try {
+      print('🏠 [HOME SCREEN] Fetching home screen data for user: $userId');
+      final startTime = DateTime.now();
+
+      // Get user's enrolled courses with progress
+      final enrolledCoursesResponse = await SupabaseService.client
+          .from('course_enrollments')
+          .select('''
+            id,
+            status,
+            enrolled_at,
+            courses!inner (
+              id,
+              title,
+              description,
+              status
+            )
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .order('enrolled_at', ascending: false);
+
+      final List<Map<String, dynamic>> coursesWithProgress = [];
+      
+      for (final enrollment in enrolledCoursesResponse) {
+        final course = enrollment['courses'] as Map<String, dynamic>;
+        
+        // Get modules for this course
+        final modulesResponse = await SupabaseService.client
+            .from('modules')
+            .select('id, title, order_index')
+            .eq('course_id', course['id'])
+            .order('order_index');
+
+        // Get user progress for this course's modules
+        final progressResponse = await SupabaseService.client
+            .from('user_module_progress')
+            .select('module_id, status, passed, latest_score, needs_remedial, last_attempt_at')
+            .eq('user_id', userId)
+            .eq('course_id', course['id']);
+
+        final modules = modulesResponse as List;
+        final progressMap = <String, Map<String, dynamic>>{};
+        
+        for (final progress in progressResponse) {
+          progressMap[progress['module_id']] = progress;
+        }
+
+        // Calculate course progress
+        double courseProgress = 0.0;
+        int completedModules = 0;
+        
+        for (final module in modules) {
+          final moduleId = module['id'];
+          final progress = progressMap[moduleId];
+          
+          if (progress != null && progress['passed'] == true) {
+            completedModules++;
+          }
+        }
+        
+        if (modules.isNotEmpty) {
+          courseProgress = completedModules / modules.length;
+        }
+
+        coursesWithProgress.add({
+          'id': course['id'],
+          'title': course['title'],
+          'description': course['description'],
+          'progress': courseProgress,
+          'completedModules': completedModules,
+          'totalModules': modules.length,
+          'modules': modules,
+          'moduleProgress': progressMap,
+          'enrolledAt': enrollment['enrolled_at'],
+        });
+      }
+
+      // Generate daily study plan recommendations
+      final studyPlan = await _generateDailyStudyPlan(userId, coursesWithProgress);
+      
+      // Find current learning path (next course to continue)
+      final currentLearningPath = _findCurrentLearningPath(coursesWithProgress);
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [HOME SCREEN] Home screen data loaded in ${duration.inMilliseconds}ms');
+
+      return {
+        'courses': coursesWithProgress,
+        'studyPlan': studyPlan,
+        'currentLearningPath': currentLearningPath,
+        'lastUpdated': DateTime.now().toIso8601String(),
+      };
+
+    } catch (e) {
+      print('❌ [HOME SCREEN] Error fetching home screen data: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate intelligent daily study plan based on user progress and activity
+  Future<Map<String, dynamic>> _generateDailyStudyPlan(String userId, List<Map<String, dynamic>> courses) async {
+    try {
+      final List<Map<String, dynamic>> recommendations = [];
+      
+      // Priority 1: Modules needing remedial work
+      for (final course in courses) {
+        final modules = course['modules'] as List;
+        final progressMap = course['moduleProgress'] as Map<String, dynamic>;
+        
+        for (final module in modules) {
+          final moduleId = module['id'];
+          final progress = progressMap[moduleId];
+          
+          if (progress != null && progress['needs_remedial'] == true) {
+            recommendations.add({
+              'type': 'remedial',
+              'priority': 1,
+              'title': 'Review ${course['title']}',
+              'description': _cleanModuleTitle(module['title']),
+              'courseId': course['id'],
+              'moduleId': moduleId,
+              'reason': 'Needs additional practice to master concepts',
+            });
+          }
+        }
+      }
+
+      // Priority 2: Continue in-progress modules
+      for (final course in courses) {
+        final modules = course['modules'] as List;
+        final progressMap = course['moduleProgress'] as Map<String, dynamic>;
+        
+        for (final module in modules) {
+          final moduleId = module['id'];
+          final progress = progressMap[moduleId];
+          
+          if (progress != null && 
+              progress['status'] == 'in_progress' && 
+              progress['needs_remedial'] != true) {
+            recommendations.add({
+              'type': 'continue',
+              'priority': 2,
+              'title': 'Continue ${course['title']}',
+              'description': _cleanModuleTitle(module['title']),
+              'courseId': course['id'],
+              'moduleId': moduleId,
+              'reason': 'Resume your current study session',
+            });
+          }
+        }
+      }
+
+      // Priority 3: Start next available module
+      for (final course in courses) {
+        final modules = course['modules'] as List;
+        final progressMap = course['moduleProgress'] as Map<String, dynamic>;
+        
+        // Find first incomplete module
+        for (final module in modules) {
+          final moduleId = module['id'];
+          final progress = progressMap[moduleId];
+          
+          if (progress == null || progress['passed'] != true) {
+            recommendations.add({
+              'type': 'start',
+              'priority': 3,
+              'title': 'Study ${course['title']}',
+              'description': _cleanModuleTitle(module['title']),
+              'courseId': course['id'],
+              'moduleId': moduleId,
+              'reason': 'Next module in your learning path',
+            });
+            break; // Only suggest the next incomplete module per course
+          }
+        }
+      }
+
+      // Sort by priority and take top 2 recommendations
+      recommendations.sort((a, b) => (a['priority'] as int).compareTo(b['priority'] as int));
+      final topRecommendations = recommendations.take(2).toList();
+
+      return {
+        'recommendations': topRecommendations,
+        'hasRecommendations': topRecommendations.isNotEmpty,
+        'generatedAt': DateTime.now().toIso8601String(),
+      };
+
+    } catch (e) {
+      print('❌ [HOME SCREEN] Error generating study plan: $e');
+      return {
+        'recommendations': [],
+        'hasRecommendations': false,
+        'error': 'Failed to generate study plan',
+      };
+    }
+  }
+
+  /// Find the current learning path (course with highest progress but not completed)
+  Map<String, dynamic>? _findCurrentLearningPath(List<Map<String, dynamic>> courses) {
+    try {
+      // Filter incomplete courses and sort by progress (highest first)
+      final incompleteCourses = courses
+          .where((course) => (course['progress'] as double) < 1.0)
+          .toList();
+      
+      if (incompleteCourses.isEmpty) {
+        // All courses completed, return the most recently enrolled
+        return courses.isNotEmpty ? courses.first : null;
+      }
+
+      // Sort by progress (descending) and then by enrollment date (most recent first)
+      incompleteCourses.sort((a, b) {
+        final progressComparison = (b['progress'] as double).compareTo(a['progress'] as double);
+        if (progressComparison != 0) return progressComparison;
+        
+        // If progress is equal, sort by enrollment date
+        final aDate = DateTime.parse(a['enrolledAt']);
+        final bDate = DateTime.parse(b['enrolledAt']);
+        return bDate.compareTo(aDate);
+      });
+
+      return incompleteCourses.first;
+
+    } catch (e) {
+      print('❌ [HOME SCREEN] Error finding current learning path: $e');
+      return courses.isNotEmpty ? courses.first : null;
+    }
+  }
+
+  /// Helper method to clean module titles (remove numbers and dashes)
+  String _cleanModuleTitle(String title) {
+    return title.replaceFirst(RegExp(r'^\d+\s*-\s*'), '').trim();
+  }
+
   // ==================== ACTIVITIES METHODS ====================
 
   /// Get recent study activities for a user to display in activities screen
