@@ -13,6 +13,10 @@ import '../../widgets/pomodoro/pomodoro_settings_widget.dart';
 import '../../widgets/retrieval_practice/retrieval_settings_widget.dart';
 import '../../models/retrieval_practice_models.dart';
 import '../../services/retrieval_practice_service.dart';
+import '../../models/active_recall_models.dart';
+import '../../services/active_recall_service.dart';
+import '../../services/pomodoro_service.dart';
+import '../../widgets/active_recall/active_recall_settings_widget.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;
@@ -32,11 +36,14 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
   String? selectedTechnique;
   PomodoroSettings? customPomodoroSettings;
   RetrievalPracticeSettings? customRetrievalSettings;
+  ActiveRecallSettings? customActiveRecallSettings;
 
   @override
   void initState() {
     super.initState();
     _loadSavedRetrievalSettings();
+    _loadSavedActiveRecallSettings();
+    _loadSavedPomodoroSettings();
   }
 
   Future<void> _loadSavedRetrievalSettings() async {
@@ -58,6 +65,50 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
       }
     } catch (e) {
       print('⚠️ [STUDY SELECTOR] Failed to load retrieval settings: $e');
+      // Use default settings on error
+    }
+  }
+
+  Future<void> _loadSavedActiveRecallSettings() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.id;
+    
+    if (userId == null) return;
+    
+    try {
+      final activeRecallService = ActiveRecallService();
+      final savedSettings = await activeRecallService.getUserActiveRecallSettings(userId);
+      
+      if (mounted) {
+        setState(() {
+          customActiveRecallSettings = savedSettings;
+        });
+        print('✅ [STUDY SELECTOR] Loaded active recall settings: ${savedSettings.flashcardsPerSession} flashcards');
+      }
+    } catch (e) {
+      print('⚠️ [STUDY SELECTOR] Failed to load active recall settings: $e');
+      // Use default settings on error
+    }
+  }
+
+  Future<void> _loadSavedPomodoroSettings() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.id;
+    
+    if (userId == null) return;
+    
+    try {
+      final pomodoroService = PomodoroService();
+      final savedSettings = await pomodoroService.getUserPomodoroSettings(userId);
+      
+      if (mounted) {
+        setState(() {
+          customPomodoroSettings = savedSettings;
+        });
+        print('✅ [STUDY SELECTOR] Loaded pomodoro settings: ${savedSettings.workDuration.inMinutes}m work, ${savedSettings.shortBreakDuration.inMinutes}m break');
+      }
+    } catch (e) {
+      print('⚠️ [STUDY SELECTOR] Failed to load pomodoro settings: $e');
       // Use default settings on error
     }
   }
@@ -201,6 +252,28 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                                             ),
                                           ),
                                         ),
+                                        // Settings button for Active Recall
+                                        if (technique.id == 'active_recall')
+                                          GestureDetector(
+                                            onTap: () => _showActiveRecallSettings(),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.grey100,
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: customActiveRecallSettings != null
+                                                    ? Border.all(color: AppColors.bgPrimary, width: 1)
+                                                    : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.settings,
+                                                size: 16,
+                                                color: customActiveRecallSettings != null
+                                                    ? AppColors.bgPrimary
+                                                    : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ),
                                         // Settings button for Pomodoro Technique
                                         if (technique.id == 'pomodoro_technique')
                                           GestureDetector(
@@ -257,6 +330,19 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                                       maxLines: 3,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    // Show custom settings info for Active Recall
+                                    if (technique.id == 'active_recall' && customActiveRecallSettings != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Custom: ${customActiveRecallSettings!.flashcardsPerSession} flashcards, ${customActiveRecallSettings!.preferredFlashcardTypes.length} types, ${customActiveRecallSettings!.studyMode.value.replaceAll('_', ' ')}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.bgPrimary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
                                     // Show custom settings info if configured
                                     if (technique.id == 'pomodoro_technique' && customPomodoroSettings != null)
                                       Padding(
@@ -369,12 +455,13 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
   }
   
   void _startActiveRecallSession() {
-    // Navigate to Active Recall session screen
+    // Navigate to Active Recall session screen with custom settings
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ActiveRecallSessionScreen(
           course: widget.course,
           module: widget.module,
+          customSettings: customActiveRecallSettings,
         ),
       ),
     );
@@ -484,6 +571,41 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
     if (result != null && mounted) {
       setState(() {
         customRetrievalSettings = result;
+      });
+    }
+  }
+
+  void _showActiveRecallSettings() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.id;
+    
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to customize settings')),
+      );
+      return;
+    }
+
+    final result = await showModalBottomSheet<ActiveRecallSettings>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ActiveRecallSettingsWidget(
+        userId: userId,
+        initialSettings: customActiveRecallSettings ?? const ActiveRecallSettings(),
+        onSettingsChanged: (settings) {
+          if (mounted) {
+            setState(() {
+              customActiveRecallSettings = settings;
+            });
+          }
+        },
+      ),
+    );
+    
+    if (result != null && mounted) {
+      setState(() {
+        customActiveRecallSettings = result;
       });
     }
   }

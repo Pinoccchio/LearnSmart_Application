@@ -8,6 +8,7 @@ import '../../models/course_models.dart';
 import '../../models/active_recall_models.dart';
 import '../../models/study_analytics_models.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/active_recall_service.dart';
 import '../../services/gemini_ai_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/study_analytics_service.dart';
@@ -21,11 +22,13 @@ import 'active_recall_completion_screen.dart';
 class ActiveRecallSessionScreen extends StatefulWidget {
   final Course course;
   final Module module;
+  final ActiveRecallSettings? customSettings;
 
   const ActiveRecallSessionScreen({
     super.key,
     required this.course,
     required this.module,
+    this.customSettings,
   });
 
   @override
@@ -47,6 +50,9 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   String? _errorMessage;
   String? _sessionId;
   
+  // Settings for this session
+  ActiveRecallSettings _settings = const ActiveRecallSettings();
+  
   // Analytics data
   StudySessionAnalytics? _sessionAnalytics;
   
@@ -67,6 +73,29 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
 
   Future<void> _initializeSession() async {
     try {
+      // Initialize settings - load from database if no custom settings provided
+      if (widget.customSettings != null) {
+        _settings = widget.customSettings!;
+        print('⚙️ [ACTIVE RECALL] Using provided custom settings');
+      } else {
+        // Load settings from database
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final userId = authProvider.currentUser?.id;
+        if (userId != null) {
+          final activeRecallService = ActiveRecallService();
+          _settings = await activeRecallService.getUserActiveRecallSettings(userId);
+          print('⚙️ [ACTIVE RECALL] Loaded settings from database');
+        } else {
+          _settings = const ActiveRecallSettings();
+          print('⚙️ [ACTIVE RECALL] Using default settings (no user logged in)');
+        }
+      }
+      
+      print('⚙️ [ACTIVE RECALL SETTINGS] flashcardsPerSession: ${_settings.flashcardsPerSession}');
+      print('⚙️ [ACTIVE RECALL SETTINGS] preferredTypes: ${_settings.preferredFlashcardTypes.map((t) => t.value).join(', ')}');
+      print('⚙️ [ACTIVE RECALL SETTINGS] preferredDifficulties: ${_settings.preferredDifficulties.map((d) => d.value).join(', ')}');
+      print('⚙️ [ACTIVE RECALL SETTINGS] showFeedbackAfterEach: ${_settings.showFeedbackAfterEach}');
+      
       // === SESSION LIFECYCLE: Initialization Start ===
       print('🚀 [ACTIVE RECALL] Starting session initialization');
       print('🔄 [SESSION LIFECYCLE] Phase 1: Content Generation & Preparation');
@@ -94,13 +123,34 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
       
       // Generate flashcards from module materials (now with PDF content extraction)
       print('🧠 [ACTIVE RECALL] Generating flashcards for ${widget.module.materials.length} materials');
+      print('🧠 [ACTIVE RECALL] Using settings for AI generation: ${_settings.flashcardsPerSession} flashcards requested');
       final flashcards = await _geminiService.generateFlashcardsFromMaterials(
         widget.module.materials,
         widget.module.title,
+        settings: _settings,
       );
 
       if (flashcards.isEmpty) {
         throw Exception('No flashcards could be generated from the materials');
+      }
+
+      // Debug flashcard generation results
+      print('📊 [FLASHCARD GENERATION] Generated ${flashcards.length} flashcards total');
+      print('📊 [FLASHCARD GENERATION] Expected: ${_settings.flashcardsPerSession} flashcards');
+      print('📊 [FLASHCARD GENERATION] Types distribution:');
+      for (final type in FlashcardType.values) {
+        final count = flashcards.where((f) => f.type == type).length;
+        print('   - ${type.value}: $count flashcards');
+      }
+      print('📊 [FLASHCARD GENERATION] Difficulty distribution:');
+      for (final difficulty in FlashcardDifficulty.values) {
+        final count = flashcards.where((f) => f.difficulty == difficulty).length;
+        print('   - ${difficulty.value}: $count flashcards');
+      }
+      
+      if (flashcards.length != _settings.flashcardsPerSession) {
+        print('⚠️ [FLASHCARD MISMATCH] Expected ${_settings.flashcardsPerSession} but got ${flashcards.length} flashcards');
+        print('⚠️ [FLASHCARD MISMATCH] This suggests AI generation or filtering didn\'t respect settings');
       }
 
       // === SESSION LIFECYCLE: Database Creation Phase ===
@@ -179,8 +229,12 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
     // Save attempt to database
     _saveAttemptToDatabase(attempt);
 
-    // Show result screen
-    _showResultDialog(flashcard, answer, isCorrect, responseTimeMs);
+    // Show feedback if enabled, otherwise move to next flashcard
+    if (_settings.showFeedbackAfterEach) {
+      _showResultDialog(flashcard, answer, isCorrect, responseTimeMs);
+    } else {
+      _moveToNextFlashcard();
+    }
   }
 
   bool _evaluateAnswer(String userAnswer, String correctAnswer) {

@@ -109,13 +109,9 @@ class _PomodoroSettingsWidgetState extends State<PomodoroSettingsWidget> {
   }
 
   Widget _buildLoadingState() {
-    return SizedBox(
-      height: 400,
+    return Expanded(
       child: Column(
         children: [
-          // Header with loading indicator
-          _buildHeader(),
-          
           const Spacer(),
           
           // Loading spinner
@@ -168,9 +164,6 @@ class _PomodoroSettingsWidgetState extends State<PomodoroSettingsWidget> {
           ),
           
           const Spacer(),
-          
-          // Bottom padding
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
         ],
       ),
     );

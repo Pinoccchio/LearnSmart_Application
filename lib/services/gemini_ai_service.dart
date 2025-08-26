@@ -23,19 +23,35 @@ class GeminiAIService {
 
   Future<List<ActiveRecallFlashcard>> generateFlashcardsFromMaterials(
     List<CourseMaterial> materials,
-    String moduleTitle,
-  ) async {
+    String moduleTitle, {
+    ActiveRecallSettings? settings,
+  }) async {
     try {
       print('🧠 [GEMINI AI] Starting flashcard generation for ${materials.length} materials');
+      
+      // Use settings to determine total flashcards needed
+      final effectiveSettings = settings ?? const ActiveRecallSettings();
+      final totalFlashcardsNeeded = effectiveSettings.flashcardsPerSession;
+      print('🧠 [GEMINI AI] Target flashcards: $totalFlashcardsNeeded (from user settings)');
+      
+      // Calculate how many flashcards each material should generate
+      final totalMaterials = materials.length;
+      final baseCardsPerMaterial = totalFlashcardsNeeded ~/ totalMaterials;
+      final extraCards = totalFlashcardsNeeded % totalMaterials;
+      
+      print('🧠 [GEMINI AI] Distribution: $baseCardsPerMaterial base cards per material, $extraCards materials get +1 extra');
       
       List<ActiveRecallFlashcard> allFlashcards = [];
       
       for (int i = 0; i < materials.length; i++) {
         final material = materials[i];
-        print('📄 [GEMINI AI] Processing material ${i + 1}/${materials.length}: ${material.title}');
+        // First few materials get an extra card if there's a remainder
+        final cardsForThisMaterial = baseCardsPerMaterial + (i < extraCards ? 1 : 0);
+        
+        print('📄 [GEMINI AI] Processing material ${i + 1}/${materials.length}: ${material.title} (requesting $cardsForThisMaterial flashcards)');
         
         try {
-          final flashcards = await _generateFlashcardsFromMaterial(material, moduleTitle);
+          final flashcards = await _generateFlashcardsFromMaterial(material, moduleTitle, settings, cardsForThisMaterial);
           allFlashcards.addAll(flashcards);
           print('✅ [GEMINI AI] Generated ${flashcards.length} flashcards from ${material.title}');
         } catch (e) {
@@ -45,6 +61,8 @@ class GeminiAIService {
       }
       
       print('🎯 [GEMINI AI] Total flashcards generated: ${allFlashcards.length}');
+      print('🎯 [GEMINI AI] Target vs Actual: ${totalFlashcardsNeeded} requested, ${allFlashcards.length} generated');
+      
       return allFlashcards;
       
     } catch (e) {
@@ -56,10 +74,18 @@ class GeminiAIService {
   Future<List<ActiveRecallFlashcard>> _generateFlashcardsFromMaterial(
     CourseMaterial material,
     String moduleTitle,
+    ActiveRecallSettings? settings,
+    int flashcardsToGenerate,
   ) async {
     // For now, we'll generate flashcards based on material metadata
     // In a full implementation, you'd extract content from PDFs/documents
     final content = await _extractContentFromMaterial(material);
+    
+    // Use settings to determine flashcard generation parameters
+    final effectiveSettings = settings ?? const ActiveRecallSettings();
+    final flashcardsPerMaterial = flashcardsToGenerate; // Use the passed count instead of calculating
+    final preferredTypes = effectiveSettings.preferredFlashcardTypes.map((type) => type.value).join(', ');
+    final preferredDifficulties = effectiveSettings.preferredDifficulties.map((difficulty) => difficulty.value).join(', ');
     
     final prompt = '''
 You are an expert educator creating Active Recall flashcards for a module titled "$moduleTitle".
@@ -70,7 +96,21 @@ Description: ${material.description ?? 'No description provided'}
 File Type: ${material.fileType}
 Content Context: $content
 
-Generate exactly 5 high-quality flashcards that test key concepts. Each flashcard should promote active recall and memory retrieval.
+User Preferences (MUST follow these settings):
+- Number of flashcards to generate: $flashcardsPerMaterial
+- Preferred flashcard types: $preferredTypes
+- Preferred difficulty levels: $preferredDifficulties
+- Show hints: ${effectiveSettings.showHints}
+- Require explanations: ${effectiveSettings.requireExplanationReview}
+- Adaptive difficulty: ${effectiveSettings.adaptiveDifficulty}
+
+Generate exactly $flashcardsPerMaterial high-quality flashcards that test key concepts. Each flashcard should promote active recall and memory retrieval.
+
+IMPORTANT CONSTRAINTS:
+- ONLY use these flashcard types: $preferredTypes
+- ONLY use these difficulty levels: $preferredDifficulties
+- Generate ${effectiveSettings.showHints ? 'helpful hints' : 'no hints (empty array)'}
+- ${effectiveSettings.requireExplanationReview ? 'Include detailed explanations' : 'Keep explanations brief'}
 
 Return your response as a valid JSON array with this exact structure:
 [
@@ -101,11 +141,12 @@ Return your response as a valid JSON array with this exact structure:
 ]
 
 Important rules:
-- Use only these types: "fill_in_blank", "definition_recall", "concept_application"
-- Use only these difficulty levels: "easy", "medium", "hard"
+- Use only these types: $preferredTypes
+- Use only these difficulty levels: $preferredDifficulties
 - Keep questions clear and specific
-- Provide 2-3 helpful hints per flashcard
+- ${effectiveSettings.showHints ? 'Provide 2-3 helpful hints per flashcard' : 'Provide empty hints array []'}
 - Make answers concise but complete
+- ${effectiveSettings.requireExplanationReview ? 'Provide detailed explanations' : 'Keep explanations brief'}
 - Return ONLY the JSON array, no other text
 ''';
 
@@ -149,7 +190,7 @@ Important rules:
       print('❌ [GEMINI AI] Error generating flashcards: $e');
       
       // Return fallback flashcards if AI fails
-      return _getFallbackFlashcards(material);
+      return _getFallbackFlashcards(material, effectiveSettings, flashcardsPerMaterial);
     }
   }
 
@@ -314,8 +355,86 @@ Provide the response as a comprehensive text summary covering the entire documen
     }
   }
 
-  List<ActiveRecallFlashcard> _getFallbackFlashcards(CourseMaterial material) {
-    // Fallback flashcards if AI generation fails
+  List<ActiveRecallFlashcard> _getFallbackFlashcards(CourseMaterial material, ActiveRecallSettings settings, int count) {
+    // Fallback flashcards if AI generation fails - respect user settings
+    final preferredTypes = settings.preferredFlashcardTypes;
+    final preferredDifficulties = settings.preferredDifficulties;
+    
+    final flashcards = <ActiveRecallFlashcard>[];
+    
+    // Generate the requested number of fallback flashcards based on user preferences
+    for (int i = 0; i < count; i++) {
+      final type = preferredTypes[i % preferredTypes.length];
+      final difficulty = preferredDifficulties[i % preferredDifficulties.length];
+      
+      flashcards.add(_createFallbackFlashcard(material, type, difficulty, settings, i));
+    }
+    
+    print('🔄 [GEMINI AI FALLBACK] Generated $count fallback flashcards for ${material.title}');
+    return flashcards;
+  }
+  
+  ActiveRecallFlashcard _createFallbackFlashcard(
+    CourseMaterial material, 
+    FlashcardType type, 
+    FlashcardDifficulty difficulty,
+    ActiveRecallSettings settings,
+    int index,
+  ) {
+    final materialTitle = material.title;
+    String question;
+    String answer;
+    List<String> hints;
+    String explanation;
+    
+    switch (type) {
+      case FlashcardType.fillInBlank:
+        question = 'Complete this: "${materialTitle}" covers the topic of _____.';
+        answer = 'key concepts and principles';
+        break;
+      case FlashcardType.definitionRecall:
+        question = 'What are the main learning objectives of "$materialTitle"?';
+        answer = 'The main learning objectives relate to understanding core concepts.';
+        break;
+      case FlashcardType.conceptApplication:
+        question = 'How would you apply the concepts from "$materialTitle" in practice?';
+        answer = 'Apply the concepts through practical exercises and real-world examples.';
+        break;
+    }
+    
+    // Respect settings for hints and explanations
+    if (settings.showHints) {
+      hints = [
+        'Think about the material title',
+        'Consider the module context',
+        'Focus on key learning points',
+      ];
+    } else {
+      hints = [];
+    }
+    
+    if (settings.requireExplanationReview) {
+      explanation = 'This fallback flashcard tests basic understanding of the material "$materialTitle" and its relevance to the learning objectives.';
+    } else {
+      explanation = 'Tests material comprehension.';
+    }
+    
+    return ActiveRecallFlashcard(
+      id: '${material.id}_fallback_$index',
+      materialId: material.id,
+      moduleId: material.moduleId,
+      type: type,
+      question: question,
+      answer: answer,
+      hints: hints,
+      difficulty: difficulty,
+      explanation: explanation,
+      createdAt: DateTime.now(),
+    );
+  }
+  
+  List<ActiveRecallFlashcard> _getFallbackFlashcardsLegacy(CourseMaterial material) {
+    // Legacy fallback method for backward compatibility
     return [
       ActiveRecallFlashcard(
         id: '${material.id}_fallback_1',

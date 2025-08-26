@@ -20,6 +20,25 @@ enum StudySessionStatus {
   paused,
 }
 
+enum ActiveRecallStudyMode {
+  prePostStudy,
+}
+
+extension ActiveRecallStudyModeExtension on ActiveRecallStudyMode {
+  String get value {
+    switch (this) {
+      case ActiveRecallStudyMode.prePostStudy:
+        return 'pre_post_study';
+    }
+  }
+
+  static ActiveRecallStudyMode fromString(String value) {
+    // Always return prePostStudy since it's the only option
+    // This maintains backward compatibility with existing database data
+    return ActiveRecallStudyMode.prePostStudy;
+  }
+}
+
 extension FlashcardTypeExtension on FlashcardType {
   String get value {
     switch (this) {
@@ -348,6 +367,189 @@ class StudySessionResults {
       averageResponseTime: avgResponseTime,
       difficultyBreakdown: difficultyBreakdown,
       typeBreakdown: typeBreakdown,
+    );
+  }
+}
+
+/// Settings class for Active Recall study sessions
+class ActiveRecallSettings {
+  final int flashcardsPerSession;
+  final List<FlashcardType> preferredFlashcardTypes;
+  final List<FlashcardDifficulty> preferredDifficulties;
+  final bool showHints;
+  final bool requireExplanationReview;
+  final bool adaptiveDifficulty;
+  final bool showFeedbackAfterEach;
+  final ActiveRecallStudyMode studyMode;
+
+  const ActiveRecallSettings({
+    this.flashcardsPerSession = 10,
+    this.preferredFlashcardTypes = const [
+      FlashcardType.fillInBlank,
+      FlashcardType.definitionRecall,
+      FlashcardType.conceptApplication,
+    ],
+    this.preferredDifficulties = const [
+      FlashcardDifficulty.easy,
+      FlashcardDifficulty.medium,
+      FlashcardDifficulty.hard,
+    ],
+    this.showHints = true,
+    this.requireExplanationReview = true,
+    this.adaptiveDifficulty = false,
+    this.showFeedbackAfterEach = true,
+    this.studyMode = ActiveRecallStudyMode.prePostStudy,
+  });
+
+  /// Create default settings
+  factory ActiveRecallSettings.defaults() => const ActiveRecallSettings();
+
+  /// Create settings optimized for quick review sessions
+  factory ActiveRecallSettings.quickReview() => const ActiveRecallSettings(
+    flashcardsPerSession: 5,
+    preferredFlashcardTypes: [FlashcardType.fillInBlank, FlashcardType.definitionRecall],
+    studyMode: ActiveRecallStudyMode.prePostStudy,
+    showHints: false,
+  );
+
+  /// Create settings optimized for comprehensive study
+  factory ActiveRecallSettings.comprehensive() => const ActiveRecallSettings(
+    flashcardsPerSession: 15,
+    studyMode: ActiveRecallStudyMode.prePostStudy,
+    requireExplanationReview: true,
+    adaptiveDifficulty: true,
+  );
+
+  /// Create settings from JSON (database)
+  factory ActiveRecallSettings.fromJson(Map<String, dynamic> json) {
+    return ActiveRecallSettings(
+      flashcardsPerSession: json['flashcards_per_session'] ?? 10,
+      preferredFlashcardTypes: (json['preferred_flashcard_types'] as List? ?? ['fill_in_blank', 'definition_recall', 'concept_application'])
+          .map((type) => FlashcardTypeExtension.fromString(type as String))
+          .toList(),
+      preferredDifficulties: (json['preferred_difficulties'] as List? ?? ['easy', 'medium', 'hard'])
+          .map((difficulty) => FlashcardDifficultyExtension.fromString(difficulty as String))
+          .toList(),
+      showHints: json['show_hints'] ?? true,
+      requireExplanationReview: json['require_explanation_review'] ?? true,
+      adaptiveDifficulty: json['adaptive_difficulty'] ?? false,
+      showFeedbackAfterEach: json['show_feedback_after_each'] ?? true,
+      studyMode: ActiveRecallStudyModeExtension.fromString(json['study_mode'] ?? 'pre_post_study'),
+    );
+  }
+
+  /// Convert to JSON for database storage
+  Map<String, dynamic> toJson() {
+    return {
+      'flashcards_per_session': flashcardsPerSession,
+      'preferred_flashcard_types': preferredFlashcardTypes.map((type) => type.value).toList(),
+      'preferred_difficulties': preferredDifficulties.map((difficulty) => difficulty.value).toList(),
+      'show_hints': showHints,
+      'require_explanation_review': requireExplanationReview,
+      'adaptive_difficulty': adaptiveDifficulty,
+      'show_feedback_after_each': showFeedbackAfterEach,
+      'study_mode': studyMode.value,
+    };
+  }
+
+  /// Create a copy with modified values
+  ActiveRecallSettings copyWith({
+    int? flashcardsPerSession,
+    List<FlashcardType>? preferredFlashcardTypes,
+    List<FlashcardDifficulty>? preferredDifficulties,
+    bool? showHints,
+    bool? requireExplanationReview,
+    bool? adaptiveDifficulty,
+    bool? showFeedbackAfterEach,
+    ActiveRecallStudyMode? studyMode,
+  }) {
+    return ActiveRecallSettings(
+      flashcardsPerSession: flashcardsPerSession ?? this.flashcardsPerSession,
+      preferredFlashcardTypes: preferredFlashcardTypes ?? this.preferredFlashcardTypes,
+      preferredDifficulties: preferredDifficulties ?? this.preferredDifficulties,
+      showHints: showHints ?? this.showHints,
+      requireExplanationReview: requireExplanationReview ?? this.requireExplanationReview,
+      adaptiveDifficulty: adaptiveDifficulty ?? this.adaptiveDifficulty,
+      showFeedbackAfterEach: showFeedbackAfterEach ?? this.showFeedbackAfterEach,
+      studyMode: studyMode ?? this.studyMode,
+    );
+  }
+
+  /// Validate settings values
+  String? validate() {
+    if (flashcardsPerSession < 5 || flashcardsPerSession > 20) {
+      return 'Flashcards per session must be between 5 and 20';
+    }
+
+    if (preferredFlashcardTypes.isEmpty) {
+      return 'At least one flashcard type must be selected';
+    }
+
+    if (preferredDifficulties.isEmpty) {
+      return 'At least one difficulty level must be selected';
+    }
+
+    return null; // Valid settings
+  }
+
+  /// Check if these are the default settings
+  bool get isDefault {
+    final defaults = ActiveRecallSettings.defaults();
+    return flashcardsPerSession == defaults.flashcardsPerSession &&
+           _listEqual(preferredFlashcardTypes, defaults.preferredFlashcardTypes) &&
+           _listEqual(preferredDifficulties, defaults.preferredDifficulties) &&
+           showHints == defaults.showHints &&
+           requireExplanationReview == defaults.requireExplanationReview &&
+           adaptiveDifficulty == defaults.adaptiveDifficulty &&
+           showFeedbackAfterEach == defaults.showFeedbackAfterEach &&
+           studyMode == defaults.studyMode;
+  }
+
+  /// Helper method to compare lists
+  bool _listEqual<T>(List<T> list1, List<T> list2) {
+    if (list1.length != list2.length) return false;
+    for (int i = 0; i < list1.length; i++) {
+      if (list1[i] != list2[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  String toString() {
+    return 'ActiveRecallSettings('
+           'flashcardsPerSession: $flashcardsPerSession, '
+           'preferredTypes: ${preferredFlashcardTypes.map((e) => e.value).join(', ')}, '
+           'preferredDifficulties: ${preferredDifficulties.map((e) => e.value).join(', ')}, '
+           'studyMode: ${studyMode.value}, '
+           'showHints: $showHints, '
+           'adaptiveDifficulty: $adaptiveDifficulty)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ActiveRecallSettings &&
+           other.flashcardsPerSession == flashcardsPerSession &&
+           _listEqual(other.preferredFlashcardTypes, preferredFlashcardTypes) &&
+           _listEqual(other.preferredDifficulties, preferredDifficulties) &&
+           other.showHints == showHints &&
+           other.requireExplanationReview == requireExplanationReview &&
+           other.adaptiveDifficulty == adaptiveDifficulty &&
+           other.showFeedbackAfterEach == showFeedbackAfterEach &&
+           other.studyMode == studyMode;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      flashcardsPerSession,
+      Object.hashAll(preferredFlashcardTypes),
+      Object.hashAll(preferredDifficulties),
+      showHints,
+      requireExplanationReview,
+      adaptiveDifficulty,
+      showFeedbackAfterEach,
+      studyMode,
     );
   }
 }
