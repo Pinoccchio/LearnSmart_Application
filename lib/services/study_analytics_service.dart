@@ -3898,4 +3898,151 @@ class StudyAnalyticsService {
       }
     }
   }
+
+  // ==================== ACTIVITIES METHODS ====================
+
+  /// Get recent study activities for a user to display in activities screen
+  Future<List<Map<String, dynamic>>> getUserRecentActivities(String userId, {int limit = 20}) async {
+    try {
+      print('📊 [ACTIVITIES] Fetching recent activities for user: $userId');
+      final startTime = DateTime.now();
+
+      final List<Map<String, dynamic>> allActivities = [];
+
+      // Get Active Recall sessions
+      final activeRecallResponse = await SupabaseService.client
+          .from('active_recall_sessions')
+          .select('''
+            id,
+            user_id,
+            module_id,
+            status,
+            started_at,
+            completed_at,
+            session_data
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .not('completed_at', 'is', null)
+          .order('completed_at', ascending: false)
+          .limit(10);
+
+      for (final session in activeRecallResponse) {
+        allActivities.add({
+          'session_type': 'active_recall',
+          'id': session['id'],
+          'user_id': session['user_id'],
+          'module_id': session['module_id'],
+          'completed_at': session['completed_at'],
+          'session_data': session['session_data'],
+        });
+      }
+
+      // Get Pomodoro sessions
+      final pomodoroResponse = await SupabaseService.client
+          .from('pomodoro_sessions')
+          .select('''
+            id,
+            user_id,
+            module_id,
+            status,
+            started_at,
+            completed_at,
+            session_data
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .not('completed_at', 'is', null)
+          .order('completed_at', ascending: false)
+          .limit(10);
+
+      for (final session in pomodoroResponse) {
+        allActivities.add({
+          'session_type': 'pomodoro',
+          'id': session['id'],
+          'user_id': session['user_id'],
+          'module_id': session['module_id'],
+          'completed_at': session['completed_at'],
+          'session_data': session['session_data'],
+        });
+      }
+
+      // Get Feynman sessions
+      final feynmanResponse = await SupabaseService.client
+          .from('feynman_sessions')
+          .select('''
+            id,
+            user_id,
+            module_id,
+            status,
+            started_at,
+            completed_at,
+            session_data
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .not('completed_at', 'is', null)
+          .order('completed_at', ascending: false)
+          .limit(10);
+
+      for (final session in feynmanResponse) {
+        allActivities.add({
+          'session_type': 'feynman',
+          'id': session['id'],
+          'user_id': session['user_id'],
+          'module_id': session['module_id'],
+          'completed_at': session['completed_at'],
+          'session_data': session['session_data'],
+        });
+      }
+
+      // Get Retrieval Practice sessions
+      final retrievalResponse = await SupabaseService.client
+          .from('retrieval_practice_sessions')
+          .select('''
+            id,
+            user_id,
+            module_id,
+            status,
+            started_at,
+            completed_at,
+            session_data
+          ''')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .not('completed_at', 'is', null)
+          .order('completed_at', ascending: false)
+          .limit(10);
+
+      for (final session in retrievalResponse) {
+        allActivities.add({
+          'session_type': 'retrieval_practice',
+          'id': session['id'],
+          'user_id': session['user_id'],
+          'module_id': session['module_id'],
+          'completed_at': session['completed_at'],
+          'session_data': session['session_data'],
+        });
+      }
+
+      // Sort all activities by completion time (most recent first)
+      allActivities.sort((a, b) {
+        final aTime = DateTime.parse(a['completed_at'] as String);
+        final bTime = DateTime.parse(b['completed_at'] as String);
+        return bTime.compareTo(aTime);
+      });
+
+      // Limit to requested number of activities
+      final limitedActivities = allActivities.take(limit).toList();
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [ACTIVITIES] Found ${limitedActivities.length} recent activities in ${duration.inMilliseconds}ms');
+
+      return limitedActivities;
+
+    } catch (e) {
+      print('❌ [ACTIVITIES] Error fetching user activities: $e');
+      rethrow;
+    }
+  }
 }

@@ -2,17 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../models/course.dart';
 import '../models/activity.dart';
-import '../constants/app_colors.dart';
 import '../services/study_analytics_service.dart';
 import '../services/supabase_service.dart';
 
 class AppProvider with ChangeNotifier {
   int _currentIndex = 0;
   StudyStats _studyStats = StudyStats.loading();
+  List<Activity> _activities = [];
+  bool _activitiesLoading = false;
+  String? _activitiesError;
   final StudyAnalyticsService _analyticsService = StudyAnalyticsService();
   
   int get currentIndex => _currentIndex;
   StudyStats get studyStats => _studyStats;
+  List<Activity> get activities => _activities;
+  bool get activitiesLoading => _activitiesLoading;
+  bool get activitiesHasError => _activitiesError != null;
+  String? get activitiesError => _activitiesError;
   
   void setCurrentIndex(int index) {
     _currentIndex = index;
@@ -120,39 +126,6 @@ class AppProvider with ChangeNotifier {
 
   List<StudyTechnique> get studyTechniques => _studyTechniques;
 
-  // Mock activities
-  final List<Activity> _activities = [
-    Activity(
-      id: '1',
-      title: 'Completed study session',
-      description: 'Criminalistics Module 2',
-      timestamp: DateTime.now().subtract(const Duration(hours: 2)),
-      type: ActivityType.studySession,
-      icon: LucideIcons.bookOpen,
-      color: AppColors.success,
-    ),
-    Activity(
-      id: '2',
-      title: 'New streak achieved',
-      description: '5 days in a row',
-      timestamp: DateTime.now().subtract(const Duration(hours: 5)),
-      type: ActivityType.streak,
-      icon: LucideIcons.flame,
-      color: AppColors.warning,
-    ),
-    Activity(
-      id: '3',
-      title: 'Finished quiz',
-      description: 'Criminal Procedure Module',
-      timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      type: ActivityType.quiz,
-      icon: LucideIcons.checkCircle,
-      color: AppColors.bgPrimary,
-    ),
-  ];
-
-  List<Activity> get activities => _activities;
-
   // Load study stats from database
   Future<void> loadStudyStats({String? userId}) async {
     print('📊 [APP PROVIDER] Loading study stats...');
@@ -198,9 +171,61 @@ class AppProvider with ChangeNotifier {
     await loadStudyStats();
   }
 
+  // Load user activities from database
+  Future<void> loadActivities({String? userId}) async {
+    print('📚 [APP PROVIDER] Loading activities...');
+    
+    try {
+      // Set loading state
+      _activitiesLoading = true;
+      _activitiesError = null;
+      notifyListeners();
+
+      // Get current user ID if not provided
+      String? currentUserId = userId;
+      if (currentUserId == null) {
+        final currentUser = SupabaseService.currentAuthUser;
+        if (currentUser == null) {
+          print('⚠️ [APP PROVIDER] No authenticated user found for activities');
+          _activities = [];
+          _activitiesLoading = false;
+          notifyListeners();
+          return;
+        }
+        currentUserId = currentUser.id;
+      }
+
+      print('📚 [APP PROVIDER] Loading activities for user: $currentUserId');
+
+      // Load real activities from service
+      final activitiesData = await _analyticsService.getUserRecentActivities(currentUserId);
+      
+      // Convert service data to Activity objects
+      _activities = activitiesData.map((data) => Activity.fromSessionData(data)).toList();
+      
+      print('✅ [APP PROVIDER] Activities loaded successfully: ${_activities.length} items');
+      _activitiesLoading = false;
+      notifyListeners();
+      
+    } catch (e) {
+      print('❌ [APP PROVIDER] Error loading activities: $e');
+      _activitiesError = 'Failed to load activities. Please try again.';
+      _activitiesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Refresh activities
+  Future<void> refreshActivities() async {
+    await loadActivities();
+  }
+
   // Initialize provider - call this when app starts or user logs in
   Future<void> initialize() async {
     print('🚀 [APP PROVIDER] Initializing...');
-    await loadStudyStats();
+    await Future.wait([
+      loadStudyStats(),
+      loadActivities(),
+    ]);
   }
 }
