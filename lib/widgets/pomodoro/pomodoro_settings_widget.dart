@@ -68,17 +68,42 @@ class _PomodoroSettingsWidgetState extends State<PomodoroSettingsWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final topPadding = MediaQuery.of(context).padding.top;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final maxHeight = screenHeight - topPadding - bottomPadding - keyboardHeight - 100;
+
     return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(24),
-            topRight: Radius.circular(24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight,
+          minHeight: 500,
+        ),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with drag handle
+              _buildHeader(),
+              
+              // Content
+              Flexible(
+                child: _isLoading ? _buildLoadingState() : _buildScrollableContent(),
+              ),
+              
+              // Action Buttons
+              if (!_isLoading) _buildActionButtons(),
+            ],
           ),
         ),
-        child: _isLoading ? _buildLoadingState() : _buildContent(),
       ),
     );
   }
@@ -151,17 +176,12 @@ class _PomodoroSettingsWidgetState extends State<PomodoroSettingsWidget> {
     );
   }
 
-  Widget _buildContent() {
+  Widget _buildScrollableContent() {
     return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
-          _buildHeader(),
-          
-          const SizedBox(height: 24),
-          
           // Quick Presets
           _buildQuickPresets(),
           
@@ -175,70 +195,69 @@ class _PomodoroSettingsWidgetState extends State<PomodoroSettingsWidget> {
           // Session Preview
           _buildSessionPreview(),
           
-          const SizedBox(height: 32),
-          
-          // Action Buttons
-          _buildActionButtons(),
-          
-          // Add bottom padding for system navigation
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
+
   Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.grey300,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-          child: const Icon(
-            LucideIcons.settings,
-            color: Colors.red,
-            size: 24,
-          ),
-        ),
-        
-        const SizedBox(width: 16),
-        
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 24),
+          Row(
             children: [
-              Text(
-                'Customize Pomodoro',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  LucideIcons.settings,
+                  color: Colors.red,
+                  size: 24,
                 ),
               ),
-              
-              Text(
-                'Adjust timer durations to fit your study style',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pomodoro Settings',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Customize your focus sessions',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-        
-        IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(LucideIcons.x, size: 20),
-          style: IconButton.styleFrom(
-            backgroundColor: AppColors.grey100,
-            foregroundColor: AppColors.textSecondary,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -744,72 +763,103 @@ class _PomodoroSettingsWidgetState extends State<PomodoroSettingsWidget> {
   Widget _buildActionButtons() {
     final isValid = _settings.isValid;
     
-    return Column(
-      children: [
-        if (!isValid) ...[
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+    return Container(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 16,
+        bottom: 24 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: Column(
+        children: [
+          if (!isValid) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(LucideIcons.alertTriangle, color: Colors.red, size: 16),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Settings are outside valid ranges. Please adjust.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: const Row(
-              children: [
-                Icon(LucideIcons.alertTriangle, color: Colors.red, size: 16),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Settings are outside valid ranges. Please adjust.',
+          ],
+          
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.grey300),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    minimumSize: const Size(0, 48),
+                  ),
+                  child: const Text(
+                    'Cancel',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.red,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton.icon(
-            onPressed: isValid && !_isSaving ? () async {
-              await _saveSettingsAndStartSession();
-            } : null,
-            icon: _isSaving 
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: ElevatedButton(
+                  onPressed: isValid && !_isSaving ? () async {
+                    await _saveSettingsAndStartSession();
+                  } : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.grey300,
+                    disabledForegroundColor: AppColors.textSecondary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  )
-                : const Icon(LucideIcons.play, size: 20),
-            label: Text(
-              _isSaving ? 'Saving Settings...' : 'Start Custom Session',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+                    minimumSize: const Size(0, 48),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Apply Settings',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                ),
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              disabledBackgroundColor: AppColors.grey300,
-              disabledForegroundColor: AppColors.textSecondary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-            ),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

@@ -407,35 +407,18 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
         ),
       ),
       child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: onBackToModule,
-                icon: const Icon(LucideIcons.arrowLeft, size: 20),
-                label: const Text('Back to Module'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  side: BorderSide(color: AppColors.grey300),
-                ),
-              ),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: onBackToModule,
+            icon: const Icon(LucideIcons.arrowLeft, size: 20),
+            label: const Text('Back to Module'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.bgPrimary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
-            
-            const SizedBox(width: 16),
-            
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: onStudyAgain,
-                icon: const Icon(LucideIcons.repeat, size: 20),
-                label: const Text('Study Again'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.bgPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

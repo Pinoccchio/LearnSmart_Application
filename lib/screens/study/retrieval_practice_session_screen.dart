@@ -72,6 +72,11 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
       }
 
       // Initializing retrieval practice session
+      print('🚀 [SESSION] Starting retrieval practice session');
+      print('📋 [SESSION] Custom settings provided: ${widget.customSettings != null ? '✅' : '❌'}');
+      if (widget.customSettings != null) {
+        print('⚙️ [SESSION] Settings: ${widget.customSettings!.questionsPerSession} questions, types: ${widget.customSettings!.preferredQuestionTypes.length}');
+      }
       
       await _retrievalService.initializeSession(
         userId: currentUser.id,

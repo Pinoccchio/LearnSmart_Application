@@ -49,6 +49,12 @@ class RetrievalPracticeService extends ChangeNotifier {
       
       _settings = customSettings ?? RetrievalPracticeSettings();
       
+      if (customSettings != null) {
+        print('✅ [SERVICE] Using custom settings: ${_settings.questionsPerSession} questions');
+      } else {
+        print('⚠️ [SERVICE] Using default settings: ${_settings.questionsPerSession} questions (no custom settings provided)');
+      }
+      
       // Create session in database
       final sessionData = {
         'user_id': userId,
@@ -115,14 +121,16 @@ class RetrievalPracticeService extends ChangeNotifier {
     }
   }
 
-  /// Generate questions for a specific material using AI
+  /// Generate questions for a specific material using AI - respecting user settings
   Future<List<RetrievalPracticeQuestion>> _generateQuestionsForMaterial(
     CourseMaterial material,
     Module module,
     int questionCount,
   ) async {
     try {
-      // Create prompt for AI question generation
+      // Build prompt with user's preferred question types
+      final preferredTypes = _settings.preferredQuestionTypes.map((type) => type.name).join(', ');
+      
       final prompt = '''
 Generate $questionCount diverse practice questions from the following educational material:
 
@@ -130,25 +138,31 @@ Material Title: ${material.title}
 Material Type: ${material.fileType}
 Module: ${module.title}
 
+User Preferences:
+- Preferred question types: $preferredTypes
+- Questions per session: ${_settings.questionsPerSession}
+- Allow hints: ${_settings.allowHints}
+- Require confidence rating: ${_settings.requireConfidenceRating}
+
 Requirements:
-1. Create a mix of question types: multiple choice, short answer, fill-in-the-blank, true/false
+1. ONLY create question types from: $preferredTypes
 2. Vary difficulty levels (easy, medium, hard)
 3. Focus on key concepts and important details
 4. Ensure questions test retrieval, not just recognition
 5. Include concept tags for each question
 
 For each question, provide:
-- Question type
+- Question type (MUST be from: $preferredTypes)
 - Question text
 - Correct answer
-- Options (for multiple choice)
+- Options (REQUIRED for multiple choice - provide exactly 4 options)
 - Difficulty level (1=easy, 2=medium, 3=hard)
 - Concept tags (array of key concepts)
 
 Format as JSON array with this structure:
 [
   {
-    "question_type": "multiple_choice",
+    "question_type": "multipleChoice",
     "question_text": "What is...",
     "correct_answer": "Option A",
     "options": ["Option A", "Option B", "Option C", "Option D"],
@@ -181,48 +195,90 @@ Material content will be extracted and processed for question generation.
     Module module,
   ) {
     try {
+      print('🔍 [AI PARSING] Starting to parse AI response for material: ${material.title}');
+      print('📝 [AI PARSING] Raw response length: ${response.length} characters');
+      
       // Extract JSON from response (handle potential markdown formatting)
       String jsonString = response;
       if (response.contains('```json')) {
         final startIndex = response.indexOf('```json') + 7;
         final endIndex = response.lastIndexOf('```');
         jsonString = response.substring(startIndex, endIndex).trim();
+        print('📋 [AI PARSING] Extracted JSON from markdown formatting');
       }
 
+      print('🔧 [AI PARSING] JSON string to parse: ${jsonString.length > 500 ? jsonString.substring(0, 500) + '...' : jsonString}');
+      
       final questionsJson = List<Map<String, dynamic>>.from(
         jsonDecode(jsonString),
       );
+      
+      print('✅ [AI PARSING] Successfully decoded ${questionsJson.length} questions from AI response');
 
       return questionsJson.map((questionData) {
+        final questionType = _parseQuestionType(questionData['question_type']);
+        List<String>? options = questionData['options'] != null 
+            ? List<String>.from(questionData['options'])
+            : null;
+            
+        // Critical validation: Multiple choice questions MUST have options
+        if (questionType == RetrievalQuestionType.multipleChoice) {
+          if (options == null || options.isEmpty) {
+            print('⚠️ [AI PARSING] Multiple choice question missing options, generating fallback options');
+            print('   Question: ${questionData['question_text']}');
+            print('   Original options: $options');
+            
+            // Generate fallback options
+            final correctAnswer = questionData['correct_answer'] ?? 'Unknown';
+            options = [
+              correctAnswer,
+              'Alternative option A',
+              'Alternative option B', 
+              'Alternative option C',
+            ];
+          }
+          
+          // Ensure we have exactly 4 options
+          if (options.length < 4) {
+            final missingCount = 4 - options.length;
+            for (int i = 0; i < missingCount; i++) {
+              options.add('Additional option ${String.fromCharCode(65 + options.length)}');
+            }
+          }
+          
+          print('✅ [AI PARSING] Multiple choice question validated with ${options.length} options');
+        }
+        
         return RetrievalPracticeQuestion(
           id: _generateQuestionId(),
           sessionId: _currentSession!.id,
           moduleId: module.id,
           materialId: material.id,
-          questionType: _parseQuestionType(questionData['question_type']),
+          questionType: questionType,
           questionText: questionData['question_text'],
           correctAnswer: questionData['correct_answer'],
-          options: questionData['options'] != null 
-              ? List<String>.from(questionData['options'])
-              : null,
+          options: options,
           difficultyLevel: DifficultyLevel.fromValue(questionData['difficulty_level'] ?? 1),
           conceptTags: List<String>.from(questionData['concept_tags'] ?? []),
           questionMetadata: {
             'generated_by': 'ai',
             'material_title': material.title,
             'generation_timestamp': DateTime.now().toIso8601String(),
+            'options_validated': questionType == RetrievalQuestionType.multipleChoice,
           },
           createdAt: DateTime.now(),
         );
       }).toList();
 
     } catch (e) {
-      // Failed to parse AI response: $e
+      print('❌ [AI PARSING] Failed to parse AI response: $e');
+      print('📋 [AI PARSING] Raw response that failed: ${response.length > 1000 ? response.substring(0, 1000) + '...' : response}');
+      print('🔧 [AI PARSING] Using fallback question generation');
       return _generateFallbackQuestions(material, module, 2);
     }
   }
 
-  /// Generate fallback questions when AI fails
+  /// Generate fallback questions when AI fails - respecting user settings
   List<RetrievalPracticeQuestion> _generateFallbackQuestions(
     CourseMaterial material,
     Module module,
@@ -230,29 +286,84 @@ Material content will be extracted and processed for question generation.
   ) {
     final questions = <RetrievalPracticeQuestion>[];
     
-    // Generate basic questions based on material title and module
+    // Use user's preferred question types for fallback
+    final preferredTypes = _settings.preferredQuestionTypes;
+    
+    // Generate questions based on user preferences
     for (int i = 0; i < questionCount; i++) {
-      questions.add(
-        RetrievalPracticeQuestion(
-          id: _generateQuestionId(),
-          sessionId: _currentSession!.id,
-          moduleId: module.id,
-          materialId: material.id,
-          questionType: RetrievalQuestionType.shortAnswer,
-          questionText: 'What are the key concepts covered in "${material.title}"?',
-          correctAnswer: 'Key concepts from ${material.title}',
-          difficultyLevel: DifficultyLevel.medium,
-          conceptTags: [material.title.toLowerCase().replaceAll(' ', '_')],
-          questionMetadata: {
-            'generated_by': 'fallback',
-            'material_title': material.title,
-          },
-          createdAt: DateTime.now(),
-        ),
+      final questionType = preferredTypes[i % preferredTypes.length];
+      
+      final question = _generateFallbackQuestionOfType(
+        questionType,
+        material,
+        module,
+        i,
       );
+      
+      questions.add(question);
     }
     
     return questions;
+  }
+
+  /// Generate a single fallback question of specified type
+  RetrievalPracticeQuestion _generateFallbackQuestionOfType(
+    RetrievalQuestionType questionType,
+    CourseMaterial material,
+    Module module,
+    int questionIndex,
+  ) {
+    final materialTitle = material.title;
+    String questionText;
+    String correctAnswer;
+    List<String>? options;
+    
+    switch (questionType) {
+      case RetrievalQuestionType.multipleChoice:
+        questionText = 'What is a key concept covered in "$materialTitle"?';
+        correctAnswer = 'Key concepts and principles';
+        options = [
+          'Key concepts and principles', // Correct answer
+          'Unrelated administrative details',
+          'Historical background information', 
+          'Technical specifications only',
+        ];
+        break;
+        
+      case RetrievalQuestionType.trueFalse:
+        questionText = 'The material "$materialTitle" contains important educational content relevant to this module.';
+        correctAnswer = 'True';
+        break;
+        
+      case RetrievalQuestionType.shortAnswer:
+        questionText = 'Describe the main topics covered in "$materialTitle".';
+        correctAnswer = 'Main topics include key concepts and principles from $materialTitle';
+        break;
+        
+      case RetrievalQuestionType.fillInBlank:
+        questionText = 'The material titled "[BLANK]" covers important concepts for this module.';
+        correctAnswer = materialTitle;
+        break;
+    }
+    
+    return RetrievalPracticeQuestion(
+      id: _generateQuestionId(),
+      sessionId: _currentSession!.id,
+      moduleId: module.id,
+      materialId: material.id,
+      questionType: questionType,
+      questionText: questionText,
+      correctAnswer: correctAnswer,
+      options: options,
+      difficultyLevel: DifficultyLevel.values[questionIndex % 3], // Vary difficulty
+      conceptTags: [materialTitle.toLowerCase().replaceAll(' ', '_')],
+      questionMetadata: {
+        'generated_by': 'fallback',
+        'material_title': materialTitle,
+        'question_type': questionType.name,
+      },
+      createdAt: DateTime.now(),
+    );
   }
 
   /// Start the practice session
@@ -630,15 +741,21 @@ Material content will be extracted and processed for question generation.
 
   RetrievalQuestionType _parseQuestionType(String typeString) {
     switch (typeString.toLowerCase()) {
+      // Handle both snake_case and camelCase formats
       case 'multiple_choice':
+      case 'multiplechoice':
         return RetrievalQuestionType.multipleChoice;
       case 'short_answer':
+      case 'shortanswer':
         return RetrievalQuestionType.shortAnswer;
       case 'fill_in_blank':
+      case 'fillinblank':
         return RetrievalQuestionType.fillInBlank;
       case 'true_false':
+      case 'truefalse':
         return RetrievalQuestionType.trueFalse;
       default:
+        print('⚠️ [QUESTION PARSING] Unknown question type: "$typeString", defaulting to multipleChoice');
         return RetrievalQuestionType.multipleChoice;
     }
   }
@@ -669,6 +786,138 @@ Material content will be extracted and processed for question generation.
     } catch (e) {
       print('❌ [DATABASE] Failed to save attempt: $e');
     }
+  }
+
+  /// Save user Retrieval Practice settings to database
+  Future<void> saveUserRetrievalPracticeSettings(String userId, RetrievalPracticeSettings settings) async {
+    try {
+      print('💾 [RETRIEVAL SETTINGS] Saving settings for user: $userId');
+      
+      // Validate settings first
+      final validationError = _validateSettings(settings);
+      if (validationError != null) {
+        throw ArgumentError('Invalid settings: $validationError');
+      }
+      
+      // Validate user ID
+      if (userId.isEmpty) {
+        throw ArgumentError('User ID cannot be empty');
+      }
+      
+      final settingsData = {
+        'user_id': userId,
+        'questions_per_session': settings.questionsPerSession,
+        'preferred_question_types': settings.preferredQuestionTypes.map((type) => type.name).toList(),
+        'allow_hints': settings.allowHints,
+        'require_confidence_rating': settings.requireConfidenceRating,
+        'show_feedback_after_each': settings.showFeedbackAfterEach,
+        'adaptive_difficulty': settings.adaptiveDifficulty,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      // Check if user settings exist
+      final existingSettings = await SupabaseService.client
+          .from('user_retrieval_practice_settings')
+          .select('user_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (existingSettings != null) {
+        // Update existing settings
+        await SupabaseService.client
+            .from('user_retrieval_practice_settings')
+            .update(settingsData)
+            .eq('user_id', userId);
+        print('✅ [RETRIEVAL SETTINGS] Settings updated for existing user');
+      } else {
+        // Insert new settings
+        settingsData['created_at'] = DateTime.now().toIso8601String();
+        await SupabaseService.client
+            .from('user_retrieval_practice_settings')
+            .insert(settingsData);
+        print('✅ [RETRIEVAL SETTINGS] Settings created for new user');
+      }
+
+    } catch (e) {
+      print('❌ [RETRIEVAL SETTINGS] Failed to save settings: $e');
+      rethrow;
+    }
+  }
+
+  /// Load user Retrieval Practice settings from database
+  Future<RetrievalPracticeSettings> getUserRetrievalPracticeSettings(String userId) async {
+    try {
+      print('📖 [RETRIEVAL SETTINGS] Loading settings for user: $userId');
+      
+      final response = await SupabaseService.client
+          .from('user_retrieval_practice_settings')
+          .select()
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (response != null) {
+        final settings = RetrievalPracticeSettings(
+          questionsPerSession: response['questions_per_session'] ?? 10,
+          preferredQuestionTypes: (response['preferred_question_types'] as List? ?? ['multipleChoice', 'trueFalse', 'shortAnswer', 'fillInBlank'])
+              .map((type) => _parseQuestionTypeFromString(type as String))
+              .toList(),
+          allowHints: response['allow_hints'] ?? true,
+          requireConfidenceRating: response['require_confidence_rating'] ?? false,
+          showFeedbackAfterEach: response['show_feedback_after_each'] ?? true,
+          adaptiveDifficulty: response['adaptive_difficulty'] ?? false,
+        );
+        print('✅ [RETRIEVAL SETTINGS] Settings loaded: $settings');
+        return settings;
+      } else {
+        print('📝 [RETRIEVAL SETTINGS] No saved settings found, using defaults');
+        return RetrievalPracticeSettings();
+      }
+      
+    } catch (e) {
+      print('❌ [RETRIEVAL SETTINGS] Failed to load settings: $e, using defaults');
+      return RetrievalPracticeSettings();
+    }
+  }
+
+  /// Parse question type from string name  
+  RetrievalQuestionType _parseQuestionTypeFromString(String typeName) {
+    // Handle exact enum.name format (camelCase) which is what gets saved
+    switch (typeName) {
+      case 'multipleChoice':
+        return RetrievalQuestionType.multipleChoice;
+      case 'shortAnswer':
+        return RetrievalQuestionType.shortAnswer;
+      case 'fillInBlank':
+        return RetrievalQuestionType.fillInBlank;
+      case 'trueFalse':
+        return RetrievalQuestionType.trueFalse;
+      // Fallback for lowercase versions (backwards compatibility)
+      case 'multiplechoice':
+        return RetrievalQuestionType.multipleChoice;
+      case 'shortanswer':
+        return RetrievalQuestionType.shortAnswer;
+      case 'fillinblank':
+        return RetrievalQuestionType.fillInBlank;
+      case 'truefalse':
+        return RetrievalQuestionType.trueFalse;
+      default:
+        return RetrievalQuestionType.multipleChoice;
+    }
+  }
+
+  /// Validate Retrieval Practice settings and return detailed error message if invalid
+  String? _validateSettings(RetrievalPracticeSettings settings) {
+    // Check questions per session
+    if (settings.questionsPerSession < 5 || settings.questionsPerSession > 20) {
+      return 'Questions per session must be between 5 and 20';
+    }
+    
+    // Check that at least one question type is selected
+    if (settings.preferredQuestionTypes.isEmpty) {
+      return 'At least one question type must be selected';
+    }
+    
+    return null; // All validations passed
   }
 
   @override

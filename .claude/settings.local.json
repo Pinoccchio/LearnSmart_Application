@@ -15,7 +15,8 @@
       "mcp__supabase__apply_migration",
       "WebSearch",
       "WebFetch(domain:ai.google.dev)",
-      "WebFetch(domain:medium.com)"
+      "WebFetch(domain:medium.com)",
+      "Bash(flutter run:*)"
     ],
     "deny": [],
     "ask": []

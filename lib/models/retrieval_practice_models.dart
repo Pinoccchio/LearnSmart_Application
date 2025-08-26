@@ -444,6 +444,30 @@ class RetrievalPracticeSettings {
       'require_confidence_rating': requireConfidenceRating,
     };
   }
+
+  RetrievalPracticeSettings copyWith({
+    int? questionsPerSession,
+    bool? mixQuestionTypes,
+    bool? adaptiveDifficulty,
+    List<RetrievalQuestionType>? preferredQuestionTypes,
+    bool? enableSpacedRepetition,
+    bool? showFeedbackAfterEach,
+    bool? allowHints,
+    int? maxHintsPerQuestion,
+    bool? requireConfidenceRating,
+  }) {
+    return RetrievalPracticeSettings(
+      questionsPerSession: questionsPerSession ?? this.questionsPerSession,
+      mixQuestionTypes: mixQuestionTypes ?? this.mixQuestionTypes,
+      adaptiveDifficulty: adaptiveDifficulty ?? this.adaptiveDifficulty,
+      preferredQuestionTypes: preferredQuestionTypes ?? this.preferredQuestionTypes,
+      enableSpacedRepetition: enableSpacedRepetition ?? this.enableSpacedRepetition,
+      showFeedbackAfterEach: showFeedbackAfterEach ?? this.showFeedbackAfterEach,
+      allowHints: allowHints ?? this.allowHints,
+      maxHintsPerQuestion: maxHintsPerQuestion ?? this.maxHintsPerQuestion,
+      requireConfidenceRating: requireConfidenceRating ?? this.requireConfidenceRating,
+    );
+  }
 }
 
 // Retrieval Practice Results

@@ -536,6 +536,18 @@ class StudyAnalyticsService {
   Future<void> _saveAnalyticsToDatabase(StudySessionAnalytics analytics, {String sessionType = 'active_recall'}) async {
     try {
       print('💾 [ANALYTICS] Saving analytics to database with session type: $sessionType');
+      print('💾 [ANALYTICS] Session ID: ${analytics.sessionId}');
+      
+      // Validate that session exists in the appropriate table before saving analytics
+      final sessionExists = await _validateSessionExists(analytics.sessionId, sessionType);
+      if (!sessionExists) {
+        print('❌ [ANALYTICS] Session ${analytics.sessionId} not found in ${sessionType}_sessions table');
+        print('💡 [ANALYTICS] Cannot save analytics due to missing session reference');
+        print('💡 [ANALYTICS] This prevents the database trigger validation error');
+        return; // Skip saving to avoid constraint violation
+      }
+      
+      print('✅ [ANALYTICS] Session validation passed - session exists in database');
       
       final analyticsData = analytics.toJson();
       
@@ -555,7 +567,10 @@ class StudyAnalyticsService {
       print('❌ [ANALYTICS] Error saving analytics to database: $e');
       
       // Provide detailed error information for debugging
-      if (e.toString().contains('uuid')) {
+      if (e.toString().contains('Invalid session_id for active_recall session type')) {
+        print('💡 [ANALYTICS] Database trigger validation failed - session not found in active_recall_sessions table');
+        print('💡 [ANALYTICS] This error should now be prevented by pre-validation');
+      } else if (e.toString().contains('uuid')) {
         print('💡 [ANALYTICS] UUID format error - check ID generation');
       } else if (e.toString().contains('row-level security')) {
         print('💡 [ANALYTICS] RLS policy error - user may not have insert permission');
@@ -2857,5 +2872,45 @@ class StudyAnalyticsService {
         objectives: [],
       ),
     );
+  }
+
+  /// Validate that a session exists in the appropriate session table
+  Future<bool> _validateSessionExists(String sessionId, String sessionType) async {
+    try {
+      print('🔍 [ANALYTICS] Validating session exists: $sessionId for type: $sessionType');
+      
+      // Determine which table to check based on session type
+      String tableName;
+      switch (sessionType) {
+        case 'active_recall':
+          tableName = 'active_recall_sessions';
+          break;
+        case 'pomodoro':
+          tableName = 'pomodoro_sessions';
+          break;
+        case 'feynman':
+          tableName = 'feynman_sessions';
+          break;
+        default:
+          print('❌ [ANALYTICS] Unknown session type: $sessionType');
+          return false;
+      }
+      
+      print('🔍 [ANALYTICS] Checking table: $tableName for session: $sessionId');
+      
+      final response = await SupabaseService.client
+          .from(tableName)
+          .select('id')
+          .eq('id', sessionId)
+          .maybeSingle();
+      
+      final exists = response != null;
+      print('✅ [ANALYTICS] Session $sessionId exists in $tableName: $exists');
+      return exists;
+      
+    } catch (e) {
+      print('❌ [ANALYTICS] Error validating session existence: $e');
+      return false; // Assume session doesn't exist if we can't validate
+    }
   }
 }

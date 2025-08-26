@@ -10,6 +10,9 @@ import '../study/pomodoro_session_screen.dart';
 import '../study/feynman_session_screen.dart';
 import '../study/retrieval_practice_session_screen.dart';
 import '../../widgets/pomodoro/pomodoro_settings_widget.dart';
+import '../../widgets/retrieval_practice/retrieval_settings_widget.dart';
+import '../../models/retrieval_practice_models.dart';
+import '../../services/retrieval_practice_service.dart';
 
 class StudyTechniqueSelector extends StatefulWidget {
   final Course course;
@@ -28,6 +31,36 @@ class StudyTechniqueSelector extends StatefulWidget {
 class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
   String? selectedTechnique;
   PomodoroSettings? customPomodoroSettings;
+  RetrievalPracticeSettings? customRetrievalSettings;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedRetrievalSettings();
+  }
+
+  Future<void> _loadSavedRetrievalSettings() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.id;
+    
+    if (userId == null) return;
+    
+    try {
+      // Use the correct service method that queries user_retrieval_practice_settings table
+      final retrievalService = RetrievalPracticeService();
+      final savedSettings = await retrievalService.getUserRetrievalPracticeSettings(userId);
+      
+      if (mounted) {
+        setState(() {
+          customRetrievalSettings = savedSettings;
+        });
+        print('✅ [STUDY SELECTOR] Loaded retrieval settings: ${savedSettings.questionsPerSession} questions');
+      }
+    } catch (e) {
+      print('⚠️ [STUDY SELECTOR] Failed to load retrieval settings: $e');
+      // Use default settings on error
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -190,6 +223,28 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                                               ),
                                             ),
                                           ),
+                                        // Settings button for Retrieval Practice
+                                        if (technique.id == 'retrieval_practice')
+                                          GestureDetector(
+                                            onTap: () => _showRetrievalPracticeSettings(),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.grey100,
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: customRetrievalSettings != null
+                                                    ? Border.all(color: AppColors.bgPrimary, width: 1)
+                                                    : null,
+                                              ),
+                                              child: Icon(
+                                                Icons.settings,
+                                                size: 16,
+                                                color: customRetrievalSettings != null
+                                                    ? AppColors.bgPrimary
+                                                    : AppColors.textSecondary,
+                                              ),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                     const SizedBox(height: 4),
@@ -208,6 +263,19 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
                                         padding: const EdgeInsets.only(top: 4),
                                         child: Text(
                                           'Custom: ${customPomodoroSettings!.workDuration.inMinutes}m work, ${customPomodoroSettings!.shortBreakDuration.inMinutes}m break',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.bgPrimary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    // Show custom settings info for Retrieval Practice
+                                    if (technique.id == 'retrieval_practice' && customRetrievalSettings != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Custom: ${customRetrievalSettings!.questionsPerSession} questions, ${customRetrievalSettings!.preferredQuestionTypes.length} types${customRetrievalSettings!.allowHints ? ', Hints' : ''}',
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: AppColors.bgPrimary,
@@ -344,6 +412,7 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
         builder: (context) => RetrievalPracticeSessionScreen(
           course: widget.course,
           module: widget.module,
+          customSettings: customRetrievalSettings,
         ),
       ),
     );
@@ -380,6 +449,41 @@ class _StudyTechniqueSelectorState extends State<StudyTechniqueSelector> {
     if (result != null && mounted) {
       setState(() {
         customPomodoroSettings = result;
+      });
+    }
+  }
+
+  void _showRetrievalPracticeSettings() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.currentUser?.id;
+    
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to customize settings')),
+      );
+      return;
+    }
+
+    final result = await showModalBottomSheet<RetrievalPracticeSettings>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RetrievalSettingsWidget(
+        userId: userId,
+        initialSettings: customRetrievalSettings ?? RetrievalPracticeSettings(),
+        onSettingsChanged: (settings) {
+          if (mounted) {
+            setState(() {
+              customRetrievalSettings = settings;
+            });
+          }
+        },
+      ),
+    );
+    
+    if (result != null && mounted) {
+      setState(() {
+        customRetrievalSettings = result;
       });
     }
   }
