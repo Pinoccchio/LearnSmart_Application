@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../models/course_models.dart';
+import '../../models/user_progress_models.dart';
 import '../../services/supabase_service.dart';
+import '../../services/user_progress_service.dart';
+import '../../providers/auth_provider.dart';
 import 'module_details_screen.dart';
 
 class CourseOverviewScreen extends StatefulWidget {
@@ -19,7 +23,9 @@ class CourseOverviewScreen extends StatefulWidget {
 
 class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   Course? _courseWithDetails;
+  CourseProgress? _courseProgress;
   bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -29,14 +35,59 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
 
   Future<void> _loadCourseDetails() async {
     try {
-      final courseDetails = await SupabaseService.getCourseWithModulesAndMaterials(widget.course.id);
-      setState(() {
-        _courseWithDetails = courseDetails ?? widget.course;
-        _loading = false;
-      });
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      
+      if (currentUser == null) {
+        setState(() {
+          _error = 'User not authenticated';
+          _loading = false;
+        });
+        return;
+      }
+
+      print('📚 [COURSE OVERVIEW] Loading course details for: ${widget.course.id}');
+      
+      // Load course details and user progress in parallel
+      final results = await Future.wait([
+        SupabaseService.getCourseWithModulesAndMaterials(widget.course.id),
+        UserProgressService.getCourseProgress(currentUser.id, widget.course.id),
+      ]);
+
+      final courseDetails = results[0] as Course?;
+      final courseProgress = results[1] as CourseProgress;
+
+      // If no progress records exist, initialize them
+      if (courseProgress.moduleProgresses.isEmpty && courseDetails != null) {
+        print('🔄 [INITIALIZATION] No progress found, initializing...');
+        await UserProgressService.initializeUserModuleProgress(currentUser.id, courseDetails);
+        
+        // Reload progress after initialization
+        final initializedProgress = await UserProgressService.getCourseProgress(
+          currentUser.id, 
+          widget.course.id,
+        );
+        
+        setState(() {
+          _courseWithDetails = courseDetails;
+          _courseProgress = initializedProgress;
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _courseWithDetails = courseDetails ?? widget.course;
+          _courseProgress = courseProgress;
+          _loading = false;
+        });
+      }
+
+      print('✅ [COURSE OVERVIEW] Course loaded with ${courseProgress.totalModules} modules, ${courseProgress.completedModules} completed');
+
     } catch (e) {
+      print('❌ [COURSE OVERVIEW] Error loading course details: $e');
       setState(() {
         _courseWithDetails = widget.course;
+        _error = e.toString();
         _loading = false;
       });
     }
@@ -55,24 +106,26 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Course Header
-                  _buildCourseHeader(course),
-                  const SizedBox(height: 24),
-                  
-                  // Progress Section
-                  _buildProgressSection(course),
-                  const SizedBox(height: 24),
-                  
-                  // Modules Section
-                  _buildModulesSection(course),
-                ],
-              ),
-            ),
+          : _error != null
+              ? _buildErrorState()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Course Header
+                      _buildCourseHeader(course),
+                      const SizedBox(height: 24),
+                      
+                      // Progress Section
+                      _buildProgressSection(course),
+                      const SizedBox(height: 24),
+                      
+                      // Modules Section
+                      _buildModulesSection(course),
+                    ],
+                  ),
+                ),
     );
   }
 
@@ -152,9 +205,9 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   }
 
   Widget _buildProgressSection(Course course) {
-    final completedModules = course.modules.where((m) => _isModuleCompleted(m)).length;
-    final totalModules = course.modules.length;
-    final progressPercentage = totalModules > 0 ? (completedModules / totalModules) : 0.0;
+    final completedModules = _courseProgress?.completedModules ?? 0;
+    final totalModules = _courseProgress?.totalModules ?? course.modules.length;
+    final progressPercentage = _courseProgress != null ? (_courseProgress!.overallProgress / 100) : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -354,8 +407,7 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   }
 
   bool _isModuleCompleted(Module module) {
-    // TODO: Implement actual completion logic based on user progress
-    return false;
+    return _courseProgress?.isModuleCompleted(module.id) ?? false;
   }
 
   bool _isModuleLocked(Module module, int index) {
@@ -364,13 +416,8 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
     // First module is never locked
     if (index == 0) return false;
     
-    // Check if prerequisite modules are completed
-    if (module.prerequisiteModuleId != null) {
-      // TODO: Check if prerequisite module is completed
-      return false;
-    }
-    
-    return false;
+    // Use the progress service to check if module is locked
+    return _courseProgress?.isModuleLocked(module.id) ?? true;
   }
 
   void _navigateToModule(Module module) {
@@ -379,6 +426,57 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
         builder: (context) => ModuleDetailsScreen(
           course: _courseWithDetails ?? widget.course,
           module: module,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              LucideIcons.alertCircle,
+              color: Colors.red,
+              size: 64,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Failed to Load Course',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error ?? 'An unknown error occurred',
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _loading = true;
+                  _error = null;
+                });
+                _loadCourseDetails();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Retry'),
+            ),
+          ],
         ),
       ),
     );

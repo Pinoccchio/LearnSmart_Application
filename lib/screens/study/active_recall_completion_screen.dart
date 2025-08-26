@@ -4,16 +4,22 @@ import '../../constants/app_colors.dart';
 import '../../models/course_models.dart';
 import '../../models/active_recall_models.dart';
 import '../../models/study_analytics_models.dart';
+import '../../models/remedial_models.dart';
+import '../../services/remedial_service.dart';
 import '../../widgets/analytics/insights_widget.dart';
 import '../../widgets/analytics/recommendations_widget.dart';
 import '../../widgets/analytics/study_plan_widget.dart';
 import '../../widgets/analytics/performance_chart_widget.dart';
+import 'remedial_session_screen.dart';
 
 class ActiveRecallCompletionScreen extends StatelessWidget {
   final Course course;
   final Module module;
   final StudySessionResults sessionResults;
   final StudySessionAnalytics? sessionAnalytics;
+  final List<ActiveRecallFlashcard> originalFlashcards;
+  final List<ActiveRecallAttempt> originalAttempts;
+  final String originalSessionId;
   final VoidCallback onBackToModule;
   final VoidCallback onStudyAgain;
 
@@ -23,6 +29,9 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
     required this.module,
     required this.sessionResults,
     this.sessionAnalytics,
+    required this.originalFlashcards,
+    required this.originalAttempts,
+    required this.originalSessionId,
     required this.onBackToModule,
     required this.onStudyAgain,
   });
@@ -41,67 +50,54 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
           icon: const Icon(LucideIcons.x),
         ),
       ),
-      body: Column(
-        children: [
-          // Hero Section
-          _buildHeroSection(),
-          
-          // Content Section with Tabs
-          Expanded(
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  // Tab Bar
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSecondary,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: AppColors.grey200,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: TabBar(
-                      labelColor: AppColors.bgPrimary,
-                      unselectedLabelColor: AppColors.textSecondary,
-                      labelStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      indicatorColor: AppColors.bgPrimary,
-                      indicatorWeight: 3,
-                      tabs: const [
-                        Tab(
-                          icon: Icon(LucideIcons.barChart3, size: 20),
-                          text: 'Summary',
-                        ),
-                        Tab(
-                          icon: Icon(LucideIcons.pieChart, size: 20),
-                          text: 'Analytics',
-                        ),
-                      ],
-                    ),
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            // Tab Bar
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.grey200,
+                    width: 1,
                   ),
-                  
-                  // Tab Content
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildSummaryTab(),
-                        _buildAnalyticsTab(),
-                      ],
-                    ),
+                ),
+              ),
+              child: TabBar(
+                labelColor: AppColors.bgPrimary,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                indicatorColor: AppColors.bgPrimary,
+                indicatorWeight: 3,
+                tabs: const [
+                  Tab(
+                    icon: Icon(LucideIcons.barChart3, size: 20),
+                    text: 'Summary',
+                  ),
+                  Tab(
+                    icon: Icon(LucideIcons.pieChart, size: 20),
+                    text: 'Analytics',
                   ),
                 ],
               ),
             ),
-          ),
-          
-          // Bottom Action Bar
-          _buildActionBar(),
-        ],
+            
+            // Tab Content - Full screen scrollable
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildSummaryTab(),
+                  _buildAnalyticsTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -113,7 +109,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.green.withOpacity(0.1),
+            Colors.green.withValues(alpha: 0.1),
             AppColors.bgSecondary,
           ],
           begin: Alignment.topCenter,
@@ -127,7 +123,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.2),
+              color: Colors.green.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -203,7 +199,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(icon, color: color, size: 24),
@@ -236,31 +232,48 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
 
   Widget _buildSummaryTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          _buildSummaryCard(
-            'Session Overview',
-            [
-              _buildStat('Total Questions', '${sessionResults.totalFlashcards}'),
-              _buildStat('Pre-Study Correct', '${sessionResults.preStudyCorrect}'),
-              _buildStat('Post-Study Correct', '${sessionResults.postStudyCorrect}'),
-              _buildStat('Learning Improvement', '${sessionResults.improvementPercentage.toStringAsFixed(1)}%'),
-            ],
-            Colors.blue,
-          ),
+          // Hero Section (moved into tab content)
+          _buildHeroSection(),
           
-          const SizedBox(height: 20),
-          
-          _buildSummaryCard(
-            'Performance Analysis',
-            [
-              _buildStat('Pre-Study Accuracy', '${((sessionResults.preStudyCorrect / sessionResults.totalFlashcards) * 100).toStringAsFixed(1)}%'),
-              _buildStat('Post-Study Accuracy', '${((sessionResults.postStudyCorrect / sessionResults.totalFlashcards) * 100).toStringAsFixed(1)}%'),
-              _buildStat('Average Response Time', '${sessionResults.averageResponseTime.toStringAsFixed(1)}s'),
-              _buildStat('Study Method', 'Active Recall'),
-            ],
-            Colors.green,
+          // Summary Content
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildSummaryCard(
+                  'Session Overview',
+                  [
+                    _buildStat('Total Questions', '${sessionResults.totalFlashcards}'),
+                    _buildStat('Pre-Study Correct', '${sessionResults.preStudyCorrect}'),
+                    _buildStat('Post-Study Correct', '${sessionResults.postStudyCorrect}'),
+                    _buildStat('Learning Improvement', '${sessionResults.improvementPercentage.toStringAsFixed(1)}%'),
+                  ],
+                  Colors.blue,
+                ),
+                
+                const SizedBox(height: 20),
+                
+                _buildSummaryCard(
+                  'Performance Analysis',
+                  [
+                    _buildStat('Pre-Study Accuracy', '${((sessionResults.preStudyCorrect / sessionResults.totalFlashcards) * 100).toStringAsFixed(1)}%'),
+                    _buildStat('Post-Study Accuracy', '${((sessionResults.postStudyCorrect / sessionResults.totalFlashcards) * 100).toStringAsFixed(1)}%'),
+                    _buildStat('Average Response Time', '${sessionResults.averageResponseTime.toStringAsFixed(1)}s'),
+                    _buildStat('Study Method', 'Active Recall'),
+                  ],
+                  Colors.green,
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Action buttons moved into tab content
+                Builder(
+                  builder: (context) => _buildActionButtons(context),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -268,91 +281,118 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
   }
 
   Widget _buildAnalyticsTab() {
-    if (sessionAnalytics == null) {
-      return _buildEmptyAnalytics();
-    }
-
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // DESCRIPTIVE ANALYTICS SECTION
-          _buildAnalyticsMainSection(
-            title: 'Descriptive Analytics',
-            subtitle: 'Data-driven insights about your study session',
-            icon: LucideIcons.pieChart,
-            color: Colors.blue,
-            children: [
-              // Performance Analytics
-              _buildDescriptiveSection(
-                title: 'Performance Analysis',
-                icon: LucideIcons.barChart3,
-                content: _buildPerformanceAnalysisContent(),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Behavior Analysis
-              _buildDescriptiveSection(
-                title: 'Learning Behavior',
-                icon: LucideIcons.activity,
-                content: _buildBehaviorAnalysisContent(),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Cognitive Analysis
-              _buildDescriptiveSection(
-                title: 'Cognitive Performance',
-                icon: LucideIcons.brain,
-                content: _buildCognitiveAnalysisContent(),
-              ),
-            ],
-          ),
+          // Hero Section (moved into tab content)
+          _buildHeroSection(),
           
-          const SizedBox(height: 24),
-          
-          // PRESCRIPTIVE ANALYTICS SECTION
-          _buildAnalyticsMainSection(
-            title: 'Prescriptive Analytics',
-            subtitle: 'AI-powered recommendations and next steps',
-            icon: LucideIcons.target,
-            color: Colors.orange,
-            children: [
-              // AI Insights
-              if (sessionAnalytics!.insights.isNotEmpty) ...[ 
-                _buildPrescriptiveSection(
-                  title: 'AI-Generated Insights',
-                  icon: LucideIcons.lightbulb,
-                  content: InsightsWidget(
-                    insights: sessionAnalytics!.insights,
+          // Analytics Content
+          if (sessionAnalytics == null) 
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  _buildEmptyAnalytics(),
+                  const SizedBox(height: 30),
+                  Builder(
+                    builder: (context) => _buildActionButtons(context),
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              
-              // Actionable Recommendations
-              if (sessionAnalytics!.recommendations.isNotEmpty) ...[ 
-                _buildPrescriptiveSection(
-                  title: 'Personalized Recommendations',
-                  icon: LucideIcons.checkSquare,
-                  content: RecommendationsWidget(
-                    recommendations: sessionAnalytics!.recommendations,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              
-              // Study Plan (Next Steps)
-              _buildPrescriptiveSection(
-                title: 'Recommended Next Steps',
-                icon: LucideIcons.calendar,
-                content: StudyPlanWidget(
-                  studyPlan: sessionAnalytics!.suggestedStudyPlan,
-                ),
+                ],
               ),
-            ],
-          ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // DESCRIPTIVE ANALYTICS SECTION
+                  _buildAnalyticsMainSection(
+                    title: 'Descriptive Analytics',
+                    subtitle: 'Data-driven insights about your study session',
+                    icon: LucideIcons.pieChart,
+                    color: Colors.blue,
+                    children: [
+                      // Performance Analytics
+                      _buildDescriptiveSection(
+                        title: 'Performance Analysis',
+                        icon: LucideIcons.barChart3,
+                        content: _buildPerformanceAnalysisContent(),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Behavior Analysis
+                      _buildDescriptiveSection(
+                        title: 'Learning Behavior',
+                        icon: LucideIcons.activity,
+                        content: _buildBehaviorAnalysisContent(),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Cognitive Analysis
+                      _buildDescriptiveSection(
+                        title: 'Cognitive Performance',
+                        icon: LucideIcons.brain,
+                        content: _buildCognitiveAnalysisContent(),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // PRESCRIPTIVE ANALYTICS SECTION
+                  _buildAnalyticsMainSection(
+                    title: 'Prescriptive Analytics',
+                    subtitle: 'AI-powered recommendations and next steps',
+                    icon: LucideIcons.target,
+                    color: Colors.orange,
+                    children: [
+                      // AI Insights
+                      if (sessionAnalytics!.insights.isNotEmpty) ...[ 
+                        _buildPrescriptiveSection(
+                          title: 'AI-Generated Insights',
+                          icon: LucideIcons.lightbulb,
+                          content: InsightsWidget(
+                            insights: sessionAnalytics!.insights,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      
+                      // Actionable Recommendations
+                      if (sessionAnalytics!.recommendations.isNotEmpty) ...[ 
+                        _buildPrescriptiveSection(
+                          title: 'Personalized Recommendations',
+                          icon: LucideIcons.checkSquare,
+                          content: RecommendationsWidget(
+                            recommendations: sessionAnalytics!.recommendations,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      
+                      // Study Plan (Next Steps)
+                      _buildPrescriptiveSection(
+                        title: 'Recommended Next Steps',
+                        icon: LucideIcons.calendar,
+                        content: StudyPlanWidget(
+                          studyPlan: sessionAnalytics!.suggestedStudyPlan,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 30),
+                  
+                  // Action buttons moved into tab content
+                  Builder(
+                    builder: (context) => _buildActionButtons(context),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -368,7 +408,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
             Icon(
               LucideIcons.pieChart,
               size: 64,
-              color: AppColors.textSecondary.withOpacity(0.5),
+              color: AppColors.textSecondary.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 20),
             const Text(
@@ -394,31 +434,113 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActionBar() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(
-            color: AppColors.grey200,
-            width: 1,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: onBackToModule,
-            icon: const Icon(LucideIcons.arrowLeft, size: 20),
-            label: const Text('Back to Module'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.bgPrimary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+  Widget _buildActionButtons(BuildContext context) {
+    // Check if remedial work is needed (score < 80%)
+    final needsRemedial = RemedialService.needsRemedialWork(sessionResults);
+    
+    return Column(
+      children: [
+        // Remedial recommendation banner (if needed)
+        if (needsRemedial) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  LucideIcons.target,
+                  color: Colors.orange.shade700,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Remedial Quiz Available',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Your score is below 80%. Take a remedial quiz to improve your understanding.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
+          
+          // Remedial quiz button
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: () => _startRemedialQuiz(context),
+              icon: const Icon(LucideIcons.target, size: 16),
+              label: const Text('Take Remedial Quiz'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.orange,
+                side: BorderSide(color: Colors.orange),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+        ],
+        
+        // Back to Module button
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: onBackToModule,
+            icon: const Icon(LucideIcons.arrowLeft, size: 16),
+            label: Text(needsRemedial ? 'Skip to Module' : 'Back to Module'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: needsRemedial ? AppColors.grey500 : AppColors.bgPrimary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+        
+        // Add bottom padding for safe area
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  void _startRemedialQuiz(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RemedialSessionScreen(
+          course: course,
+          module: module,
+          originalSessionId: originalSessionId,
+          originalFlashcards: originalFlashcards,
+          originalAttempts: originalAttempts,
+          originalResults: sessionResults,
         ),
       ),
     );
@@ -439,7 +561,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
         border: Border.all(color: AppColors.grey200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -452,7 +574,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
@@ -464,7 +586,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, size: 24, color: color),
@@ -526,7 +648,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.05),
+              color: Colors.blue.withValues(alpha: 0.05),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -575,7 +697,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.05),
+              color: Colors.orange.withValues(alpha: 0.05),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -616,7 +738,7 @@ class ActiveRecallCompletionScreen extends StatelessWidget {
         border: Border.all(color: AppColors.grey200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

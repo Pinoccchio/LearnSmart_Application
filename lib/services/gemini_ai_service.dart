@@ -6,6 +6,7 @@ import '../models/course_models.dart';
 import '../models/active_recall_models.dart';
 import '../models/feynman_models.dart';
 import '../models/study_analytics_models.dart';
+import '../models/remedial_models.dart';
 import 'pdf_extraction_service.dart';
 
 class GeminiAIService {
@@ -1493,6 +1494,241 @@ Return ONLY the JSON response, no other text.
       'insights': insights,
       'studyPlan': studyPlan,
     };
+  }
+
+  /// Generate remedial flashcards from missed concepts using different question formats
+  Future<List<Map<String, dynamic>>> generateRemedialFlashcardsFromMissedConcepts({
+    required List<ActiveRecallFlashcard> originalFlashcards,
+    required List<CourseMaterial> materials,
+    required List<String> missedConcepts,
+    required RemedialSettings settings,
+  }) async {
+    try {
+      print('🔄 [REMEDIAL AI] Generating remedial flashcards for ${missedConcepts.length} missed concepts');
+      
+      // Build context from original flashcards and materials
+      final originalContext = _buildOriginalFlashcardsContext(originalFlashcards);
+      final materialsContext = await _buildMaterialsContext(materials);
+      final conceptsContext = missedConcepts.map((concept) => '- $concept').join('\n');
+      
+      // Determine preferred question types for remedial
+      final preferredTypes = settings.preferredQuestionTypes.map((type) => type.value).join(', ');
+      final maxQuestionsPerConcept = settings.maxQuestionsPerConcept;
+      
+      final prompt = '''
+You are an expert educator creating REMEDIAL flashcards to help students master concepts they previously struggled with.
+
+CONTEXT - Original Study Session:
+The student took a study session with these flashcards but scored below 80% on the following concepts:
+
+Original Flashcards Context:
+$originalContext
+
+Learning Materials Context:
+$materialsContext
+
+MISSED CONCEPTS (Focus exclusively on these):
+$conceptsContext
+
+REMEDIAL STRATEGY:
+Create different types of questions that approach these missed concepts from new angles. The goal is to reinforce understanding through varied question formats.
+
+REQUIREMENTS:
+- Generate ${maxQuestionsPerConcept * missedConcepts.length} total flashcards (${maxQuestionsPerConcept} per missed concept)
+- Use ONLY these question types: $preferredTypes
+- Each question should focus ONLY on the missed concepts listed above
+- Use DIFFERENT question formats than the original flashcards to provide fresh perspective
+- Progressive difficulty: start with review level, then practice level
+
+Question Format Transformations:
+- If original was Multiple Choice → Make it Identification or Fill-in-blank
+- If original was Definition → Make it Short Answer or True/False  
+- If original was Concept Application → Make it Identification or Matching
+- Focus on the CORE concept that was missed, not peripheral details
+
+${settings.allowHints ? 'Include 2-3 helpful, specific hints for each question' : 'Do not include any hints (empty array)'}
+${settings.requireExplanationReview ? 'Provide detailed explanations connecting to the missed concept' : 'Keep explanations brief'}
+
+Return your response as a valid JSON array with this exact structure:
+[
+  {
+    "type": "identification",
+    "question": "Identify what [specific missed concept] refers to in this context...",
+    "correct_answer": "Clear, specific answer focusing on the missed concept",
+    "acceptable_answers": ["Main answer", "Alternative valid answer", "Synonym or variation"],
+    "options": [],
+    "difficulty": "review",
+    "explanation": "Why this concept is important and how it connects to the original material",
+    "question_data": {
+      "concept_focus": "specific missed concept this targets",
+      "original_flashcard_reference": "how this relates to original question"
+    }
+  },
+  {
+    "type": "short_answer",
+    "question": "Briefly explain [missed concept] and why it matters in this context...",
+    "correct_answer": "Concise but complete explanation",
+    "acceptable_answers": ["Main answer", "Key phrases that would be acceptable"],
+    "options": [],
+    "difficulty": "practice",
+    "explanation": "Detailed explanation of the concept and its significance",
+    "question_data": {
+      "concept_focus": "specific missed concept",
+      "original_flashcard_reference": "connection to original material"
+    }
+  },
+  {
+    "type": "fill_in_blank",
+    "question": "Complete this statement about [missed concept]: _____ is the key characteristic that defines...",
+    "correct_answer": "Key term or phrase",
+    "acceptable_answers": ["Main answer", "Acceptable variations"],
+    "options": [],
+    "difficulty": "review",
+    "explanation": "Why this completion is correct and important to remember",
+    "question_data": {
+      "concept_focus": "specific missed concept",
+      "blank_position": "where the blank appears"
+    }
+  }
+]
+
+CRITICAL RULES:
+- Focus EXCLUSIVELY on the missed concepts: ${missedConcepts.join(', ')}
+- Use different question formats than original flashcards
+- Keep questions specific and targeted to the missed concepts
+- ${settings.allowHints ? 'Include helpful, specific hints' : 'Use empty hints array []'}
+- Make questions progressively build understanding
+- Return ONLY the JSON array, no other text
+- Ensure all JSON is valid and parseable
+''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Empty response from Gemini AI for remedial flashcards');
+      }
+
+      print('🤖 [REMEDIAL AI] Raw response: ${responseText.substring(0, responseText.length.clamp(0, 200))}...');
+
+      // Clean up the response to extract JSON
+      String jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      }
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      jsonText = jsonText.trim();
+
+      final List<dynamic> flashcardsJson = jsonDecode(jsonText);
+      print('✅ [REMEDIAL AI] Successfully generated ${flashcardsJson.length} remedial flashcards');
+      
+      return flashcardsJson.cast<Map<String, dynamic>>();
+      
+    } catch (e) {
+      print('❌ [REMEDIAL AI] Error generating remedial flashcards: $e');
+      
+      // Return fallback remedial flashcards if AI fails
+      return _getFallbackRemedialFlashcards(originalFlashcards, missedConcepts, settings);
+    }
+  }
+
+  /// Build context string from original flashcards
+  String _buildOriginalFlashcardsContext(List<ActiveRecallFlashcard> originalFlashcards) {
+    if (originalFlashcards.isEmpty) return 'No original flashcards available.';
+    
+    final contextParts = <String>[];
+    for (int i = 0; i < originalFlashcards.take(5).length; i++) {
+      final flashcard = originalFlashcards[i];
+      contextParts.add('''
+${i + 1}. Type: ${flashcard.type.value}
+   Question: ${flashcard.question}
+   Answer: ${flashcard.answer}
+   Difficulty: ${flashcard.difficulty.value}
+''');
+    }
+    
+    if (originalFlashcards.length > 5) {
+      contextParts.add('\n... and ${originalFlashcards.length - 5} more flashcards');
+    }
+    
+    return contextParts.join('\n');
+  }
+
+  /// Build context from course materials
+  Future<String> _buildMaterialsContext(List<CourseMaterial> materials) async {
+    if (materials.isEmpty) return 'No materials available.';
+    
+    final contextParts = <String>[];
+    for (final material in materials.take(3)) {
+      final content = await _extractContentFromMaterial(material);
+      contextParts.add('''
+Material: ${material.title}
+Type: ${material.fileType}
+Description: ${material.description ?? 'N/A'}
+Content Context: $content
+''');
+    }
+    
+    if (materials.length > 3) {
+      contextParts.add('\n... and ${materials.length - 3} more materials');
+    }
+    
+    return contextParts.join('\n\n');
+  }
+
+  /// Generate fallback remedial flashcards if AI fails
+  List<Map<String, dynamic>> _getFallbackRemedialFlashcards(
+    List<ActiveRecallFlashcard> originalFlashcards,
+    List<String> missedConcepts,
+    RemedialSettings settings,
+  ) {
+    print('🔄 [REMEDIAL FALLBACK] Generating fallback remedial flashcards');
+    
+    final fallbackFlashcards = <Map<String, dynamic>>[];
+    
+    for (int i = 0; i < missedConcepts.length; i++) {
+      final concept = missedConcepts[i];
+      
+      // Generate identification question
+      fallbackFlashcards.add({
+        'type': 'identification',
+        'question': 'Identify the key concept: What is $concept?',
+        'correct_answer': concept,
+        'acceptable_answers': [concept],
+        'options': [],
+        'difficulty': 'review',
+        'explanation': 'This concept was identified as an area needing review based on your previous study session.',
+        'question_data': {
+          'concept_focus': concept,
+          'original_flashcard_reference': 'Remedial review question'
+        }
+      });
+      
+      // Generate short answer question
+      if (settings.maxQuestionsPerConcept > 1) {
+        fallbackFlashcards.add({
+          'type': 'short_answer',
+          'question': 'Explain the significance of $concept in the context of this module.',
+          'correct_answer': 'Important concept for understanding the subject matter.',
+          'acceptable_answers': ['Important concept', 'Key concept', 'Significant element'],
+          'options': [],
+          'difficulty': 'practice',
+          'explanation': 'Understanding this concept is crucial for mastering the material.',
+          'question_data': {
+            'concept_focus': concept,
+            'original_flashcard_reference': 'Remedial practice question'
+          }
+        });
+      }
+    }
+    
+    print('✅ [REMEDIAL FALLBACK] Generated ${fallbackFlashcards.length} fallback flashcards');
+    return fallbackFlashcards;
   }
 
   Future<bool> testConnection() async {

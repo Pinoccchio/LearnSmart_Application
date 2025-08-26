@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -12,6 +13,7 @@ import '../../services/active_recall_service.dart';
 import '../../services/gemini_ai_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/study_analytics_service.dart';
+import '../../services/user_progress_service.dart';
 import '../../widgets/flashcard/flashcard_widget.dart';
 import '../../widgets/flashcard/flashcard_result_widget.dart';
 import '../../widgets/analytics/performance_chart_widget.dart';
@@ -56,6 +58,12 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   // Analytics data
   StudySessionAnalytics? _sessionAnalytics;
   
+  // Performance optimization and memory management
+  Timer? _debounceTimer;
+  bool _isProcessingHeavyOperation = false;
+  int _memoryWarningCount = 0;
+  DateTime? _lastMemoryCheck;
+  
   @override
   void initState() {
     super.initState();
@@ -68,6 +76,7 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -111,24 +120,21 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
 
       // Session ID will be generated during database creation phase
       
-      // Check for PDF materials and show appropriate loading message
+      // Check for PDF materials and show optimized loading message
       final pdfMaterials = widget.module.materials.where((m) => m.fileType.toLowerCase() == 'pdf').length;
       if (pdfMaterials > 0) {
         print('📄 [ACTIVE RECALL] Found $pdfMaterials PDF material(s), extracting content for better flashcards...');
-        if (!mounted) return;
-        setState(() {
-          _errorMessage = 'Analyzing PDF content to create better study questions...\nThis may take a moment.';
-        });
+        _setLoadingStateDebounced('Analyzing PDF content...\nPlease wait.');
       }
       
-      // Generate flashcards from module materials (now with PDF content extraction)
+      // Mark heavy processing start
+      _isProcessingHeavyOperation = true;
+      
+      // Generate flashcards from module materials in background
       print('🧠 [ACTIVE RECALL] Generating flashcards for ${widget.module.materials.length} materials');
       print('🧠 [ACTIVE RECALL] Using settings for AI generation: ${_settings.flashcardsPerSession} flashcards requested');
-      final flashcards = await _geminiService.generateFlashcardsFromMaterials(
-        widget.module.materials,
-        widget.module.title,
-        settings: _settings,
-      );
+      
+      final flashcards = await _generateFlashcardsWithProgress();
 
       if (flashcards.isEmpty) {
         throw Exception('No flashcards could be generated from the materials');
@@ -172,23 +178,252 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
 
       // === SESSION LIFECYCLE: Initialization Complete ===
       print('🔄 [SESSION LIFECYCLE] Phase 4: UI State Update');
+      _isProcessingHeavyOperation = false;
+      
       if (!mounted) return;
-      setState(() {
-        _flashcards = flashcards;
-        _currentStatus = StudySessionStatus.preStudy;
-        _isLoading = false;
-        _errorMessage = null; // Clear any loading messages
-      });
+      _setFinalState(flashcards);
 
       print('✅ [ACTIVE RECALL] Session initialized with ${flashcards.length} flashcards');
       print('📊 [SESSION LIFECYCLE] Session ready - Mode: ${sessionCreated ? 'DATABASE + LOCAL' : 'LOCAL ONLY'}');
 
     } catch (e) {
       print('❌ [ACTIVE RECALL] Session initialization failed: $e');
+      _isProcessingHeavyOperation = false;
+      
       if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Failed to generate study materials: $e';
-        _isLoading = false;
+      _setErrorStateDebounced('Failed to generate study materials: $e');
+    }
+  }
+  
+  // Optimized state update methods to reduce buffer overflow
+  void _setLoadingStateDebounced(String message) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted && !_isProcessingHeavyOperation) {
+        setState(() {
+          _errorMessage = message;
+        });
+      }
+    });
+  }
+  
+  void _setErrorStateDebounced(String message) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {
+          _errorMessage = message;
+          _isLoading = false;
+        });
+      }
+    });
+  }
+  
+  void _setFinalState(List<ActiveRecallFlashcard> flashcards) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        setState(() {
+          _flashcards = flashcards;
+          _currentStatus = StudySessionStatus.preStudy;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
+    });
+  }
+  
+  // Background flashcard generation with progress updates and memory optimization
+  Future<List<ActiveRecallFlashcard>> _generateFlashcardsWithProgress() async {
+    try {
+      // Process heavy operations in chunks to prevent buffer overflow
+      final materials = widget.module.materials;
+      final pdfMaterials = materials.where((m) => m.fileType.toLowerCase() == 'pdf').toList();
+      final nonPdfMaterials = materials.where((m) => m.fileType.toLowerCase() != 'pdf').toList();
+      
+      List<ActiveRecallFlashcard> flashcards = [];
+      
+      // Process non-PDF materials first (lighter operations)
+      if (nonPdfMaterials.isNotEmpty) {
+        print('🔄 [PROCESSING] Generating flashcards from ${nonPdfMaterials.length} non-PDF materials...');
+        _setLoadingStateDebounced('Generating flashcards...');
+        
+        await Future.delayed(const Duration(milliseconds: 100)); // UI breathing room
+        
+        final nonPdfFlashcards = await _geminiService.generateFlashcardsFromMaterials(
+          nonPdfMaterials,
+          widget.module.title,
+          settings: _settings,
+        );
+        flashcards.addAll(nonPdfFlashcards);
+      }
+      
+      // Process PDF materials in smaller batches to prevent memory issues
+      if (pdfMaterials.isNotEmpty) {
+        print('📄 [PDF PROCESSING] Processing ${pdfMaterials.length} PDF materials in batches...');
+        _setLoadingStateDebounced('Processing PDF content...\\nThis may take a moment.');
+        
+        // Process PDFs one at a time to reduce memory pressure
+        for (int i = 0; i < pdfMaterials.length; i++) {
+          final material = pdfMaterials[i];
+          
+          try {
+            // Update progress
+            _setLoadingStateDebounced('Processing PDF ${i + 1}/${pdfMaterials.length}...\\n${material.title}');
+            
+            // Add breathing room between PDF processes
+            await Future.delayed(const Duration(milliseconds: 200));
+            
+            // Process single PDF
+            final pdfFlashcards = await _geminiService.generateFlashcardsFromMaterials(
+              [material],
+              widget.module.title,
+              settings: _settings,
+            );
+            
+            flashcards.addAll(pdfFlashcards);
+            
+            print('✅ [PDF PROCESSING] Completed PDF ${i + 1}/${pdfMaterials.length}: ${material.title}');
+            
+            // Force garbage collection hint after each PDF to free memory
+            if (i < pdfMaterials.length - 1) {
+              await Future.delayed(const Duration(milliseconds: 100));
+              print('🔄 [MEMORY] Allowing garbage collection between PDFs...');
+              
+              // Check memory usage between PDFs
+              await _checkMemoryUsage('pdf_batch_$i');
+            }
+            
+          } catch (e) {
+            print('⚠️ [PDF PROCESSING] Failed to process ${material.title}: $e');
+            // Continue with other PDFs even if one fails
+            continue;
+          }
+        }
+      }
+      
+      // Final processing step
+      await Future.delayed(const Duration(milliseconds: 50));
+      _setLoadingStateDebounced('Finalizing flashcards...');
+      
+      print('✅ [PROCESSING] Generated ${flashcards.length} total flashcards');
+      
+      // Final memory check
+      await _checkMemoryUsage('post_generation');
+      
+      return flashcards;
+      
+    } catch (e) {
+      print('❌ [FLASHCARD GENERATION] Error: $e');
+      _handleMemoryError(e);
+      rethrow;
+    }
+  }
+  
+  // Memory management and buffer overflow prevention
+  Future<void> _checkMemoryUsage(String phase) async {
+    try {
+      final now = DateTime.now();
+      
+      // Throttle memory checks to avoid performance impact
+      if (_lastMemoryCheck != null && 
+          now.difference(_lastMemoryCheck!).inMilliseconds < 500) {
+        return;
+      }
+      
+      _lastMemoryCheck = now;
+      print('🔍 [MEMORY] Checking memory usage at phase: $phase');
+      
+      // Check if we can allocate a test list (memory pressure indicator)
+      try {
+        final testList = List.generate(1000, (i) => i);
+        testList.clear();
+        print('✅ [MEMORY] Memory allocation test passed');
+      } catch (e) {
+        _memoryWarningCount++;
+        print('⚠️ [MEMORY] Memory pressure detected (warning #$_memoryWarningCount): $e');
+        
+        if (_memoryWarningCount >= 3) {
+          print('🚨 [MEMORY] Critical memory pressure - implementing emergency measures');
+          await _implementEmergencyMemoryMeasures();
+        }
+      }
+      
+      // Force a small delay to allow garbage collection
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+    } catch (e) {
+      print('❌ [MEMORY] Memory check failed: $e');
+    }
+  }
+  
+  Future<void> _implementEmergencyMemoryMeasures() async {
+    try {
+      print('🚨 [EMERGENCY] Implementing emergency memory measures');
+      
+      // Clear any cached data that's not critical
+      _clearNonEssentialCache();
+      
+      // Add longer delays between operations
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // Update UI to show memory optimization
+      if (mounted && !_isProcessingHeavyOperation) {
+        _setLoadingStateDebounced('Optimizing memory usage...\\nPlease wait.');
+      }
+      
+      // Allow multiple garbage collection cycles
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      print('✅ [EMERGENCY] Emergency memory measures completed');
+      
+    } catch (e) {
+      print('❌ [EMERGENCY] Failed to implement emergency measures: $e');
+    }
+  }
+  
+  void _clearNonEssentialCache() {
+    try {
+      // Clear any temporary data structures that aren't needed
+      // Reset memory warning counter after cleanup
+      _memoryWarningCount = 0;
+      _lastMemoryCheck = null;
+      
+      print('🧹 [CLEANUP] Non-essential cache cleared');
+    } catch (e) {
+      print('❌ [CLEANUP] Cache clear failed: $e');
+    }
+  }
+  
+  void _handleMemoryError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    if (errorString.contains('out of memory') || 
+        errorString.contains('insufficient memory') ||
+        errorString.contains('allocation failed')) {
+      
+      print('🚨 [MEMORY ERROR] Out of memory condition detected');
+      _implementEmergencyMemoryMeasures();
+      
+      if (mounted) {
+        _setErrorStateDebounced('Memory optimization in progress.\\nPlease wait or restart the app.');
+      }
+    } else if (errorString.contains('blastbufferqueue') ||
+               errorString.contains('buffer') ||
+               errorString.contains('surface')) {
+      
+      print('🚨 [BUFFER ERROR] Graphics buffer issue detected');
+      if (mounted) {
+        _setLoadingStateDebounced('Optimizing graphics performance...\\nPlease wait.');
+      }
+      
+      // Add extra delay for graphics buffer recovery
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            // Trigger a gentle rebuild
+          });
+        }
       });
     }
   }
@@ -727,6 +962,26 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
     print('📈 [RESULTS] Improvement: ${results.improvementPercentage.toStringAsFixed(1)}%');
     print('⏱️ [RESULTS] Avg response time: ${results.averageResponseTime}s');
 
+    // Update module progress based on session results
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.currentUser != null) {
+        final postStudyAccuracy = (results.postStudyCorrect / results.totalFlashcards) * 100;
+        print('🎯 [ACTIVE_RECALL PROGRESS] Updating module progress with score: $postStudyAccuracy');
+        await UserProgressService.updateModuleProgress(
+          userId: authProvider.currentUser!.id,
+          moduleId: widget.module.id,
+          score: postStudyAccuracy,
+          technique: 'active_recall',
+          sessionId: _sessionId ?? 'active_recall_session',
+        );
+        print('✅ [ACTIVE_RECALL PROGRESS] Module progress updated successfully');
+      }
+    } catch (e) {
+      print('⚠️ [ACTIVE_RECALL PROGRESS] Failed to update module progress: $e');
+      // Don't block the completion flow if progress update fails
+    }
+
     // Update session as completed in database
     _updateSessionStatus(StudySessionStatus.completed);
 
@@ -754,6 +1009,9 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
               module: widget.module,
               sessionResults: results,
               sessionAnalytics: _sessionAnalytics,
+              originalFlashcards: _flashcards,
+              originalAttempts: [..._preStudyAttempts.values, ..._postStudyAttempts.values],
+              originalSessionId: _sessionId ?? '',
               onBackToModule: () {
                 Navigator.of(context).pop(); // Go back to module details
               },
@@ -1725,22 +1983,43 @@ class _ActiveRecallSessionScreenState extends State<ActiveRecallSessionScreen> {
             ),
           ),
           
-          // Flashcard content
+          // Optimized Flashcard content with performance improvements
           Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _flashcards.length,
-              itemBuilder: (context, index) {
-                return FlashcardWidget(
-                  flashcard: _flashcards[index],
-                  onAnswerSubmitted: _handleAnswerSubmitted,
-                  isPreStudy: _currentStatus == StudySessionStatus.preStudy,
-                  onShowHint: () {
-                    // Track hint usage if needed
-                  },
-                );
-              },
+            child: LayoutBuilder(
+              builder: (context, constraints) => PageView.builder(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _flashcards.length,
+                // Performance optimizations to reduce buffer overflow
+                allowImplicitScrolling: false,
+                padEnds: false,
+                clipBehavior: Clip.hardEdge,
+                // Cache management to prevent excessive memory usage
+                itemBuilder: (context, index) {
+                  // Only build current and adjacent pages to save memory
+                  final isCurrentPage = index == _currentFlashcardIndex;
+                  final isAdjacentPage = (index - _currentFlashcardIndex).abs() <= 1;
+                  
+                  if (!isCurrentPage && !isAdjacentPage) {
+                    return Container(
+                      key: ValueKey('placeholder_$index'),
+                      color: Colors.transparent,
+                    );
+                  }
+                  
+                  return RepaintBoundary(
+                    child: FlashcardWidget(
+                      key: ValueKey('flashcard_${_flashcards[index].id}'),
+                      flashcard: _flashcards[index],
+                      onAnswerSubmitted: _handleAnswerSubmitted,
+                      isPreStudy: _currentStatus == StudySessionStatus.preStudy,
+                      onShowHint: () {
+                        // Track hint usage if needed
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],

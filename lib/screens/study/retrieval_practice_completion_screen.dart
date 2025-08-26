@@ -8,7 +8,7 @@ import '../../widgets/analytics/recommendations_widget.dart';
 import '../../widgets/analytics/study_plan_widget.dart';
 import '../../widgets/retrieval_practice/retrieval_results_widget.dart';
 
-class RetrievalPracticeCompletionScreen extends StatefulWidget {
+class RetrievalPracticeCompletionScreen extends StatelessWidget {
   final Course course;
   final Module module;
   final RetrievalPracticeResults sessionResults;
@@ -27,26 +27,6 @@ class RetrievalPracticeCompletionScreen extends StatefulWidget {
   });
 
   @override
-  State<RetrievalPracticeCompletionScreen> createState() => _RetrievalPracticeCompletionScreenState();
-}
-
-class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCompletionScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgSecondary,
@@ -55,176 +35,143 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
         backgroundColor: AppColors.bgSecondary,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            onPressed: widget.onBackToModule,
-            icon: const Icon(LucideIcons.x),
-          ),
-        ],
+        leading: IconButton(
+          onPressed: onBackToModule,
+          icon: const Icon(LucideIcons.x),
+        ),
       ),
-      body: Column(
-        children: [
-          // Header with performance summary
-          _buildHeaderSummary(),
-          
-          const SizedBox(height: 20),
-          
-          // Tab bar
-          Container(
-            decoration: BoxDecoration(
-              color: AppColors.bgSecondary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: AppColors.bgPrimary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: Colors.white,
-              unselectedLabelColor: AppColors.textSecondary,
-              labelStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              tabs: const [
-                Tab(
-                  icon: Icon(LucideIcons.barChart3, size: 20),
-                  text: 'Summary',
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            // Tab Bar
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.grey200,
+                    width: 1,
+                  ),
                 ),
-                Tab(
-                  icon: Icon(LucideIcons.pieChart, size: 20),
-                  text: 'Analytics',
+              ),
+              child: TabBar(
+                labelColor: AppColors.bgPrimary,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
+                indicatorColor: AppColors.bgPrimary,
+                indicatorWeight: 3,
+                tabs: const [
+                  Tab(
+                    icon: Icon(LucideIcons.barChart3, size: 20),
+                    text: 'Summary',
+                  ),
+                  Tab(
+                    icon: Icon(LucideIcons.pieChart, size: 20),
+                    text: 'Analytics',
+                  ),
+                ],
+              ),
             ),
-          ),
-          
-          // Tab content
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.all(16),
+            
+            // Tab Content
+            Expanded(
               child: TabBarView(
-                controller: _tabController,
                 children: [
-                  // Summary Tab
                   _buildSummaryTab(),
-                  
-                  // Analytics Tab
                   _buildAnalyticsTab(),
                 ],
               ),
             ),
-          ),
-          
-          // Action buttons
-          _buildActionButtons(),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeaderSummary() {
+  Widget _buildHeroSection() {
     return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        gradient: LinearGradient(
+          colors: [
+            Colors.purple.withOpacity(0.1),
+            AppColors.bgSecondary,
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: widget.sessionResults.performanceColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  LucideIcons.brain,
-                  color: widget.sessionResults.performanceColor,
-                  size: 30,
-                ),
-              ),
-              
-              const SizedBox(width: 16),
-              
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Retrieval Practice Complete!',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.module.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'from ${widget.course.title}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          // Hero Icon
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: sessionResults.performanceColor.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              LucideIcons.brain,
+              color: sessionResults.performanceColor,
+              size: 40,
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Title
+          const Text(
+            'Retrieval Practice Complete!',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Subtitle
+          Text(
+            'Great work on "${module.title}" from ${course.title}',
+            style: const TextStyle(
+              fontSize: 16,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
           
           const SizedBox(height: 20),
           
+          // Quick Stats Row
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Expanded(
-                child: _buildSummaryCard(
-                  'Accuracy',
-                  '${widget.sessionResults.accuracy.toStringAsFixed(1)}%',
-                  widget.sessionResults.performanceColor,
-                  LucideIcons.target,
-                ),
+              _buildQuickStat(
+                'Accuracy',
+                '${sessionResults.accuracy.toStringAsFixed(1)}%',
+                LucideIcons.target,
+                sessionResults.performanceColor,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSummaryCard(
-                  'Questions',
-                  '${widget.sessionResults.correctAnswers}/${widget.sessionResults.totalQuestions}',
-                  Colors.blue,
-                  LucideIcons.checkCircle,
-                ),
+              _buildQuickStat(
+                'Questions',
+                '${sessionResults.correctAnswers}/${sessionResults.totalQuestions}',
+                LucideIcons.checkCircle,
+                Colors.blue,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildSummaryCard(
-                  'Time',
-                  _formatDuration(widget.sessionResults.averageTimePerQuestion),
-                  Colors.orange,
-                  LucideIcons.clock,
-                ),
+              _buildQuickStat(
+                'Avg Time',
+                _formatDuration(sessionResults.averageTimePerQuestion),
+                LucideIcons.clock,
+                Colors.orange,
               ),
             ],
           ),
@@ -232,52 +179,63 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
       ),
     );
   }
-
-  Widget _buildSummaryCard(String label, String value, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+  
+  Widget _buildQuickStat(String label, String value, IconData icon, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
           ),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
+          child: Icon(icon, color: color, size: 24),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textPrimary,
           ),
-        ],
-      ),
+          textAlign: TextAlign.center,
+          softWrap: true,
+          overflow: TextOverflow.visible,
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+          softWrap: true,
+          overflow: TextOverflow.visible,
+        ),
+      ],
     );
   }
+
 
   Widget _buildSummaryTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // Hero Section integrated in Summary tab
+          _buildHeroSection(),
+          
+          const SizedBox(height: 24),
+          
           _buildStatsSummaryCard(
             'Session Overview',
             [
-              _buildStat('Questions Answered', '${widget.sessionResults.totalQuestions}'),
-              _buildStat('Correct Answers', '${widget.sessionResults.correctAnswers}'),
-              _buildStat('Accuracy', '${widget.sessionResults.accuracy.toStringAsFixed(1)}%'),
-              _buildStat('Average Time', _formatDuration(widget.sessionResults.averageTimePerQuestion)),
+              _buildStat('Questions Answered', '${sessionResults.totalQuestions}'),
+              _buildStat('Correct Answers', '${sessionResults.correctAnswers}'),
+              _buildStat('Accuracy', '${sessionResults.accuracy.toStringAsFixed(1)}%'),
+              _buildStat('Average Time', _formatDuration(sessionResults.averageTimePerQuestion)),
             ],
             Colors.blue,
           ),
@@ -289,8 +247,8 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
             [
               _buildStat('High Confidence', '${_getHighConfidenceCount()}'),
               _buildStat('Low Confidence', '${_getLowConfidenceCount()}'),
-              _buildStat('Hints Used', '${widget.sessionResults.hintsUsed}'),
-              _buildStat('Session Duration', _formatDuration(widget.sessionResults.totalTime)),
+              _buildStat('Hints Used', '${sessionResults.hintsUsed}'),
+              _buildStat('Session Duration', _formatDuration(sessionResults.totalTime)),
             ],
             Colors.green,
           ),
@@ -299,23 +257,50 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
           
           // Detailed results widget
           RetrievalResultsWidget(
-            sessionResults: widget.sessionResults,
+            sessionResults: sessionResults,
             showDetailedBreakdown: true,
           ),
+          
+          // Action Buttons integrated in Summary tab
+          const SizedBox(height: 32),
+          _buildActionButtonsInline(),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
   Widget _buildAnalyticsTab() {
-    if (widget.sessionAnalytics == null) {
-      return _buildEmptyAnalytics();
+    if (sessionAnalytics == null) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // Hero Section integrated in Analytics tab
+            _buildHeroSection(),
+            
+            const SizedBox(height: 24),
+            
+            _buildEmptyAnalytics(),
+            
+            // Action Buttons integrated in Analytics tab
+            const SizedBox(height: 32),
+            _buildActionButtonsInline(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      );
     }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // Hero Section integrated in Analytics tab
+          _buildHeroSection(),
+          
+          const SizedBox(height: 24),
+          
           // DESCRIPTIVE ANALYTICS SECTION
           _buildAnalyticsMainSection(
             title: 'Descriptive Analytics',
@@ -351,7 +336,7 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
             color: Colors.orange,
             children: [
               // AI Insights (from old Insights tab)
-              if (widget.sessionAnalytics!.insights.isNotEmpty) ...[ 
+              if (sessionAnalytics!.insights.isNotEmpty) ...[ 
                 _buildPrescriptiveSection(
                   title: 'AI-Generated Insights',
                   icon: LucideIcons.lightbulb,
@@ -361,14 +346,14 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
               ],
               
               // Recommendations (from old Insights tab)
-              if (widget.sessionAnalytics!.recommendations.isNotEmpty) ...[ 
+              if (sessionAnalytics!.recommendations.isNotEmpty) ...[ 
                 _buildPrescriptiveSection(
                   title: 'Personalized Recommendations',
                   icon: LucideIcons.target,
                   content: SizedBox(
                     width: double.infinity,
                     child: RecommendationsWidget(
-                      recommendations: widget.sessionAnalytics!.recommendations,
+                      recommendations: sessionAnalytics!.recommendations,
                     ),
                   ),
                 ),
@@ -376,105 +361,58 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
               ],
               
               // Study Plan (from old Study Plan tab)
-              if (widget.sessionAnalytics!.suggestedStudyPlan != null) ...[ 
+              if (sessionAnalytics!.suggestedStudyPlan != null) ...[ 
                 _buildPrescriptiveSection(
                   title: 'Suggested Study Plan',
                   icon: LucideIcons.calendar,
                   content: StudyPlanWidget(
-                    studyPlan: widget.sessionAnalytics!.suggestedStudyPlan!,
+                    studyPlan: sessionAnalytics!.suggestedStudyPlan!,
                   ),
                 ),
               ],
             ],
           ),
+          
+          // Action Buttons integrated in Analytics tab
+          const SizedBox(height: 32),
+          _buildActionButtonsInline(),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyTab(String title, String message, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 48,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildActionButtons() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+  Widget _buildActionButtonsInline() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onBackToModule,
+            icon: const Icon(LucideIcons.arrowLeft, size: 20),
+            label: const Text('Back to Module'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              side: BorderSide(color: AppColors.grey300),
+            ),
           ),
-        ],
-      ),
-      child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: widget.onBackToModule,
-                icon: const Icon(LucideIcons.arrowLeft, size: 16),
-                label: const Text('Back to Module'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-            
-            const SizedBox(width: 12),
-            
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: widget.onStudyAgain,
-                icon: const Icon(LucideIcons.repeat, size: 16),
-                label: const Text('Practice Again'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.bgPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
-      ),
+        
+        const SizedBox(width: 16),
+        
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: onStudyAgain,
+            icon: const Icon(LucideIcons.repeat, size: 20),
+            label: const Text('Practice Again'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.bgPrimary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -558,10 +496,35 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
   }
 
   Widget _buildEmptyAnalytics() {
-    return _buildEmptyTab(
-      'Analytics Unavailable',
-      'Complete more sessions to generate detailed analytics.',
-      LucideIcons.pieChart,
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        children: [
+          Icon(
+            LucideIcons.pieChart,
+            size: 64,
+            color: AppColors.textSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Analytics Unavailable',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Complete more sessions to generate detailed analytics.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -741,9 +704,9 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildMetricCard('Accuracy', '${widget.sessionResults.accuracy.toStringAsFixed(1)}%', Colors.green),
-              _buildMetricCard('Total Questions', '${widget.sessionResults.totalQuestions}', Colors.blue),
-              _buildMetricCard('Avg Time', _formatDuration(widget.sessionResults.averageTimePerQuestion), Colors.orange),
+              _buildMetricCard('Accuracy', '${sessionResults.accuracy.toStringAsFixed(1)}%', Colors.green),
+              _buildMetricCard('Total Questions', '${sessionResults.totalQuestions}', Colors.blue),
+              _buildMetricCard('Avg Time', _formatDuration(sessionResults.averageTimePerQuestion), Colors.orange),
             ],
           ),
         ],
@@ -779,11 +742,11 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
       children: [
         _buildPatternCard(
           'Response Time',
-          '${_formatDuration(widget.sessionResults.averageTimePerQuestion)} avg',
-          widget.sessionResults.averageTimePerQuestion > Duration(seconds: 30) 
+          '${_formatDuration(sessionResults.averageTimePerQuestion)} avg',
+          sessionResults.averageTimePerQuestion > Duration(seconds: 30) 
             ? 'Consider time management techniques' 
             : 'Good pacing maintained',
-          widget.sessionResults.averageTimePerQuestion > Duration(seconds: 30) 
+          sessionResults.averageTimePerQuestion > Duration(seconds: 30) 
             ? Colors.orange 
             : Colors.green,
           LucideIcons.clock,
@@ -791,11 +754,11 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
         const SizedBox(height: 12),
         _buildPatternCard(
           'Confidence Level',
-          '${_getHighConfidenceCount()}/${widget.sessionResults.totalQuestions} high confidence',
-          _getHighConfidenceCount() / widget.sessionResults.totalQuestions > 0.7
+          '${_getHighConfidenceCount()}/${sessionResults.totalQuestions} high confidence',
+          _getHighConfidenceCount() / sessionResults.totalQuestions > 0.7
             ? 'Strong confidence in responses'
             : 'Consider reviewing material for better confidence',
-          _getHighConfidenceCount() / widget.sessionResults.totalQuestions > 0.7
+          _getHighConfidenceCount() / sessionResults.totalQuestions > 0.7
             ? Colors.green
             : Colors.orange,
           LucideIcons.brain,
@@ -803,11 +766,11 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
         const SizedBox(height: 12),
         _buildPatternCard(
           'Help Usage',
-          '${widget.sessionResults.hintsUsed} hints used',
-          widget.sessionResults.hintsUsed > widget.sessionResults.totalQuestions * 0.5
+          '${sessionResults.hintsUsed} hints used',
+          sessionResults.hintsUsed > sessionResults.totalQuestions * 0.5
             ? 'Heavy reliance on hints - review material'
             : 'Appropriate use of assistance',
-          widget.sessionResults.hintsUsed > widget.sessionResults.totalQuestions * 0.5
+          sessionResults.hintsUsed > sessionResults.totalQuestions * 0.5
             ? Colors.red
             : Colors.green,
           LucideIcons.helpCircle,
@@ -873,7 +836,7 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
   }
 
   Widget _buildInsightsContent() {
-    final insights = widget.sessionAnalytics!.insights;
+    final insights = sessionAnalytics!.insights;
     
     return Column(
       children: insights.map((insight) => Container(
@@ -911,16 +874,16 @@ class _RetrievalPracticeCompletionScreenState extends State<RetrievalPracticeCom
 
   int _getHighConfidenceCount() {
     // Since we don't have confidence data, estimate based on accuracy
-    if (widget.sessionResults.accuracy >= 80) {
-      return (widget.sessionResults.totalQuestions * 0.8).round();
-    } else if (widget.sessionResults.accuracy >= 60) {
-      return (widget.sessionResults.totalQuestions * 0.5).round();
+    if (sessionResults.accuracy >= 80) {
+      return (sessionResults.totalQuestions * 0.8).round();
+    } else if (sessionResults.accuracy >= 60) {
+      return (sessionResults.totalQuestions * 0.5).round();
     }
-    return (widget.sessionResults.totalQuestions * 0.3).round();
+    return (sessionResults.totalQuestions * 0.3).round();
   }
   
   int _getLowConfidenceCount() {
-    return widget.sessionResults.totalQuestions - _getHighConfidenceCount();
+    return sessionResults.totalQuestions - _getHighConfidenceCount();
   }
 
   String _formatDuration(Duration duration) {

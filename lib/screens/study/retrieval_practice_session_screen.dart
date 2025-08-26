@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../../models/retrieval_practice_models.dart';
 import '../../models/study_analytics_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/retrieval_practice_service.dart';
+import '../../services/user_progress_service.dart';
 import '../../widgets/retrieval_practice/retrieval_question_widget.dart';
 import '../../widgets/retrieval_practice/retrieval_results_widget.dart';
 import '../../widgets/retrieval_practice/retrieval_progress_widget.dart';
@@ -40,6 +42,10 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
   // Question timing
   DateTime? _questionStartTime;
   bool _showResults = false;
+  
+  // Performance optimization
+  Timer? _debounceTimer;
+  bool _isProcessingHeavyOperation = false;
 
   @override
   void initState() {
@@ -54,15 +60,13 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _retrievalService.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
   Future<void> _initializeSession() async {
     try {
-      setState(() {
-        _isInitializing = true;
-        _errorMessage = null;
-      });
+      _setLoadingStateDebounced(true, null);
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
@@ -87,18 +91,13 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
       await _retrievalService.startSession();
       _startQuestionTimer();
 
-      setState(() {
-        _isInitializing = false;
-      });
+      _setLoadingStateDebounced(false, null);
 
       // Session initialized successfully
 
     } catch (e) {
       // Failed to initialize session: $e
-      setState(() {
-        _errorMessage = 'Failed to initialize Retrieval Practice session: $e';
-        _isInitializing = false;
-      });
+      _handleInitializationError(e);
     }
   }
 
@@ -255,8 +254,26 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
       // Get session results
       _sessionResults = await _retrievalService.getSessionResults();
       
-      // Generate comprehensive analytics
+      // Update module progress based on session results
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (_sessionResults != null) {
+        try {
+          print('🎯 [RETRIEVAL PROGRESS] Updating module progress with accuracy: ${_sessionResults!.accuracy}');
+          await UserProgressService.updateModuleProgress(
+            userId: authProvider.currentUser!.id,
+            moduleId: widget.module.id,
+            score: _sessionResults!.accuracy, // Already in 0-100 scale
+            technique: 'retrieval_practice',
+            sessionId: _retrievalService.currentSession?.id ?? 'retrieval_session',
+          );
+          print('✅ [RETRIEVAL PROGRESS] Module progress updated successfully');
+        } catch (e) {
+          print('⚠️ [RETRIEVAL PROGRESS] Failed to update module progress: $e');
+          // Don't block the completion flow if progress update fails
+        }
+      }
+      
+      // Generate comprehensive analytics
       _sessionAnalytics = await _retrievalService.generateSessionAnalytics(
         userId: authProvider.currentUser!.id,
         module: widget.module,
@@ -362,6 +379,32 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
         ],
       ),
     );
+  }
+
+  // Optimized state update methods to reduce buffer overflow
+  void _setLoadingStateDebounced(bool loading, String? error) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted && !_isProcessingHeavyOperation) {
+        setState(() {
+          _isInitializing = loading;
+          _errorMessage = error;
+        });
+      }
+    });
+  }
+  
+  void _handleInitializationError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    if (errorString.contains('out of memory') || 
+        errorString.contains('insufficient memory') ||
+        errorString.contains('allocation failed')) {
+      print('🚨 [MEMORY ERROR] Out of memory condition detected');
+      _setLoadingStateDebounced(false, 'Memory optimization in progress.\nPlease wait or restart the app.');
+    } else {
+      _setLoadingStateDebounced(false, 'Failed to initialize Retrieval Practice session: $error');
+    }
   }
 
   @override

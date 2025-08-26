@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../models/feynman_models.dart';
 import '../../models/study_analytics_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/feynman_service.dart';
+import '../../services/user_progress_service.dart';
 import '../../widgets/feynman/feynman_progress_widget.dart';
 import '../../widgets/feynman/explanation_input_widget.dart';
 import '../../widgets/feynman/explanation_feedback_widget.dart';
@@ -46,6 +48,10 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
   final TextEditingController _topicController = TextEditingController();
   bool _topicSelected = false;
   bool _isStudyAgainFlow = false;
+  
+  // Performance optimization
+  Timer? _debounceTimer;
+  bool _isProcessingHeavyOperation = false;
 
   @override
   void initState() {
@@ -76,15 +82,13 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
     WidgetsBinding.instance.removeObserver(this);
     _topicController.dispose();
     _feynmanService.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
   Future<void> _initializeSession() async {
     try {
-      setState(() {
-        _isInitializing = true;
-        _errorMessage = null;
-      });
+      _setLoadingStateDebounced(true, null);
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
@@ -106,19 +110,77 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
         topic: topic,
       );
 
-      setState(() {
-        _isInitializing = false;
-        _topicSelected = true;
-      });
+      _setFinalStateDebounced(false, null, true);
 
       print('✅ [FEYNMAN SCREEN] Session initialized successfully');
 
     } catch (e) {
       print('❌ [FEYNMAN SCREEN] Failed to initialize session: $e');
-      setState(() {
-        _errorMessage = 'Failed to initialize Feynman session: $e';
-        _isInitializing = false;
-      });
+      _handleInitializationError(e);
+    }
+  }
+  
+  // Optimized state update methods to reduce buffer overflow
+  void _setLoadingStateDebounced(bool loading, String? error) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted && !_isProcessingHeavyOperation) {
+        setState(() {
+          _isInitializing = loading;
+          _errorMessage = error;
+        });
+      }
+    });
+  }
+  
+  void _setFinalStateDebounced(bool loading, String? error, bool topicSelected) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        setState(() {
+          _isInitializing = loading;
+          _errorMessage = error;
+          _topicSelected = topicSelected;
+        });
+      }
+    });
+  }
+  
+  void _setResetStateDebounced() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        setState(() {
+          _topicSelected = false;
+          _errorMessage = null;
+          _sessionAnalytics = null;
+          _sessionResults = null;
+        });
+      }
+    });
+  }
+  
+  void _setClearAnalyticsStateDebounced() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        _setClearAnalyticsStateDebounced();
+      }
+    });
+  }
+  
+  void _handleInitializationError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    if (errorString.contains('out of memory') || 
+        errorString.contains('insufficient memory') ||
+        errorString.contains('allocation failed')) {
+      print('🚨 [MEMORY ERROR] Out of memory condition detected');
+      if (mounted) {
+        _setLoadingStateDebounced(false, 'Memory optimization in progress.\nPlease wait or restart the app.');
+      }
+    } else {
+      _setLoadingStateDebounced(false, 'Failed to initialize Feynman session: $error');
     }
   }
 
@@ -215,8 +277,26 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
       // Get session results
       _sessionResults = await _feynmanService.getSessionResults();
       
-      // Generate comprehensive analytics
+      // Update module progress based on session results
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (_sessionResults != null && _sessionResults!.averageScore != null) {
+        try {
+          print('🎯 [FEYNMAN PROGRESS] Updating module progress with score: ${_sessionResults!.averageScore}');
+          await UserProgressService.updateModuleProgress(
+            userId: authProvider.currentUser!.id,
+            moduleId: widget.module.id,
+            score: _sessionResults!.averageScore! * 10, // Convert 0-10 scale to 0-100
+            technique: 'feynman',
+            sessionId: _feynmanService.currentSession?.id ?? 'feynman_session',
+          );
+          print('✅ [FEYNMAN PROGRESS] Module progress updated successfully');
+        } catch (e) {
+          print('⚠️ [FEYNMAN PROGRESS] Failed to update module progress: $e');
+          // Don't block the completion flow if progress update fails
+        }
+      }
+      
+      // Generate comprehensive analytics
       _sessionAnalytics = await _feynmanService.generateSessionAnalytics(
         userId: authProvider.currentUser!.id,
         module: widget.module,
@@ -294,12 +374,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
   }
 
   Future<void> _resetSession() async {
-    setState(() {
-      _topicSelected = false;
-      _errorMessage = null;
-      _sessionAnalytics = null;
-      _sessionResults = null;
-    });
+    _setResetStateDebounced();
     _topicController.clear();
   }
 
@@ -311,10 +386,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
       
       // Clear analytics state if this is Study Again flow
       if (_isStudyAgainFlow) {
-        setState(() {
-          _sessionAnalytics = null;
-          _sessionResults = null;
-        });
+        _setClearAnalyticsStateDebounced();
       }
       
       if (mounted) {
@@ -337,10 +409,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
         await _feynmanService.forceStopSession();
         
         // Clear any pending operations
-        setState(() {
-          _sessionAnalytics = null;
-          _sessionResults = null;
-        });
+        _setClearAnalyticsStateDebounced();
         
         if (mounted) {
           Navigator.of(context).pop();
@@ -446,10 +515,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () {
-                setState(() {
-                  _errorMessage = null;
-                  _topicSelected = false;
-                });
+                _setFinalStateDebounced(false, null, false);
               },
               child: const Text('Retry'),
             ),
@@ -472,7 +538,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -486,7 +552,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.purple.withOpacity(0.1),
+                        color: Colors.purple.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -546,7 +612,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -645,7 +711,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -736,7 +802,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
               Container(
                 width: 2,
                 height: 40,
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
               ),
             ],
           ],
@@ -863,7 +929,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
         color: AppColors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -1079,7 +1145,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
             border: Border.all(color: AppColors.grey200),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -1091,7 +1157,7 @@ class _FeynmanSessionScreenState extends State<FeynmanSessionScreen>
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(

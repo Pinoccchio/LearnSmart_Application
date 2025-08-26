@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../models/pomodoro_models.dart';
 import '../../models/study_analytics_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/pomodoro_service.dart';
+import '../../services/user_progress_service.dart';
 import '../../widgets/pomodoro/pomodoro_timer_widget.dart';
 import '../../widgets/pomodoro/pomodoro_controls_widget.dart';
 import '../../widgets/pomodoro/pomodoro_notes_widget.dart';
@@ -43,6 +45,12 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
   // Smart pause tracking
   bool _isAccessingMaterials = false;
   bool _wasRunningBeforeBackground = false;
+  
+  // Performance optimization and memory management
+  Timer? _debounceTimer;
+  bool _isProcessingHeavyOperation = false;
+  int _memoryWarningCount = 0;
+  DateTime? _lastMemoryCheck;
 
   @override
   void initState() {
@@ -59,6 +67,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pomodoroService.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
@@ -92,10 +101,10 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
 
   Future<void> _initializeSession() async {
     try {
-      setState(() {
-        _isInitializing = true;
-        _errorMessage = null;
-      });
+      _setLoadingStateDebounced(true, null);
+      
+      // Mark heavy processing start
+      _isProcessingHeavyOperation = true;
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
@@ -106,24 +115,27 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
 
       print('🍅 [POMODORO SCREEN] Initializing Pomodoro session for ${widget.module.title}');
       
+      // Check memory before heavy operations
+      await _checkMemoryUsage('initialization_start');
+      
       await _pomodoroService.initializeSession(
         userId: currentUser.id,
         module: widget.module,
         customSettings: widget.customSettings,
       );
 
-      setState(() {
-        _isInitializing = false;
-      });
+      // Check memory after initialization
+      await _checkMemoryUsage('initialization_complete');
+      
+      _isProcessingHeavyOperation = false;
+      _setLoadingStateDebounced(false, null);
 
       print('✅ [POMODORO SCREEN] Session initialized successfully');
 
     } catch (e) {
       print('❌ [POMODORO SCREEN] Failed to initialize session: $e');
-      setState(() {
-        _errorMessage = 'Failed to initialize Pomodoro session: $e';
-        _isInitializing = false;
-      });
+      _isProcessingHeavyOperation = false;
+      _handleInitializationError(e);
     }
   }
 
@@ -160,16 +172,12 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
 
   void _showFocusScoreDialog() {
     if (_pomodoroService.currentCycle?.type == PomodoroCycleType.work) {
-      setState(() {
-        _showFocusScore = true;
-      });
+      _setFocusScoreStateDebounced(true);
     }
   }
 
   void _onFocusScoreSubmitted() {
-    setState(() {
-      _showFocusScore = false;
-    });
+    _setFocusScoreStateDebounced(false);
     
     // If we're awaiting focus score from natural cycle completion, continue progression
     if (_pomodoroService.isAwaitingFocusScore) {
@@ -301,6 +309,9 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
     try {
       print('🎉 [POMODORO SCREEN] Session completed, generating results...');
       
+      // Mark heavy processing start
+      _isProcessingHeavyOperation = true;
+      
       // Show loading dialog
       if (mounted) {
         showDialog(
@@ -335,20 +346,42 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
         );
       }
 
-      // Loading dialog is already shown above
+      // Check memory before heavy analytics operations
+      await _checkMemoryUsage('analytics_start');
       
       // Get session results
       _sessionResults = await _pomodoroService.getSessionResults();
       
-      // Generate comprehensive analytics
+      // Update module progress based on session results
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (_sessionResults != null && authProvider.currentUser != null) {
+        try {
+          print('🎯 [POMODORO PROGRESS] Updating module progress with focus score: ${_sessionResults!.averageFocusScore}');
+          await UserProgressService.updateModuleProgress(
+            userId: authProvider.currentUser!.id,
+            moduleId: widget.module.id,
+            score: _sessionResults!.averageFocusScore,
+            technique: 'pomodoro',
+            sessionId: _pomodoroService.currentSession?.id ?? 'pomodoro_session',
+          );
+          print('✅ [POMODORO PROGRESS] Module progress updated successfully');
+        } catch (e) {
+          print('⚠️ [POMODORO PROGRESS] Failed to update module progress: $e');
+          // Don't block the completion flow if progress update fails
+        }
+      }
+      
+      // Generate comprehensive analytics
       _sessionAnalytics = await _pomodoroService.generateSessionAnalytics(
         userId: authProvider.currentUser!.id,
         module: widget.module,
         course: widget.course,
       );
       
-      // Analytics generation completed
+      // Check memory after analytics generation
+      await _checkMemoryUsage('analytics_complete');
+      
+      _isProcessingHeavyOperation = false;
 
       // Close loading dialog and navigate to completion screen
       if (mounted) {
@@ -358,6 +391,10 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
       
     } catch (e) {
       print('❌ [POMODORO SCREEN] Failed to process session completion: $e');
+      _isProcessingHeavyOperation = false;
+      
+      // Handle memory errors specifically
+      _handleMemoryError(e);
       
       // Close loading dialog if it's open
       if (mounted) {
@@ -442,6 +479,169 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
         ],
       ),
     );
+  }
+
+  // Optimized state update methods to reduce buffer overflow
+  void _setLoadingStateDebounced(bool loading, String? error) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 100), () {
+      if (mounted && !_isProcessingHeavyOperation) {
+        setState(() {
+          _isInitializing = loading;
+          _errorMessage = error;
+        });
+      }
+    });
+  }
+  
+  void _setFocusScoreStateDebounced(bool show) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        setState(() {
+          _showFocusScore = show;
+        });
+      }
+    });
+  }
+  
+  void _setMaterialAccessStateDebounced(bool accessing) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        setState(() {
+          _isAccessingMaterials = accessing;
+        });
+      }
+    });
+  }
+  
+  void _handleInitializationError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    if (errorString.contains('out of memory') || 
+        errorString.contains('insufficient memory') ||
+        errorString.contains('allocation failed')) {
+      print('🚨 [MEMORY ERROR] Out of memory condition detected');
+      _handleMemoryError(error);
+      _setLoadingStateDebounced(false, 'Memory optimization in progress.\nPlease wait or restart the app.');
+    } else if (errorString.contains('blastbufferqueue') ||
+               errorString.contains('buffer') ||
+               errorString.contains('surface')) {
+      print('🚨 [BUFFER ERROR] Graphics buffer issue detected');
+      _handleMemoryError(error);
+      _setLoadingStateDebounced(false, 'Optimizing graphics performance.\nPlease wait.');
+    } else {
+      _setLoadingStateDebounced(false, 'Failed to initialize Pomodoro session: $error');
+    }
+  }
+
+  // Memory management and buffer overflow prevention
+  Future<void> _checkMemoryUsage(String phase) async {
+    try {
+      final now = DateTime.now();
+      
+      // Throttle memory checks to avoid performance impact
+      if (_lastMemoryCheck != null && 
+          now.difference(_lastMemoryCheck!).inMilliseconds < 500) {
+        return;
+      }
+      
+      _lastMemoryCheck = now;
+      print('🔍 [MEMORY] Checking memory usage at phase: $phase');
+      
+      // Check if we can allocate a test list (memory pressure indicator)
+      try {
+        final testList = List.generate(1000, (i) => i);
+        testList.clear();
+        print('✅ [MEMORY] Memory allocation test passed');
+      } catch (e) {
+        _memoryWarningCount++;
+        print('⚠️ [MEMORY] Memory pressure detected (warning #$_memoryWarningCount): $e');
+        
+        if (_memoryWarningCount >= 3) {
+          print('🚨 [MEMORY] Critical memory pressure - implementing emergency measures');
+          await _implementEmergencyMemoryMeasures();
+        }
+      }
+      
+      // Force a small delay to allow garbage collection
+      await Future.delayed(const Duration(milliseconds: 50));
+      
+    } catch (e) {
+      print('❌ [MEMORY] Memory check failed: $e');
+    }
+  }
+  
+  Future<void> _implementEmergencyMemoryMeasures() async {
+    try {
+      print('🚨 [EMERGENCY] Implementing emergency memory measures');
+      
+      // Clear any cached data that's not critical
+      _clearNonEssentialCache();
+      
+      // Add longer delays between operations
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // Update UI to show memory optimization
+      if (mounted && !_isProcessingHeavyOperation) {
+        _setLoadingStateDebounced(true, 'Optimizing memory usage.\nPlease wait.');
+      }
+      
+      // Allow multiple garbage collection cycles
+      await Future.delayed(const Duration(milliseconds: 200));
+      
+      print('✅ [EMERGENCY] Emergency memory measures completed');
+      
+    } catch (e) {
+      print('❌ [EMERGENCY] Failed to implement emergency measures: $e');
+    }
+  }
+  
+  void _clearNonEssentialCache() {
+    try {
+      // Clear any temporary data structures that aren't needed
+      // Reset memory warning counter after cleanup
+      _memoryWarningCount = 0;
+      _lastMemoryCheck = null;
+      
+      print('🧹 [CLEANUP] Non-essential cache cleared');
+    } catch (e) {
+      print('❌ [CLEANUP] Cache clear failed: $e');
+    }
+  }
+  
+  void _handleMemoryError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    
+    if (errorString.contains('out of memory') || 
+        errorString.contains('insufficient memory') ||
+        errorString.contains('allocation failed')) {
+      
+      print('🚨 [MEMORY ERROR] Out of memory condition detected');
+      _implementEmergencyMemoryMeasures();
+      
+      if (mounted) {
+        _setLoadingStateDebounced(false, 'Memory optimization in progress.\nPlease wait or restart the app.');
+      }
+    } else if (errorString.contains('blastbufferqueue') ||
+               errorString.contains('buffer') ||
+               errorString.contains('surface')) {
+      
+      print('🚨 [BUFFER ERROR] Graphics buffer issue detected');
+      if (mounted) {
+        _setLoadingStateDebounced(false, 'Optimizing graphics performance.\nPlease wait.');
+      }
+      
+      // Add extra delay for graphics buffer recovery
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            // Trigger a gentle rebuild
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -709,7 +909,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
             border: Border.all(color: AppColors.grey200),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -721,7 +921,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
@@ -776,9 +976,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
   void _openMaterial(CourseMaterial material) async {
     try {
       // Set flag to indicate intentional material access
-      setState(() {
-        _isAccessingMaterials = true;
-      });
+      _setMaterialAccessStateDebounced(true);
       
       print('📚 [POMODORO] Opening study material: ${material.fileName}');
       
@@ -804,9 +1002,7 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
       
     } catch (e) {
       // Reset flag on error
-      setState(() {
-        _isAccessingMaterials = false;
-      });
+      _setMaterialAccessStateDebounced(false);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

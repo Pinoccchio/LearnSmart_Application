@@ -38,67 +38,54 @@ class FeynmanCompletionScreen extends StatelessWidget {
           icon: const Icon(LucideIcons.x),
         ),
       ),
-      body: Column(
-        children: [
-          // Hero Section
-          _buildHeroSection(),
-          
-          // Content Section with Tabs
-          Expanded(
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  // Tab Bar
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.bgSecondary,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: AppColors.grey200,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: TabBar(
-                      labelColor: AppColors.bgPrimary,
-                      unselectedLabelColor: AppColors.textSecondary,
-                      labelStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      indicatorColor: AppColors.bgPrimary,
-                      indicatorWeight: 3,
-                      tabs: const [
-                        Tab(
-                          icon: Icon(LucideIcons.barChart3, size: 20),
-                          text: 'Summary',
-                        ),
-                        Tab(
-                          icon: Icon(LucideIcons.pieChart, size: 20),
-                          text: 'Analytics',
-                        ),
-                      ],
-                    ),
+      body: DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            // Tab Bar
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppColors.grey200,
+                    width: 1,
                   ),
-                  
-                  // Tab Content
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildSummaryTab(),
-                        _buildAnalyticsTab(),
-                      ],
-                    ),
+                ),
+              ),
+              child: TabBar(
+                labelColor: AppColors.bgPrimary,
+                unselectedLabelColor: AppColors.textSecondary,
+                labelStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                indicatorColor: AppColors.bgPrimary,
+                indicatorWeight: 3,
+                tabs: const [
+                  Tab(
+                    icon: Icon(LucideIcons.barChart3, size: 20),
+                    text: 'Summary',
+                  ),
+                  Tab(
+                    icon: Icon(LucideIcons.pieChart, size: 20),
+                    text: 'Analytics',
                   ),
                 ],
               ),
             ),
-          ),
-          
-          // Bottom Action Bar
-          _buildActionBar(),
-        ],
+            
+            // Tab Content
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildSummaryTab(),
+                  _buildAnalyticsTab(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -236,6 +223,11 @@ class FeynmanCompletionScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // Hero Section integrated in Summary tab
+          _buildHeroSection(),
+          
+          const SizedBox(height: 24),
+          
           _buildSummaryCard(
             'Session Overview',
             [
@@ -276,6 +268,11 @@ class FeynmanCompletionScreen extends StatelessWidget {
             const SizedBox(height: 20),
             _buildGapsCard(),
           ],
+          
+          // Action Button integrated in Summary tab
+          const SizedBox(height: 32),
+          _buildActionButton(),
+          const SizedBox(height: 20),
         ],
       ),
     );
@@ -417,13 +414,41 @@ class FeynmanCompletionScreen extends StatelessWidget {
 
   Widget _buildAnalyticsTab() {
     if (sessionAnalytics == null) {
-      return _buildEmptyAnalytics();
+      return Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  // Hero Section integrated in Analytics tab
+                  _buildHeroSection(),
+                  
+                  const SizedBox(height: 24),
+                  
+                  _buildEmptyAnalytics(),
+                  
+                  // Action Button integrated in Analytics tab
+                  const SizedBox(height: 32),
+                  _buildActionButton(),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
     }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
+          // Hero Section integrated in Analytics tab
+          _buildHeroSection(),
+          
+          const SizedBox(height: 24),
+          
           // DESCRIPTIVE ANALYTICS SECTION
           _buildAnalyticsMainSection(
             title: 'Descriptive Analytics',
@@ -501,74 +526,62 @@ class FeynmanCompletionScreen extends StatelessWidget {
               ),
             ],
           ),
+          
+          // Action Button integrated in Analytics tab
+          const SizedBox(height: 32),
+          _buildActionButton(),
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
 
   Widget _buildEmptyAnalytics() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.pieChart,
-              size: 64,
-              color: AppColors.textSecondary.withOpacity(0.5),
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        children: [
+          Icon(
+            LucideIcons.pieChart,
+            size: 64,
+            color: AppColors.textSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Analytics Unavailable',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
             ),
-            const SizedBox(height: 20),
-            const Text(
-              'Analytics Unavailable',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-              ),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Unable to generate detailed analytics for this session.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Unable to generate detailed analytics for this session.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActionBar() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        border: Border(
-          top: BorderSide(
-            color: AppColors.grey200,
-            width: 1,
-          ),
-        ),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: onBackToModule,
-            icon: const Icon(LucideIcons.arrowLeft, size: 20),
-            label: const Text('Back to Module'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.bgPrimary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+  Widget _buildActionButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: onBackToModule,
+        icon: const Icon(LucideIcons.arrowLeft, size: 20),
+        label: const Text('Back to Module'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.bgPrimary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
       ),

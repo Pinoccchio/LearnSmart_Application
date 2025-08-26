@@ -504,15 +504,146 @@ class SupabaseService {
         return true;
       }
 
-      // TODO: Check if prerequisite module is completed by user
-      // For now, return true (no prerequisites enforced)
-      print('⚠️ [TODO] Prerequisite checking not implemented yet');
+      // Check if prerequisite module is completed by user
+      final prerequisiteProgress = await client
+          .from('user_module_progress')
+          .select('passed')
+          .eq('user_id', userId)
+          .eq('module_id', prerequisiteModuleId)
+          .maybeSingle();
+
+      if (prerequisiteProgress == null) {
+        print('❌ [PREREQ] No progress record found for prerequisite module');
+        return false;
+      }
+
+      final isPrerequisitePassed = prerequisiteProgress['passed'] ?? false;
+      print('✅ [PREREQ] Prerequisite module passed: $isPrerequisitePassed');
       
-      return true;
+      return isPrerequisitePassed;
     } catch (e, stackTrace) {
       final duration = DateTime.now().difference(startTime);
       print('❌ [ERROR] checkModulePrerequisites failed after ${duration.inMilliseconds}ms: $e');
       print('📍 [STACK TRACE] $stackTrace');
+      return false;
+    }
+  }
+
+  // Progress-related methods
+  static Future<Course?> getCourseWithModulesAndProgress(String courseId, String userId) async {
+    print('🔍 [SUPABASE] Getting course with modules and progress for course: $courseId, user: $userId');
+    final startTime = DateTime.now();
+    
+    try {
+      // Get course with modules and materials
+      final course = await getCourseWithModulesAndMaterials(courseId);
+      if (course == null) return null;
+
+      // Get user progress for all modules in the course
+      final progressResponse = await client
+          .from('user_module_progress')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('course_id', courseId);
+
+      print('📥 [PROGRESS] Loaded ${progressResponse.length} progress records');
+
+      // Create a map of module ID to progress for easy lookup
+      final progressMap = <String, Map<String, dynamic>>{};
+      for (final progress in progressResponse) {
+        progressMap[progress['module_id']] = progress;
+      }
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [SUCCESS] getCourseWithModulesAndProgress completed in ${duration.inMilliseconds}ms');
+      
+      return course; // The progress data can be accessed separately via UserProgressService
+
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [ERROR] getCourseWithModulesAndProgress failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      return null;
+    }
+  }
+
+  // Enroll user in course and initialize progress
+  static Future<bool> enrollUserInCourse(String userId, String courseId) async {
+    print('📝 [ENROLL] Enrolling user: $userId in course: $courseId');
+    final startTime = DateTime.now();
+    
+    try {
+      // Create course enrollment
+      await client
+          .from('course_enrollments')
+          .insert({
+            'user_id': userId,
+            'course_id': courseId,
+            'status': 'active',
+            'enrolled_at': DateTime.now().toIso8601String(),
+          });
+
+      // Get course with modules to initialize progress
+      final course = await getCourseWithModulesAndMaterials(courseId);
+      if (course == null) {
+        throw Exception('Course not found: $courseId');
+      }
+
+      // Initialize user progress for all modules
+      final sortedModules = [...course.modules];
+      sortedModules.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+
+      final progressRecords = <Map<String, dynamic>>[];
+      
+      for (int i = 0; i < sortedModules.length; i++) {
+        final module = sortedModules[i];
+        final isFirstModule = i == 0;
+        
+        progressRecords.add({
+          'user_id': userId,
+          'course_id': courseId,
+          'module_id': module.id,
+          'status': isFirstModule ? 'available' : 'locked',
+          'attempt_count': 0,
+          'passed': false,
+          'needs_remedial': false,
+          'remedial_completed': false,
+          'remedial_sessions_count': 0,
+          'unlocked_at': isFirstModule ? DateTime.now().toIso8601String() : null,
+        });
+      }
+
+      await client
+          .from('user_module_progress')
+          .insert(progressRecords);
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [ENROLL] User enrolled and progress initialized in ${duration.inMilliseconds}ms');
+      
+      return true;
+
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [ENROLL] Enrollment failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      return false;
+    }
+  }
+
+  // Check if user is enrolled in course
+  static Future<bool> isUserEnrolledInCourse(String userId, String courseId) async {
+    try {
+      final enrollment = await client
+          .from('course_enrollments')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('course_id', courseId)
+          .eq('status', 'active')
+          .maybeSingle();
+
+      return enrollment != null;
+    } catch (e) {
+      print('❌ [ENROLLMENT] Error checking enrollment: $e');
       return false;
     }
   }
