@@ -3554,11 +3554,19 @@ class StudyAnalyticsService {
       final duration = DateTime.now().difference(startTime);
       print('✅ [TRACKER STATS] Generated stats in ${duration.inMilliseconds}ms');
 
+      // Get detailed technique performance stats
+      final techniquePerformance = await _getTechniquePerformanceStats(userId);
+      
+      // Calculate completion rate
+      final completionRate = await _getOverallCompletionRate(userId);
+
       return {
         'consistency': consistency,
         'totalTime': totalTime,
         'topTechnique': topTechnique,
         'techniqueUsage': techniqueUsage,
+        'techniques': techniquePerformance,
+        'completionRate': completionRate,
       };
     } catch (e) {
       print('❌ [TRACKER STATS] Error fetching user study stats: $e');
@@ -3567,6 +3575,13 @@ class StudyAnalyticsService {
         'totalTime': '0m',
         'topTechnique': 'None',
         'techniqueUsage': <Map<String, dynamic>>[],
+        'techniques': {
+          'active_recall': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+          'pomodoro': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+          'feynman': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+          'retrieval_practice': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+        },
+        'completionRate': 0.0,
       };
     }
   }
@@ -4282,6 +4297,618 @@ class StudyAnalyticsService {
     } catch (e) {
       print('❌ [ACTIVITIES] Error fetching user activities: $e');
       rethrow;
+    }
+  }
+
+  // ==================== PROFILE METHODS ====================
+
+  /// Get comprehensive profile data including user info, AI insights, recommendations, and strengths
+  Future<Map<String, dynamic>> getUserProfileData(String userId) async {
+    try {
+      print('👤 [PROFILE] Fetching profile data for user: $userId');
+      final startTime = DateTime.now();
+
+      // Fetch user information
+      final userResponse = await SupabaseService.client
+          .from('users')
+          .select('id, email, name, role, status, profile_picture, last_login, created_at, updated_at')
+          .eq('id', userId)
+          .single();
+
+      // Get comprehensive study statistics for AI analysis
+      final studyStats = await getUserStudyStats(userId);
+      
+      // Get recent activities for context
+      final recentActivities = await _getRecentSessionsForRecommendations(userId);
+
+      // Prepare user data for AI analysis
+      final userData = {
+        'user': userResponse,
+        'studyStats': studyStats,
+        'recentActivities': recentActivities,
+      };
+
+      // Generate AI-powered insights, recommendations, and strengths
+      Map<String, dynamic> aiInsights = {};
+      try {
+        aiInsights = await _aiService.generateProfileInsights(userId, userData);
+        print('✅ [PROFILE] AI insights generated successfully');
+        print('🔍 [PROFILE DEBUG] AI insights keys: ${aiInsights.keys.toList()}');
+        print('🔍 [PROFILE DEBUG] Recommendations count: ${(aiInsights['personalizedRecommendations'] as List?)?.length ?? 0}');
+        print('🔍 [PROFILE DEBUG] Strengths count: ${(aiInsights['strengthsAnalysis'] as List?)?.length ?? 0}');
+      } catch (e) {
+        print('⚠️ [PROFILE] AI insights failed, using fallback: $e');
+        // Use fallback methods if AI fails
+        aiInsights = {
+          'personalizedRecommendations': await _generatePersonalizedRecommendations(userId),
+          'strengthsAnalysis': await _analyzeUserStrengths(userId),
+        };
+        print('🔍 [PROFILE DEBUG] Using fallback data - Recommendations: ${(aiInsights['personalizedRecommendations'] as List).length}, Strengths: ${(aiInsights['strengthsAnalysis'] as List).length}');
+      }
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [PROFILE] Profile data loaded in ${duration.inMilliseconds}ms');
+
+      return {
+        'user': userResponse,
+        'studyStats': studyStats,
+        'recommendations': aiInsights['personalizedRecommendations'] ?? [],
+        'strengths': aiInsights['strengthsAnalysis'] ?? [],
+        'aiInsights': aiInsights,
+        'loadedAt': DateTime.now().toIso8601String(),
+      };
+
+    } catch (e) {
+      print('❌ [PROFILE] Error fetching profile data: $e');
+      rethrow;
+    }
+  }
+
+  /// Generate personalized recommendations based on user's study patterns and performance
+  Future<List<Map<String, dynamic>>> _generatePersonalizedRecommendations(String userId) async {
+    try {
+      print('🤖 [PROFILE] Generating personalized recommendations for user: $userId');
+
+      // Get recent study session analytics
+      final analyticsResponse = await SupabaseService.client
+          .from('study_session_analytics')
+          .select('''
+            *
+          ''')
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(50);
+
+      // Get recent session data from all study techniques
+      final recentSessions = await _getRecentSessionsForRecommendations(userId);
+
+      final List<Map<String, dynamic>> recommendations = [];
+
+      // Analyze study patterns and generate recommendations
+      final studyPatterns = _analyzeStudyPatterns(analyticsResponse, recentSessions);
+      
+      // Generate recommendations based on patterns
+      if (studyPatterns['lowSpacedRepetition'] == true) {
+        recommendations.add({
+          'icon': 'repeat',
+          'color': 'primary',
+          'title': 'Increase the use of spaced repetition',
+          'description': 'over the next few days to better consolidate your learning',
+          'priority': 1,
+          'type': 'technique_suggestion'
+        });
+      }
+
+      if (studyPatterns['lateNightStudy'] == true) {
+        recommendations.add({
+          'icon': 'moon',
+          'color': 'warning', 
+          'title': 'You tend to study late at night -',
+          'description': 'consider a shorter session in the morning for retention.',
+          'priority': 2,
+          'type': 'schedule_suggestion'
+        });
+      }
+
+      if (studyPatterns['lowActiveRecall'] == true) {
+        recommendations.add({
+          'icon': 'brain',
+          'color': 'success',
+          'title': 'Try more Active Recall sessions',
+          'description': 'to strengthen memory consolidation and improve retention.',
+          'priority': 3,
+          'type': 'technique_suggestion'
+        });
+      }
+
+      if (studyPatterns['irregularSchedule'] == true) {
+        recommendations.add({
+          'icon': 'calendar',
+          'color': 'info',
+          'title': 'Establish a consistent study schedule',
+          'description': 'to build better learning habits and improve focus.',
+          'priority': 4,
+          'type': 'schedule_suggestion'
+        });
+      }
+
+      // Sort by priority and return top recommendations
+      recommendations.sort((a, b) => (a['priority'] as int).compareTo(b['priority'] as int));
+      return recommendations.take(3).toList();
+
+    } catch (e) {
+      print('❌ [PROFILE] Error generating recommendations: $e');
+      return [];
+    }
+  }
+
+  /// Analyze user strengths based on study performance data with null safety
+  Future<List<Map<String, dynamic>>> _analyzeUserStrengths(String userId) async {
+    try {
+      print('💪 [PROFILE] Analyzing user strengths for user: $userId');
+
+      // Get comprehensive study statistics
+      final studyStats = await getUserStudyStats(userId);
+      
+      // Get recent session performance
+      final recentSessions = await _getRecentSessionsForAnalysis(userId);
+
+      final List<Map<String, dynamic>> strengths = [];
+
+      // Safe access to nested data with null checks
+      final techniques = studyStats['techniques'] as Map<String, dynamic>? ?? {};
+      final activeRecall = techniques['active_recall'] as Map<String, dynamic>? ?? {};
+      final consistency = (studyStats['consistency'] as num?)?.toDouble() ?? 0.0;
+      final completionRate = (studyStats['completionRate'] as num?)?.toDouble() ?? 0.0;
+
+      // Analyze Active Recall performance with null safety
+      final activeRecallScore = (activeRecall['averageScore'] as num?)?.toDouble() ?? 0.0;
+      if (activeRecallScore > 0.75) {
+        strengths.add({
+          'icon': 'check',
+          'color': 'success',
+          'title': 'Excellent Active Recall Performance',
+          'description': 'Your memory retrieval skills have consistently improved with ${(activeRecallScore * 100).toInt()}% average accuracy.',
+          'score': activeRecallScore,
+          'type': 'performance'
+        });
+      }
+
+      // Analyze Pomodoro focus performance
+      final pomodoro = techniques['pomodoro'] as Map<String, dynamic>? ?? {};
+      final pomodoroScore = (pomodoro['averageScore'] as num?)?.toDouble() ?? 0.0;
+      if (pomodoroScore > 0.8) {
+        strengths.add({
+          'icon': 'brain',
+          'color': 'warning',
+          'title': 'Exceptional Focus Skills',
+          'description': 'Your Pomodoro sessions show outstanding focus with ${(pomodoroScore * 100).toInt()}% average performance.',
+          'score': pomodoroScore,
+          'type': 'focus'
+        });
+      }
+
+      // Analyze Feynman teaching ability
+      final feynman = techniques['feynman'] as Map<String, dynamic>? ?? {};
+      final feynmanScore = (feynman['averageScore'] as num?)?.toDouble() ?? 0.0;
+      if (feynmanScore > 0.75) {
+        strengths.add({
+          'icon': 'lightbulb',
+          'color': 'info',
+          'title': 'Strong Teaching & Explanation Skills',
+          'description': 'Your ability to explain concepts clearly shows deep understanding with ${(feynmanScore * 100).toInt()}% accuracy.',
+          'score': feynmanScore,
+          'type': 'understanding'
+        });
+      }
+
+      // Analyze Retrieval Practice performance
+      final retrievalPractice = techniques['retrieval_practice'] as Map<String, dynamic>? ?? {};
+      final retrievalScore = (retrievalPractice['averageScore'] as num?)?.toDouble() ?? 0.0;
+      if (retrievalScore > 0.75) {
+        strengths.add({
+          'icon': 'repeat',
+          'color': 'success',
+          'title': 'Excellent Retrieval Practice',
+          'description': 'Your spaced repetition performance shows strong memory retention with ${(retrievalScore * 100).toInt()}% accuracy.',
+          'score': retrievalScore,
+          'type': 'retention'
+        });
+      }
+
+      // Analyze consistency with null safety
+      if (consistency > 70) {
+        strengths.add({
+          'icon': 'calendar-check',
+          'color': 'primary',
+          'title': 'Outstanding Study Consistency',
+          'description': 'You maintain ${consistency.toInt()}% consistency in your study schedule, showing great discipline.',
+          'score': consistency / 100,
+          'type': 'habit'
+        });
+      }
+
+      // Analyze improvement trend
+      final improvementTrend = _calculateImprovementTrend(recentSessions);
+      if (improvementTrend > 0.1) {
+        strengths.add({
+          'icon': 'trending-up',
+          'color': 'success', 
+          'title': 'Continuous Learning Progress',
+          'description': 'Your performance shows consistent improvement over recent sessions.',
+          'score': improvementTrend,
+          'type': 'progress'
+        });
+      }
+
+      // Analyze focus and completion rates with null safety
+      if (completionRate > 0.85) {
+        strengths.add({
+          'icon': 'target',
+          'color': 'primary',
+          'title': 'High Session Completion Rate',
+          'description': 'You complete ${(completionRate * 100).toInt()}% of your study sessions, showing excellent focus.',
+          'score': completionRate,
+          'type': 'focus'
+        });
+      }
+
+      // If no specific strengths found, add a general positive message
+      if (strengths.isEmpty) {
+        strengths.add({
+          'icon': 'heart',
+          'color': 'primary',
+          'title': 'Building Strong Study Habits',
+          'description': 'Your consistent engagement with the platform shows dedication to learning.',
+          'score': 0.5,
+          'type': 'encouragement'
+        });
+      }
+
+      return strengths.take(4).toList();
+
+    } catch (e) {
+      print('❌ [PROFILE] Error analyzing strengths: $e');
+      return [{
+        'icon': 'check',
+        'color': 'success',
+        'title': 'Active Learning Engagement',
+        'description': 'Your participation in various study techniques shows commitment to improvement.',
+        'score': 0.5,
+        'type': 'general'
+      }];
+    }
+  }
+
+  /// Get recent sessions for recommendation analysis
+  Future<List<Map<String, dynamic>>> _getRecentSessionsForRecommendations(String userId) async {
+    try {
+      final sessions = <Map<String, dynamic>>[];
+      
+      // Get sessions from last 14 days for pattern analysis
+      final since = DateTime.now().subtract(const Duration(days: 14)).toIso8601String();
+
+      // Active Recall sessions
+      final activeRecallSessions = await SupabaseService.client
+          .from('active_recall_sessions')
+          .select('started_at, completed_at, session_data')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .gte('completed_at', since);
+      
+      sessions.addAll(activeRecallSessions.map((s) => {...s, 'technique': 'active_recall'}));
+
+      // Pomodoro sessions
+      final pomodoroSessions = await SupabaseService.client
+          .from('pomodoro_sessions')
+          .select('started_at, completed_at, session_data')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .gte('completed_at', since);
+      
+      sessions.addAll(pomodoroSessions.map((s) => {...s, 'technique': 'pomodoro'}));
+
+      return sessions;
+    } catch (e) {
+      print('❌ [PROFILE] Error fetching recommendation sessions: $e');
+      return [];
+    }
+  }
+
+  /// Get recent sessions for strengths analysis  
+  Future<List<Map<String, dynamic>>> _getRecentSessionsForAnalysis(String userId) async {
+    try {
+      final sessions = <Map<String, dynamic>>[];
+      
+      // Get sessions from last 30 days for comprehensive analysis
+      final since = DateTime.now().subtract(const Duration(days: 30)).toIso8601String();
+
+      // Get all technique sessions
+      final techniques = ['active_recall_sessions', 'pomodoro_sessions', 'feynman_sessions', 'retrieval_practice_sessions'];
+      
+      for (final technique in techniques) {
+        final techniqueSessions = await SupabaseService.client
+            .from(technique)
+            .select('started_at, completed_at, session_data')
+            .eq('user_id', userId)
+            .eq('status', 'completed')
+            .gte('completed_at', since);
+        
+        final techniqueType = technique.replaceAll('_sessions', '');
+        sessions.addAll(techniqueSessions.map((s) => {...s, 'technique': techniqueType}));
+      }
+
+      return sessions;
+    } catch (e) {
+      print('❌ [PROFILE] Error fetching analysis sessions: $e');
+      return [];
+    }
+  }
+
+  /// Analyze study patterns to generate recommendations
+  Map<String, dynamic> _analyzeStudyPatterns(List<dynamic> analytics, List<Map<String, dynamic>> sessions) {
+    final patterns = <String, dynamic>{};
+    
+    // Check spaced repetition usage
+    final spacedRepetitionSessions = sessions.where((s) => s['technique'] == 'active_recall').length;
+    patterns['lowSpacedRepetition'] = spacedRepetitionSessions < 3; // Less than 3 sessions in 2 weeks
+
+    // Check study timing patterns
+    final lateNightSessions = sessions.where((s) {
+      try {
+        final startTime = DateTime.parse(s['started_at'] as String);
+        return startTime.hour >= 22 || startTime.hour <= 5; // 10 PM to 5 AM
+      } catch (e) {
+        return false;
+      }
+    }).length;
+    patterns['lateNightStudy'] = lateNightSessions > sessions.length * 0.6; // More than 60% late night
+
+    // Check Active Recall usage
+    final activeRecallSessions = sessions.where((s) => s['technique'] == 'active_recall').length;
+    patterns['lowActiveRecall'] = activeRecallSessions < sessions.length * 0.3; // Less than 30%
+
+    // Check schedule regularity
+    final studyDays = sessions.map((s) {
+      try {
+        final date = DateTime.parse(s['completed_at'] as String);
+        return DateTime(date.year, date.month, date.day);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }).toSet().length;
+    patterns['irregularSchedule'] = studyDays < 7; // Less than 7 different days in 2 weeks
+
+    return patterns;
+  }
+
+  /// Calculate improvement trend from recent sessions
+  double _calculateImprovementTrend(List<Map<String, dynamic>> sessions) {
+    if (sessions.length < 5) return 0.0;
+
+    try {
+      // Sort sessions by completion date
+      sessions.sort((a, b) {
+        final aDate = DateTime.parse(a['completed_at'] as String);
+        final bDate = DateTime.parse(b['completed_at'] as String);
+        return aDate.compareTo(bDate);
+      });
+
+      // Extract performance scores from first and last 3 sessions
+      final firstScores = <double>[];
+      final lastScores = <double>[];
+
+      for (int i = 0; i < min(3, sessions.length); i++) {
+        final score = _extractPerformanceScore(sessions[i]);
+        if (score > 0) firstScores.add(score);
+      }
+
+      for (int i = sessions.length - 3; i < sessions.length; i++) {
+        final score = _extractPerformanceScore(sessions[i]);
+        if (score > 0) lastScores.add(score);
+      }
+
+      if (firstScores.isEmpty || lastScores.isEmpty) return 0.0;
+
+      final firstAvg = firstScores.reduce((a, b) => a + b) / firstScores.length;
+      final lastAvg = lastScores.reduce((a, b) => a + b) / lastScores.length;
+
+      return lastAvg - firstAvg;
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Extract performance score from session data
+  double _extractPerformanceScore(Map<String, dynamic> session) {
+    try {
+      final sessionData = session['session_data'] as Map<String, dynamic>?;
+      if (sessionData == null) return 0.0;
+
+      // Different techniques store scores differently
+      switch (session['technique']) {
+        case 'active_recall':
+          final accuracy = sessionData['accuracy'] as double?;
+          return accuracy ?? 0.0;
+        case 'pomodoro':
+          final focusScore = sessionData['focus_score'] as double?;
+          return (focusScore ?? 0.0) / 100.0; // Convert to 0-1 scale
+        case 'retrieval_practice':
+          final score = sessionData['score'] as double?;
+          return score ?? 0.0;
+        default:
+          return 0.0;
+      }
+    } catch (e) {
+      return 0.0;
+    }
+  }
+
+  /// Get detailed performance statistics for each study technique
+  Future<Map<String, dynamic>> _getTechniquePerformanceStats(String userId) async {
+    try {
+      print('📊 [TECHNIQUE PERFORMANCE] Calculating performance stats for user: $userId');
+      
+      final Map<String, dynamic> techniqueStats = {};
+
+      // Active Recall Performance
+      final activeRecallSessions = await SupabaseService.client
+          .from('active_recall_sessions')
+          .select('session_data')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalActiveRecallScore = 0.0;
+      int activeRecallCount = 0;
+      int activeRecallTime = 0;
+
+      for (final session in activeRecallSessions) {
+        final sessionData = session['session_data'] as Map<String, dynamic>?;
+        if (sessionData != null) {
+          final accuracy = sessionData['accuracy'] as double? ?? 0.0;
+          final duration = sessionData['session_duration_minutes'] as int? ?? 0;
+          totalActiveRecallScore += accuracy;
+          activeRecallTime += duration;
+          activeRecallCount++;
+        }
+      }
+
+      techniqueStats['active_recall'] = {
+        'averageScore': activeRecallCount > 0 ? totalActiveRecallScore / activeRecallCount : 0.0,
+        'sessionCount': activeRecallCount,
+        'totalTime': activeRecallTime,
+      };
+
+      // Pomodoro Performance
+      final pomodoroSessions = await SupabaseService.client
+          .from('pomodoro_sessions')
+          .select('session_data')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalPomodoroScore = 0.0;
+      int pomodoroCount = 0;
+      int pomodoroTime = 0;
+
+      for (final session in pomodoroSessions) {
+        final sessionData = session['session_data'] as Map<String, dynamic>?;
+        if (sessionData != null) {
+          final focusScore = sessionData['focus_score'] as double? ?? 0.0;
+          final duration = sessionData['session_duration_minutes'] as int? ?? 0;
+          totalPomodoroScore += focusScore / 100.0; // Convert to 0-1 scale
+          pomodoroTime += duration;
+          pomodoroCount++;
+        }
+      }
+
+      techniqueStats['pomodoro'] = {
+        'averageScore': pomodoroCount > 0 ? totalPomodoroScore / pomodoroCount : 0.0,
+        'sessionCount': pomodoroCount,
+        'totalTime': pomodoroTime,
+      };
+
+      // Feynman Performance
+      final feynmanSessions = await SupabaseService.client
+          .from('feynman_sessions')
+          .select('session_data')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalFeynmanScore = 0.0;
+      int feynmanCount = 0;
+      int feynmanTime = 0;
+
+      for (final session in feynmanSessions) {
+        final sessionData = session['session_data'] as Map<String, dynamic>?;
+        if (sessionData != null) {
+          final overallScore = sessionData['overall_score'] as double? ?? 0.0;
+          final duration = sessionData['session_duration_minutes'] as int? ?? 0;
+          totalFeynmanScore += overallScore / 10.0; // Convert to 0-1 scale
+          feynmanTime += duration;
+          feynmanCount++;
+        }
+      }
+
+      techniqueStats['feynman'] = {
+        'averageScore': feynmanCount > 0 ? totalFeynmanScore / feynmanCount : 0.0,
+        'sessionCount': feynmanCount,
+        'totalTime': feynmanTime,
+      };
+
+      // Retrieval Practice Performance
+      final retrievalSessions = await SupabaseService.client
+          .from('retrieval_practice_sessions')
+          .select('session_data')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalRetrievalScore = 0.0;
+      int retrievalCount = 0;
+      int retrievalTime = 0;
+
+      for (final session in retrievalSessions) {
+        final sessionData = session['session_data'] as Map<String, dynamic>?;
+        if (sessionData != null) {
+          final accuracy = sessionData['accuracy'] as double? ?? 0.0;
+          final duration = sessionData['session_duration_minutes'] as int? ?? 0;
+          totalRetrievalScore += accuracy;
+          retrievalTime += duration;
+          retrievalCount++;
+        }
+      }
+
+      techniqueStats['retrieval_practice'] = {
+        'averageScore': retrievalCount > 0 ? totalRetrievalScore / retrievalCount : 0.0,
+        'sessionCount': retrievalCount,
+        'totalTime': retrievalTime,
+      };
+
+      print('✅ [TECHNIQUE PERFORMANCE] Performance stats calculated successfully');
+      return techniqueStats;
+
+    } catch (e) {
+      print('❌ [TECHNIQUE PERFORMANCE] Error calculating performance stats: $e');
+      return {
+        'active_recall': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+        'pomodoro': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+        'feynman': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+        'retrieval_practice': {'averageScore': 0.0, 'sessionCount': 0, 'totalTime': 0},
+      };
+    }
+  }
+
+  /// Calculate overall session completion rate
+  Future<double> _getOverallCompletionRate(String userId) async {
+    try {
+      print('📊 [COMPLETION RATE] Calculating completion rate for user: $userId');
+      
+      final techniques = ['active_recall_sessions', 'pomodoro_sessions', 'feynman_sessions', 'retrieval_practice_sessions'];
+      int totalSessions = 0;
+      int completedSessions = 0;
+
+      for (final technique in techniques) {
+        final allSessions = await SupabaseService.client
+            .from(technique)
+            .select('status')
+            .eq('user_id', userId);
+
+        final completed = await SupabaseService.client
+            .from(technique)
+            .select('status')
+            .eq('user_id', userId)
+            .eq('status', 'completed');
+
+        totalSessions += allSessions.length;
+        completedSessions += completed.length;
+      }
+
+      final completionRate = totalSessions > 0 ? completedSessions / totalSessions : 0.0;
+      print('✅ [COMPLETION RATE] Calculated completion rate: ${(completionRate * 100).toStringAsFixed(1)}%');
+      return completionRate;
+
+    } catch (e) {
+      print('❌ [COMPLETION RATE] Error calculating completion rate: $e');
+      return 0.0;
     }
   }
 }

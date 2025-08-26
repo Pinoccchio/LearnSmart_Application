@@ -1978,6 +1978,301 @@ Content Context: $content
     }
   }
 
+  /// Generate comprehensive profile insights based on user's complete study history and patterns
+  Future<Map<String, dynamic>> generateProfileInsights(String userId, Map<String, dynamic> userData) async {
+    try {
+      print('👤 [PROFILE AI] Generating intelligent profile insights for user: $userId');
+      
+      final prompt = '''
+You are an expert educational psychologist and learning analytics specialist. Analyze this comprehensive user profile and study data to generate personalized insights and recommendations that will appear on the user's profile screen.
+
+USER PROFILE DATA:
+Name: ${userData['user']?['name'] ?? 'Unknown'}
+Email: ${userData['user']?['email'] ?? 'Unknown'}  
+Role: ${userData['user']?['role'] ?? 'student'}
+Member Since: ${userData['user']?['created_at'] ?? 'Unknown'}
+Last Login: ${userData['user']?['last_login'] ?? 'Unknown'}
+
+COMPREHENSIVE STUDY ANALYTICS:
+Study Consistency: ${userData['studyStats']?['consistency'] ?? 0}% over recent weeks
+Total Study Time: ${userData['studyStats']?['totalTime'] ?? '0m'}
+Top Study Technique: ${userData['studyStats']?['topTechnique'] ?? 'None'}
+Session Completion Rate: ${(userData['studyStats']?['completionRate'] ?? 0.0) * 100}%
+
+TECHNIQUE-SPECIFIC PERFORMANCE:
+${_formatTechniqueData(userData['studyStats']?['techniques'] ?? {})}
+
+RECENT ACTIVITY PATTERNS:
+${_formatRecentActivities(userData['recentActivities'] ?? [])}
+
+LEARNING JOURNEY CONTEXT:
+${_formatLearningPath(userData['learningPath'])}
+
+Based on this comprehensive analysis, generate personalized profile insights in JSON format:
+
+{
+  "personalizedRecommendations": [
+    {
+      "icon": "repeat|moon|brain|calendar|lightbulb|target|trending-up",
+      "color": "primary|success|warning|info",
+      "title": "Specific, actionable recommendation title",
+      "description": "Detailed description explaining why this recommendation is personalized for this user based on their data",
+      "priority": 1-5,
+      "confidenceScore": 0.7-1.0,
+      "basedOnData": ["specific data points that support this recommendation"]
+    }
+  ],
+  "strengthsAnalysis": [
+    {
+      "icon": "check|calendar-check|trending-up|target|heart",
+      "color": "success|primary|info",
+      "title": "Specific strength title",
+      "description": "Detailed analysis of user's strength based on actual performance data",
+      "score": 0.6-1.0,
+      "evidencePoints": ["specific data that demonstrates this strength"]
+    }
+  ],
+  "learningInsights": [
+    {
+      "category": "performance|behavior|patterns",
+      "insight": "Key insight about the user's learning patterns or behavior",
+      "significance": 0.6-1.0,
+      "actionableAdvice": "Specific advice for the user to improve or leverage this insight"
+    }
+  ]
+}
+
+PERSONALIZATION GUIDELINES:
+
+RECOMMENDATIONS (Generate 2-4 based on data analysis):
+1. TECHNIQUE OPTIMIZATION: If user shows strong performance in one technique (>75% average), recommend advancing or combining techniques
+2. CONSISTENCY BUILDING: If consistency <60%, recommend schedule optimization and habit formation
+3. TIME MANAGEMENT: If completion rate <70%, recommend session length adjustments or focus techniques  
+4. LEARNING VELOCITY: Based on technique performance patterns, recommend optimal study approaches
+5. WEAK AREA STRENGTHENING: If specific techniques show poor performance (<50%), recommend targeted practice
+
+STRENGTHS ANALYSIS (Generate 2-4 based on actual performance):
+1. HIGH PERFORMANCE: Any technique with >75% average score becomes a strength
+2. CONSISTENCY: Study consistency >70% becomes "Outstanding Study Consistency"  
+3. COMPLETION RATE: Session completion >85% becomes "High Focus and Determination"
+4. IMPROVEMENT TREND: Any improving performance trend becomes "Continuous Learning Progress"
+5. TECHNIQUE MASTERY: Strong performance in specific techniques becomes technique-specific strengths
+
+LEARNING INSIGHTS (Generate 2-3 behavioral/pattern insights):
+1. Study timing patterns and optimal learning windows
+2. Technique effectiveness patterns for this specific user
+3. Learning progression and growth trajectory analysis
+
+IMPORTANT RULES:
+- Base ALL recommendations and strengths on ACTUAL DATA provided
+- Use specific numbers and metrics in descriptions
+- Make recommendations actionable with clear next steps  
+- Highlight genuine user strengths to build confidence
+- Provide insight into WHY certain patterns exist
+- Suggest concrete improvements based on data gaps
+- Consider the user's role and experience level
+- Reference specific study techniques and performance metrics
+- Return ONLY valid JSON, no other text
+
+Generate insights that are:
+✅ Personalized to this specific user's data
+✅ Actionable with clear next steps
+✅ Evidence-based using actual metrics
+✅ Encouraging while being realistic
+✅ Technically accurate about study techniques
+''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text;
+      
+      if (responseText == null || responseText.isEmpty) {
+        throw Exception('Empty response from Gemini AI for profile insights');
+      }
+
+      print('👤 [PROFILE AI] Raw response: ${responseText.substring(0, responseText.length.clamp(0, 300))}...');
+
+      // Clean up the response to extract JSON
+      String jsonText = responseText.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.substring(7);
+      }
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.substring(3);
+      }
+      if (jsonText.endsWith('```')) {
+        jsonText = jsonText.substring(0, jsonText.length - 3);
+      }
+      jsonText = jsonText.trim();
+
+      final Map<String, dynamic> aiResponse = jsonDecode(jsonText);
+      
+      print('✅ [PROFILE AI] Successfully generated profile insights');
+      return aiResponse;
+      
+    } catch (e) {
+      print('❌ [PROFILE AI] Error generating profile insights: $e');
+      
+      // Return fallback insights
+      return _getFallbackProfileInsights(userData);
+    }
+  }
+
+  /// Format technique data for AI prompt
+  String _formatTechniqueData(Map<String, dynamic> techniques) {
+    if (techniques.isEmpty) return 'No technique performance data available.';
+    
+    final buffer = StringBuffer();
+    techniques.forEach((technique, data) {
+      if (data is Map<String, dynamic>) {
+        final avgScore = ((data['averageScore'] ?? 0.0) * 100).toStringAsFixed(1);
+        final sessionCount = data['sessionCount'] ?? 0;
+        final totalTime = data['totalTime'] ?? 0;
+        
+        buffer.writeln('- ${technique.replaceAll('_', ' ').toUpperCase()}: ${avgScore}% avg performance, ${sessionCount} sessions, ${totalTime}min total time');
+      }
+    });
+    
+    return buffer.toString();
+  }
+
+  /// Format recent activities for AI prompt
+  String _formatRecentActivities(List<dynamic> activities) {
+    if (activities.isEmpty) return 'No recent activity data available.';
+    
+    final buffer = StringBuffer();
+    for (int i = 0; i < activities.take(5).length; i++) {
+      final activity = activities[i];
+      if (activity is Map<String, dynamic>) {
+        final sessionType = activity['session_type'] ?? 'unknown';
+        final completedAt = activity['completed_at'] ?? 'unknown';
+        buffer.writeln('- ${sessionType.replaceAll('_', ' ').toUpperCase()} session completed at $completedAt');
+      }
+    }
+    
+    return buffer.toString();
+  }
+
+  /// Format learning path data for AI prompt
+  String _formatLearningPath(dynamic learningPath) {
+    if (learningPath == null) return 'No current learning path enrolled.';
+    
+    if (learningPath is Map<String, dynamic>) {
+      final title = learningPath['title'] ?? 'Unknown Course';
+      final progress = ((learningPath['progress'] ?? 0.0) * 100).toStringAsFixed(1);
+      final completedModules = learningPath['completedModules'] ?? 0;
+      final totalModules = learningPath['totalModules'] ?? 0;
+      
+      return 'Currently enrolled in "$title" - ${progress}% complete ($completedModules/$totalModules modules finished)';
+    }
+    
+    return 'Learning path data format not recognized.';
+  }
+
+  /// Generate fallback profile insights when AI fails
+  Map<String, dynamic> _getFallbackProfileInsights(Map<String, dynamic> userData) {
+    final studyStats = userData['studyStats'] as Map<String, dynamic>? ?? {};
+    final consistency = studyStats['consistency'] as int? ?? 0;
+    final completionRate = studyStats['completionRate'] as double? ?? 0.0;
+    final topTechnique = studyStats['topTechnique'] as String? ?? 'None';
+    
+    final recommendations = <Map<String, dynamic>>[];
+    final strengths = <Map<String, dynamic>>[];
+    
+    // Generate recommendations based on data
+    if (consistency < 60) {
+      recommendations.add({
+        'icon': 'calendar',
+        'color': 'primary',
+        'title': 'Build Study Consistency',
+        'description': 'Your current ${consistency}% consistency shows room for improvement. Try setting a regular study schedule.',
+        'priority': 1,
+        'confidenceScore': 0.9,
+        'basedOnData': ['Study consistency: ${consistency}%']
+      });
+    }
+    
+    if (completionRate < 0.7) {
+      recommendations.add({
+        'icon': 'target',
+        'color': 'warning',
+        'title': 'Improve Session Completion',
+        'description': 'Focus on finishing started sessions to maximize learning effectiveness.',
+        'priority': 2,
+        'confidenceScore': 0.8,
+        'basedOnData': ['Completion rate: ${(completionRate * 100).toStringAsFixed(1)}%']
+      });
+    } else {
+      recommendations.add({
+        'icon': 'trending-up',
+        'color': 'success',
+        'title': 'Maintain Great Progress',
+        'description': 'Your ${(completionRate * 100).toStringAsFixed(1)}% completion rate shows excellent focus. Keep it up!',
+        'priority': 1,
+        'confidenceScore': 0.9,
+        'basedOnData': ['High completion rate: ${(completionRate * 100).toStringAsFixed(1)}%']
+      });
+    }
+
+    // Generate strengths based on data
+    if (consistency >= 70) {
+      strengths.add({
+        'icon': 'calendar-check',
+        'color': 'primary',
+        'title': 'Strong Study Consistency',
+        'description': 'You maintain ${consistency}% study consistency, demonstrating excellent discipline and commitment to learning.',
+        'score': consistency / 100.0,
+        'evidencePoints': ['${consistency}% weekly consistency', 'Regular study habits']
+      });
+    }
+
+    if (completionRate >= 0.8) {
+      strengths.add({
+        'icon': 'target', 
+        'color': 'success',
+        'title': 'Excellent Focus',
+        'description': 'You complete ${(completionRate * 100).toStringAsFixed(1)}% of your study sessions, showing outstanding concentration.',
+        'score': completionRate,
+        'evidencePoints': ['${(completionRate * 100).toStringAsFixed(1)}% completion rate', 'Strong focus abilities']
+      });
+    }
+
+    if (topTechnique != 'None') {
+      strengths.add({
+        'icon': 'brain',
+        'color': 'success',
+        'title': 'Study Technique Mastery',
+        'description': 'You show strong preference and skill in ${topTechnique.replaceAll('_', ' ')} technique.',
+        'score': 0.8,
+        'evidencePoints': ['Primary technique: $topTechnique', 'Consistent usage pattern']
+      });
+    }
+
+    // Default encouragement if no strengths found
+    if (strengths.isEmpty) {
+      strengths.add({
+        'icon': 'heart',
+        'color': 'primary',
+        'title': 'Committed Learner',
+        'description': 'Your engagement with various study techniques shows dedication to personal growth.',
+        'score': 0.6,
+        'evidencePoints': ['Active platform usage', 'Learning engagement']
+      });
+    }
+
+    return {
+      'personalizedRecommendations': recommendations,
+      'strengthsAnalysis': strengths,
+      'learningInsights': [
+        {
+          'category': 'behavior',
+          'insight': 'Your study patterns indicate a preference for ${topTechnique.replaceAll('_', ' ')} technique.',
+          'significance': 0.7,
+          'actionableAdvice': 'Consider exploring other techniques to diversify your learning approach.'
+        }
+      ]
+    };
+  }
+
   /// Validates and cleans AI-generated analytics response to prevent enum errors
   Map<String, dynamic> _validateAndCleanAnalyticsResponse(Map<String, dynamic> response) {
     final cleaned = Map<String, dynamic>.from(response);

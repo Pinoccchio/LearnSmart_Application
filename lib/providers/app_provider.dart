@@ -18,6 +18,11 @@ class AppProvider with ChangeNotifier {
   bool _homeScreenLoading = false;
   String? _homeScreenError;
   
+  // Profile data state
+  Map<String, dynamic>? _profileData;
+  bool _profileLoading = false;
+  String? _profileError;
+  
   final StudyAnalyticsService _analyticsService = StudyAnalyticsService();
   
   int get currentIndex => _currentIndex;
@@ -33,6 +38,12 @@ class AppProvider with ChangeNotifier {
   bool get homeScreenLoading => _homeScreenLoading;
   bool get homeScreenHasError => _homeScreenError != null;
   String? get homeScreenError => _homeScreenError;
+  
+  // Profile getters
+  Map<String, dynamic>? get profileData => _profileData;
+  bool get profileLoading => _profileLoading;
+  bool get profileHasError => _profileError != null;
+  String? get profileError => _profileError;
   
   void setCurrentIndex(int index) {
     _currentIndex = index;
@@ -299,6 +310,114 @@ class AppProvider with ChangeNotifier {
     return _homeScreenData!['currentLearningPath'] as Map<String, dynamic>?;
   }
 
+  // Load profile data from database
+  Future<void> loadProfileData({String? userId}) async {
+    print('👤 [APP PROVIDER] Loading profile data...');
+    
+    try {
+      // Set loading state
+      _profileLoading = true;
+      _profileError = null;
+      notifyListeners();
+
+      // Get current user ID if not provided
+      String? currentUserId = userId;
+      if (currentUserId == null) {
+        final currentUser = SupabaseService.currentAuthUser;
+        if (currentUser == null) {
+          print('⚠️ [APP PROVIDER] No authenticated user found for profile');
+          _profileData = null;
+          _profileLoading = false;
+          notifyListeners();
+          return;
+        }
+        currentUserId = currentUser.id;
+      }
+
+      print('👤 [APP PROVIDER] Loading profile data for user: $currentUserId');
+
+      // Load real profile data from service
+      final data = await _analyticsService.getUserProfileData(currentUserId);
+      
+      _profileData = data;
+      
+      print('✅ [APP PROVIDER] Profile data loaded successfully');
+      print('🔍 [APP PROVIDER DEBUG] Profile data keys: ${data.keys.toList()}');
+      print('🔍 [APP PROVIDER DEBUG] Recommendations in data: ${(data['recommendations'] as List?)?.length ?? 0}');
+      print('🔍 [APP PROVIDER DEBUG] Strengths in data: ${(data['strengths'] as List?)?.length ?? 0}');
+      _profileLoading = false;
+      notifyListeners();
+      
+    } catch (e) {
+      print('❌ [APP PROVIDER] Error loading profile data: $e');
+      _profileError = 'Failed to load profile data. Please try again.';
+      _profileLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Refresh profile data
+  Future<void> refreshProfileData() async {
+    await loadProfileData();
+  }
+
+  // Update user profile information
+  Future<bool> updateUserProfile(Map<String, dynamic> updates) async {
+    try {
+      print('👤 [APP PROVIDER] Updating user profile...');
+
+      final currentUser = SupabaseService.currentAuthUser;
+      if (currentUser == null) {
+        print('⚠️ [APP PROVIDER] No authenticated user found for profile update');
+        return false;
+      }
+
+      // Update user profile in database
+      await SupabaseService.client
+          .from('users')
+          .update(updates)
+          .eq('id', currentUser.id);
+
+      // Reload profile data to reflect changes
+      await loadProfileData();
+      
+      print('✅ [APP PROVIDER] User profile updated successfully');
+      return true;
+
+    } catch (e) {
+      print('❌ [APP PROVIDER] Error updating user profile: $e');
+      return false;
+    }
+  }
+
+  // Get personalized recommendations from profile data
+  List<Map<String, dynamic>> get personalizedRecommendations {
+    if (_profileData == null) {
+      print('🔍 [APP PROVIDER DEBUG] personalizedRecommendations: _profileData is null');
+      return [];
+    }
+    final recommendations = _profileData!['recommendations'] as List<dynamic>? ?? [];
+    print('🔍 [APP PROVIDER DEBUG] personalizedRecommendations: returning ${recommendations.length} items');
+    return recommendations.cast<Map<String, dynamic>>();
+  }
+
+  // Get user strengths from profile data
+  List<Map<String, dynamic>> get userStrengths {
+    if (_profileData == null) {
+      print('🔍 [APP PROVIDER DEBUG] userStrengths: _profileData is null');
+      return [];
+    }
+    final strengths = _profileData!['strengths'] as List<dynamic>? ?? [];
+    print('🔍 [APP PROVIDER DEBUG] userStrengths: returning ${strengths.length} items');
+    return strengths.cast<Map<String, dynamic>>();
+  }
+
+  // Get user information from profile data
+  Map<String, dynamic>? get userInfo {
+    if (_profileData == null) return null;
+    return _profileData!['user'] as Map<String, dynamic>?;
+  }
+
   // Initialize provider - call this when app starts or user logs in
   Future<void> initialize() async {
     print('🚀 [APP PROVIDER] Initializing...');
@@ -306,6 +425,7 @@ class AppProvider with ChangeNotifier {
       loadStudyStats(),
       loadActivities(),
       loadHomeScreenData(),
+      loadProfileData(),
     ]);
   }
 }
