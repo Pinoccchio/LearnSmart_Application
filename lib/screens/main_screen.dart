@@ -19,6 +19,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   VoidCallback? _refreshMyCoursesCallback;
+  bool _isInitialized = false;
 
   void _setMyCoursesRefreshCallback(VoidCallback callback) {
     _refreshMyCoursesCallback = callback;
@@ -26,6 +27,25 @@ class _MainScreenState extends State<MainScreen> {
 
   void _refreshMyCourses() {
     _refreshMyCoursesCallback?.call();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize AppProvider when MainScreen is first created
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAppProvider();
+    });
+  }
+
+  Future<void> _initializeAppProvider() async {
+    if (!_isInitialized) {
+      final appProvider = Provider.of<AppProvider>(context, listen: false);
+      await appProvider.initialize();
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   @override

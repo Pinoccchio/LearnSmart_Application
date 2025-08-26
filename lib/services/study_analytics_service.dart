@@ -3528,4 +3528,374 @@ class StudyAnalyticsService {
       return false; // Assume session doesn't exist if we can't validate
     }
   }
+
+  // ==================== TRACKER STATISTICS METHODS ====================
+
+  /// Get comprehensive study statistics for a user to display in tracker screen
+  Future<Map<String, dynamic>> getUserStudyStats(String userId) async {
+    try {
+      print('📊 [TRACKER STATS] Fetching study stats for user: $userId');
+      final startTime = DateTime.now();
+
+      // Get technique usage stats
+      final techniqueUsage = await getTechniqueUsageStats(userId);
+      
+      // Get consistency score
+      final consistency = await getStudyConsistency(userId);
+      
+      // Calculate total study time
+      final totalTime = await getTotalStudyTime(userId);
+      
+      // Determine top technique
+      final topTechnique = techniqueUsage.isNotEmpty
+          ? techniqueUsage.reduce((a, b) => a['percentage'] > b['percentage'] ? a : b)['technique']
+          : 'None';
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [TRACKER STATS] Generated stats in ${duration.inMilliseconds}ms');
+
+      return {
+        'consistency': consistency,
+        'totalTime': totalTime,
+        'topTechnique': topTechnique,
+        'techniqueUsage': techniqueUsage,
+      };
+    } catch (e) {
+      print('❌ [TRACKER STATS] Error fetching user study stats: $e');
+      return {
+        'consistency': 0,
+        'totalTime': '0m',
+        'topTechnique': 'None',
+        'techniqueUsage': <Map<String, dynamic>>[],
+      };
+    }
+  }
+
+  /// Get technique usage statistics with percentages based on actual study time
+  Future<List<Map<String, dynamic>>> getTechniqueUsageStats(String userId) async {
+    try {
+      print('📊 [TECHNIQUE STATS] Calculating technique usage for user: $userId');
+      
+      // Get data from all technique tables
+      final activeRecallData = await _getActiveRecallStats(userId);
+      final pomodoroData = await _getPomodoroStats(userId);
+      final feynmanData = await _getFeynmanStats(userId);
+      final retrievalData = await _getRetrievalPracticeStats(userId);
+
+      // Define colors for each technique
+      final techniqueColors = {
+        'Active Recall': 0xFF10B981,
+        'Pomodoro': 0xFF3B82F6,
+        'Feynman Technique': 0xFFEF4444,
+        'Retrieval Practice': 0xFF8B5CF6,
+      };
+
+      // Collect all technique data regardless of usage
+      final allTechniqueData = [
+        {
+          'name': 'Active Recall',
+          'minutes': activeRecallData['minutes'] ?? 0.0,
+          'sessions': activeRecallData['sessions'] ?? 0.0,
+          'color': techniqueColors['Active Recall']!,
+        },
+        {
+          'name': 'Pomodoro',
+          'minutes': pomodoroData['minutes'] ?? 0.0,
+          'sessions': pomodoroData['sessions'] ?? 0.0,
+          'color': techniqueColors['Pomodoro']!,
+        },
+        {
+          'name': 'Feynman Technique',
+          'minutes': feynmanData['minutes'] ?? 0.0,
+          'sessions': feynmanData['sessions'] ?? 0.0,
+          'color': techniqueColors['Feynman Technique']!,
+        },
+        {
+          'name': 'Retrieval Practice',
+          'minutes': retrievalData['minutes'] ?? 0.0,
+          'sessions': retrievalData['sessions'] ?? 0.0,
+          'color': techniqueColors['Retrieval Practice']!,
+        },
+      ];
+
+      // Calculate total study time across all techniques
+      final totalMinutes = allTechniqueData.fold(0.0, (sum, technique) => sum + (technique['minutes'] as double));
+
+      if (totalMinutes == 0) {
+        print('⚠️ [TECHNIQUE STATS] No study time found for user');
+        return [];
+      }
+
+      // Create results with all techniques that have any usage
+      final results = <Map<String, dynamic>>[];
+      
+      for (final technique in allTechniqueData) {
+        final minutes = technique['minutes'] as double;
+        final sessions = technique['sessions'] as double;
+        
+        // Include technique if it has any sessions (even minimal time)
+        if (sessions > 0) {
+          double percentage = (minutes / totalMinutes) * 100;
+          
+          // Ensure minimum visibility for very small percentages
+          // If percentage is less than 1% but technique has sessions, show at least 1%
+          if (percentage > 0 && percentage < 1.0) {
+            percentage = 1.0;
+          }
+          
+          results.add({
+            'technique': technique['name'],
+            'percentage': percentage,
+            'timesUsed': sessions.toInt(),
+            'color': technique['color'],
+            'actualMinutes': minutes, // Keep track of actual time for sorting
+          });
+        }
+      }
+
+      // Sort by actual minutes (highest usage first)
+      results.sort((a, b) => (b['actualMinutes'] as double).compareTo(a['actualMinutes'] as double));
+      
+      // Remove actualMinutes from final results
+      for (final result in results) {
+        result.remove('actualMinutes');
+      }
+
+      print('✅ [TECHNIQUE STATS] Generated ${results.length} technique stats (including minimal usage)');
+      return results;
+    } catch (e) {
+      print('❌ [TECHNIQUE STATS] Error calculating technique usage: $e');
+      return [];
+    }
+  }
+
+  /// Get study consistency score based on session frequency
+  Future<int> getStudyConsistency(String userId) async {
+    try {
+      print('📊 [CONSISTENCY] Calculating consistency for user: $userId');
+      
+      // Get all completed sessions from last 7 days across all techniques
+      final now = DateTime.now();
+      final weekAgo = now.subtract(const Duration(days: 7));
+      
+      final allSessions = <DateTime>[];
+      
+      // Active recall sessions
+      final arSessions = await SupabaseService.client
+          .from('active_recall_sessions')
+          .select('completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .gte('completed_at', weekAgo.toIso8601String());
+      
+      for (final session in arSessions) {
+        if (session['completed_at'] != null) {
+          allSessions.add(DateTime.parse(session['completed_at']));
+        }
+      }
+
+      // Pomodoro sessions
+      final pomSessions = await SupabaseService.client
+          .from('pomodoro_sessions')
+          .select('completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .gte('completed_at', weekAgo.toIso8601String());
+      
+      for (final session in pomSessions) {
+        if (session['completed_at'] != null) {
+          allSessions.add(DateTime.parse(session['completed_at']));
+        }
+      }
+
+      // Feynman sessions
+      final feynSessions = await SupabaseService.client
+          .from('feynman_sessions')
+          .select('completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .gte('completed_at', weekAgo.toIso8601String());
+      
+      for (final session in feynSessions) {
+        if (session['completed_at'] != null) {
+          allSessions.add(DateTime.parse(session['completed_at']));
+        }
+      }
+
+      // Retrieval practice sessions
+      final rpSessions = await SupabaseService.client
+          .from('retrieval_practice_sessions')
+          .select('completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed')
+          .gte('completed_at', weekAgo.toIso8601String());
+      
+      for (final session in rpSessions) {
+        if (session['completed_at'] != null) {
+          allSessions.add(DateTime.parse(session['completed_at']));
+        }
+      }
+
+      // Count unique study days in the last week
+      final studyDays = <String>{};
+      for (final session in allSessions) {
+        final dayKey = '${session.year}-${session.month.toString().padLeft(2, '0')}-${session.day.toString().padLeft(2, '0')}';
+        studyDays.add(dayKey);
+      }
+
+      // Calculate consistency percentage (days studied out of 7)
+      final consistency = ((studyDays.length / 7) * 100).round();
+      
+      print('✅ [CONSISTENCY] User studied on ${studyDays.length}/7 days, consistency: $consistency%');
+      return consistency.clamp(0, 100);
+    } catch (e) {
+      print('❌ [CONSISTENCY] Error calculating consistency: $e');
+      return 0;
+    }
+  }
+
+  /// Get formatted total study time across all techniques
+  Future<String> getTotalStudyTime(String userId) async {
+    try {
+      print('📊 [TOTAL TIME] Calculating total study time for user: $userId');
+      
+      final activeRecallData = await _getActiveRecallStats(userId);
+      final pomodoroData = await _getPomodoroStats(userId);
+      final feynmanData = await _getFeynmanStats(userId);
+      final retrievalData = await _getRetrievalPracticeStats(userId);
+
+      final totalMinutes = (activeRecallData['minutes'] ?? 0.0) + 
+                          (pomodoroData['minutes'] ?? 0.0) + 
+                          (feynmanData['minutes'] ?? 0.0) + 
+                          (retrievalData['minutes'] ?? 0.0);
+
+      return _formatStudyTime(totalMinutes);
+    } catch (e) {
+      print('❌ [TOTAL TIME] Error calculating total time: $e');
+      return '0m';
+    }
+  }
+
+  // Helper methods for getting stats from each technique table
+
+  Future<Map<String, double>> _getActiveRecallStats(String userId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('active_recall_sessions')
+          .select('started_at, completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalMinutes = 0;
+      for (final session in response) {
+        if (session['started_at'] != null && session['completed_at'] != null) {
+          final started = DateTime.parse(session['started_at']);
+          final completed = DateTime.parse(session['completed_at']);
+          totalMinutes += completed.difference(started).inMinutes;
+        }
+      }
+
+      return {
+        'sessions': response.length.toDouble(),
+        'minutes': totalMinutes,
+      };
+    } catch (e) {
+      print('❌ [AR STATS] Error: $e');
+      return {'sessions': 0.0, 'minutes': 0.0};
+    }
+  }
+
+  Future<Map<String, double>> _getPomodoroStats(String userId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('pomodoro_sessions')
+          .select('cycles_completed, work_duration_minutes')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalMinutes = 0;
+      for (final session in response) {
+        final cycles = session['cycles_completed'] ?? 0;
+        final workDuration = session['work_duration_minutes'] ?? 25;
+        totalMinutes += cycles * workDuration;
+      }
+
+      return {
+        'sessions': response.length.toDouble(),
+        'minutes': totalMinutes,
+      };
+    } catch (e) {
+      print('❌ [POMODORO STATS] Error: $e');
+      return {'sessions': 0.0, 'minutes': 0.0};
+    }
+  }
+
+  Future<Map<String, double>> _getFeynmanStats(String userId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('feynman_sessions')
+          .select('started_at, completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalMinutes = 0;
+      for (final session in response) {
+        if (session['started_at'] != null && session['completed_at'] != null) {
+          final started = DateTime.parse(session['started_at']);
+          final completed = DateTime.parse(session['completed_at']);
+          totalMinutes += completed.difference(started).inMinutes;
+        }
+      }
+
+      return {
+        'sessions': response.length.toDouble(),
+        'minutes': totalMinutes,
+      };
+    } catch (e) {
+      print('❌ [FEYNMAN STATS] Error: $e');
+      return {'sessions': 0.0, 'minutes': 0.0};
+    }
+  }
+
+  Future<Map<String, double>> _getRetrievalPracticeStats(String userId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('retrieval_practice_sessions')
+          .select('started_at, completed_at')
+          .eq('user_id', userId)
+          .eq('status', 'completed');
+
+      double totalMinutes = 0;
+      for (final session in response) {
+        if (session['started_at'] != null && session['completed_at'] != null) {
+          final started = DateTime.parse(session['started_at']);
+          final completed = DateTime.parse(session['completed_at']);
+          totalMinutes += completed.difference(started).inMinutes;
+        }
+      }
+
+      return {
+        'sessions': response.length.toDouble(),
+        'minutes': totalMinutes,
+      };
+    } catch (e) {
+      print('❌ [RP STATS] Error: $e');
+      return {'sessions': 0.0, 'minutes': 0.0};
+    }
+  }
+
+  /// Format study time in a human-readable format
+  String _formatStudyTime(double totalMinutes) {
+    if (totalMinutes < 60) {
+      return '${totalMinutes.round()}m';
+    } else {
+      final hours = (totalMinutes / 60).floor();
+      final minutes = (totalMinutes % 60).round();
+      if (minutes == 0) {
+        return '${hours}h';
+      } else {
+        return '${hours}h ${minutes}m';
+      }
+    }
+  }
 }
