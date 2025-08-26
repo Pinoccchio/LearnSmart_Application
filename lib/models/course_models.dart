@@ -44,6 +44,34 @@ class Course {
       createdAt: DateTime.parse(json['created_at']),
     );
   }
+
+  Course copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? imageUrl,
+    String? instructorId,
+    String? instructorName,
+    String? instructorEmail,
+    String? status,
+    List<Module>? modules,
+    double? progress,
+    DateTime? createdAt,
+  }) {
+    return Course(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      instructorId: instructorId ?? this.instructorId,
+      instructorName: instructorName ?? this.instructorName,
+      instructorEmail: instructorEmail ?? this.instructorEmail,
+      status: status ?? this.status,
+      modules: modules ?? this.modules,
+      progress: progress ?? this.progress,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
 }
 
 class Module {

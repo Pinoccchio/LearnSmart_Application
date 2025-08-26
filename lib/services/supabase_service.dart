@@ -225,23 +225,13 @@ class SupabaseService {
           final course = Course.fromJson(courseData);
           print('📖 [COURSE] ${course.title} (${course.modules.length} modules, Instructor: ${course.instructorName ?? 'None'})');
           
-          // Calculate progress (simple version)
+          // Calculate progress and update course with actual progress
           final progress = await _calculateCourseProgress(userId, course.id);
           print('📈 [PROGRESS] Course ${course.id}: ${(progress * 100).toInt()}%');
           
-          courses.add(Course(
-            id: course.id,
-            title: course.title,
-            description: course.description,
-            imageUrl: course.imageUrl,
-            instructorId: course.instructorId,
-            instructorName: course.instructorName,
-            instructorEmail: course.instructorEmail,
-            status: course.status,
-            modules: course.modules,
-            progress: progress,
-            createdAt: course.createdAt,
-          ));
+          // Use copyWith to create a new course with the calculated progress
+          final courseWithProgress = course.copyWith(progress: progress);
+          courses.add(courseWithProgress);
         } else {
           print('⚠️ [WARNING] Enrollment ${enrollment['id']} has no course data');
         }
@@ -380,24 +370,49 @@ class SupabaseService {
     final startTime = DateTime.now();
     
     try {
+      // Get all modules for this course
       print('📤 [QUERY] modules.select(id).eq(course_id, $courseId)');
       final modulesResponse = await client
           .from('modules')
           .select('id')
           .eq('course_id', courseId);
 
-      final duration = DateTime.now().difference(startTime);
-      print('📥 [RESPONSE] Found ${modulesResponse.length} modules in ${duration.inMilliseconds}ms');
+      final moduleDuration = DateTime.now().difference(startTime);
+      print('📥 [RESPONSE] Found ${modulesResponse.length} modules in ${moduleDuration.inMilliseconds}ms');
 
       if (modulesResponse.isEmpty) {
         print('⚠️ [WARNING] No modules found for course $courseId');
         return 0.0;
       }
 
-      // Mock progress - replace with real logic later
-      const mockProgress = 0.3;
-      print('📊 [PROGRESS] Returning mock progress: ${(mockProgress * 100).toInt()}%');
-      return mockProgress;
+      // Get user's progress for these modules
+      final moduleIds = modulesResponse.map((m) => m['id']).toList();
+      
+      print('📤 [QUERY] user_module_progress.select(passed).eq(user_id, $userId).eq(course_id, $courseId)');
+      final progressResponse = await client
+          .from('user_module_progress')
+          .select('passed, status')
+          .eq('user_id', userId)
+          .eq('course_id', courseId);
+
+      final progressDuration = DateTime.now().difference(startTime);
+      print('📥 [RESPONSE] Found ${progressResponse.length} progress records in ${progressDuration.inMilliseconds}ms');
+
+      // Calculate actual progress
+      if (progressResponse.isEmpty) {
+        print('⚠️ [WARNING] No progress records found - returning 0%');
+        return 0.0;
+      }
+
+      final completedCount = progressResponse
+          .where((p) => p['passed'] == true || p['status'] == 'completed')
+          .length;
+      
+      final totalModules = modulesResponse.length;
+      final actualProgress = totalModules > 0 ? completedCount / totalModules : 0.0;
+      
+      print('📊 [PROGRESS] Calculated progress: ${completedCount}/${totalModules} = ${(actualProgress * 100).toInt()}%');
+      return actualProgress;
     } catch (e, stackTrace) {
       final duration = DateTime.now().difference(startTime);
       print('❌ [ERROR] _calculateCourseProgress failed after ${duration.inMilliseconds}ms: $e');

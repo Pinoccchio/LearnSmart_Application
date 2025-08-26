@@ -337,10 +337,6 @@ class _RetrievalPracticeSessionScreenState extends State<RetrievalPracticeSessio
             Navigator.of(context).pop(); // Close completion screen
             Navigator.of(context).pop(); // Close session screen
           },
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close completion screen
-            _initializeSession(); // Start new session
-          },
         ),
       ),
     );

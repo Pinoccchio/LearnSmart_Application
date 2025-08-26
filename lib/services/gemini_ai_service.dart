@@ -1731,6 +1731,239 @@ Content Context: $content
     return fallbackFlashcards;
   }
 
+  /// Generate comprehensive analytics insights for Remedial sessions
+  Future<Map<String, dynamic>> generateRemedialAnalyticsInsights(Map<String, dynamic> analyticsData) async {
+    try {
+      print('🔄 [REMEDIAL ANALYTICS AI] Generating insights for session analytics...');
+      
+      final sessionData = analyticsData['session_data'] ?? {};
+      final performance = analyticsData['performance'] ?? {};
+      final behavior = analyticsData['behavior'] ?? {};
+      final cognitive = analyticsData['cognitive'] ?? {};
+      final remedialAnalysis = analyticsData['remedial_analysis'] ?? {};
+      final historicalContext = analyticsData['historical_context'] ?? {};
+
+      final prompt = '''
+      Analyze this comprehensive Remedial study session data and generate personalized insights and recommendations:
+
+      COURSE & MODULE:
+      Course: ${analyticsData['course']?.toString() ?? 'Unknown'}
+      Module: ${analyticsData['module']?.toString() ?? 'Unknown'}
+
+      SESSION DATA:
+      Original Session ID: ${sessionData['original_session_id']?.toString() ?? 'Unknown'}
+      Total Questions: ${sessionData['total_questions']?.toString() ?? '0'}
+      Correct Answers: ${sessionData['correct_answers']?.toString() ?? '0'}
+      Session Duration: ${sessionData['session_duration_minutes']?.toString() ?? '0'} minutes
+      Question Types Used: ${sessionData['question_types']?.toString() ?? '[]'}
+      Missed Concepts Addressed: ${sessionData['missed_concepts']?.toString() ?? '[]'}
+
+      REMEDIAL ANALYSIS:
+      Original Accuracy: ${remedialAnalysis['original_accuracy']?.toStringAsFixed(1) ?? 'N/A'}%
+      Remedial Accuracy: ${remedialAnalysis['remedial_accuracy']?.toStringAsFixed(1) ?? 'N/A'}%
+      Improvement Achieved: ${remedialAnalysis['improvement_percentage']?.toStringAsFixed(1) ?? 'N/A'}%
+      Mastered Concepts: ${remedialAnalysis['mastered_concepts']?.toString() ?? '[]'}
+      Still Struggling Concepts: ${remedialAnalysis['struggling_concepts']?.toString() ?? '[]'}
+      Question Type Performance: ${remedialAnalysis['question_type_breakdown']?.toString() ?? '{}'}
+
+      PERFORMANCE METRICS:
+      Average Response Time: ${performance['average_response_time']?.toString() ?? '0'}s
+      Response Consistency: ${performance['response_consistency']?.toStringAsFixed(2) ?? 'N/A'}
+      Learning Velocity: ${performance['learning_velocity']?.toStringAsFixed(2) ?? 'N/A'}
+      Retention Score: ${performance['retention_score']?.toStringAsFixed(0) ?? 'N/A'}%
+
+      BEHAVIOR ANALYSIS:
+      Engagement Level: ${behavior['engagement_level']?.toStringAsFixed(0) ?? 'N/A'}%
+      Study Persistence: ${behavior['study_persistence']?.toStringAsFixed(0) ?? 'N/A'}%
+      Question Attempt Patterns: ${behavior['attempt_patterns']?.toString() ?? 'Unknown'}
+      Help-Seeking Behavior: ${behavior['help_seeking']?.toString() ?? 'Unknown'}
+
+      COGNITIVE ANALYSIS:
+      Cognitive Load: ${cognitive['cognitive_load']?.toStringAsFixed(0) ?? 'N/A'}%
+      Processing Efficiency: ${cognitive['processing_efficiency']?.toStringAsFixed(0) ?? 'N/A'}%
+      Memory Retention: ${cognitive['memory_retention']?.toStringAsFixed(0) ?? 'N/A'}%
+      Concept Transfer Ability: ${cognitive['concept_transfer']?.toStringAsFixed(0) ?? 'N/A'}%
+
+      HISTORICAL CONTEXT:
+      Total Remedial Sessions: ${historicalContext['total_remedial_sessions']?.toString() ?? '0'}
+      Overall Remedial Improvement Trend: ${historicalContext['improvement_trend']?.toString() ?? 'stable'}
+      Most Common Missed Concept Types: ${historicalContext['common_missed_concepts']?.toString() ?? '[]'}
+      Average Remedial Success Rate: ${historicalContext['average_success_rate']?.toStringAsFixed(1) ?? 'N/A'}%
+      Best Performing Question Types: ${historicalContext['best_question_types']?.toString() ?? '[]'}
+
+      Based on this comprehensive analysis, provide insights and recommendations in JSON format:
+      {
+        "recommendations": [
+          {
+            "id": "remedial_rec_1",
+            "type": "studyMethods",
+            "title": "Optimize Remedial Approach",
+            "description": "Focus on improving concept mastery through targeted remediation",
+            "actionableAdvice": "Specific advice based on the analysis",
+            "priority": 1,
+            "confidenceScore": 0.9,
+            "reasons": ["Performance data analysis", "Learning pattern recognition"]
+          }
+        ],
+        "insights": [
+          {
+            "id": "remedial_insight_1",
+            "category": "performance",
+            "title": "Concept Mastery Progress",
+            "insight": "Detailed insight based on the analysis",
+            "significance": 0.8,
+            "supportingData": ["Data point 1", "Data point 2"]
+          }
+        ],
+        "studyPlan": {
+          "id": "remedial_plan",
+          "activities": [
+            {
+              "type": "concept_reinforcement",
+              "description": "Specific activity based on analysis",
+              "duration": {"minutes": 20},
+              "priority": 1,
+              "materials": ["material1", "material2"]
+            }
+          ],
+          "estimatedDuration": {"minutes": 40},
+          "focusAreas": {
+            "concept_mastery": "Improve",
+            "retention": "Maintain",
+            "application": "Enhance"
+          },
+          "objectives": ["Objective 1", "Objective 2"]
+        }
+      }
+
+      IMPORTANT GUIDELINES:
+      1. Focus on remedial-specific insights (improvement from original accuracy)
+      2. Identify which concepts still need work vs. which are mastered
+      3. Suggest the most effective question types for remaining weak concepts
+      4. Provide specific guidance on remedial study strategies
+      5. Consider the original performance context when making recommendations
+      6. Emphasize progress made while addressing remaining gaps
+      7. Suggest follow-up remedial actions if needed
+      8. Balance confidence building with targeted improvement areas
+      ''';
+
+      final response = await _model.generateContent([Content.text(prompt)]);
+      final responseText = response.text ?? '';
+      
+      // Parse JSON response
+      final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(responseText);
+      if (jsonMatch != null) {
+        final jsonString = jsonMatch.group(0)!;
+        final insights = json.decode(jsonString) as Map<String, dynamic>;
+        
+        // Validate and clean AI-generated data before parsing
+        final cleanedInsights = _validateAndCleanAnalyticsResponse(insights);
+
+        // Convert the parsed data to proper model objects
+        final recommendations = (cleanedInsights['recommendations'] as List? ?? [])
+            .map((rec) => PersonalizedRecommendation.fromJson(rec))
+            .toList();
+            
+        final analyticsInsights = (cleanedInsights['insights'] as List? ?? [])
+            .map((insight) => AnalyticsInsight.fromJson(insight))
+            .toList();
+            
+        final studyPlanData = cleanedInsights['studyPlan'] as Map<String, dynamic>? ?? {};
+        final studyPlan = StudyPlan.fromJson(studyPlanData);
+        
+        print('✅ [REMEDIAL ANALYTICS AI] Generated ${recommendations.length} recommendations and ${analyticsInsights.length} insights');
+        
+        return {
+          'recommendations': recommendations,
+          'insights': analyticsInsights,
+          'studyPlan': studyPlan,
+        };
+      } else {
+        throw Exception('Could not parse AI response as JSON');
+      }
+      
+    } catch (e) {
+      print('❌ [REMEDIAL ANALYTICS AI] Error generating insights: $e');
+      
+      // Return fallback insights
+      return _generateFallbackRemedialInsights(analyticsData);
+    }
+  }
+
+  /// Generate fallback insights when AI fails for remedial sessions
+  Map<String, dynamic> _generateFallbackRemedialInsights(Map<String, dynamic> analyticsData) {
+    final remedialAnalysis = analyticsData['remedial_analysis'] ?? {};
+    final improvement = remedialAnalysis['improvement_percentage'] ?? 0.0;
+    final strugglingConcepts = remedialAnalysis['struggling_concepts'] as List? ?? [];
+    
+    final recommendations = [
+      PersonalizedRecommendation(
+        id: 'fallback_remedial_rec_1',
+        type: RecommendationType.studyMethods,
+        title: 'Continue Targeted Practice',
+        description: 'Based on your remedial session, focus on concepts that still need work.',
+        actionableAdvice: improvement >= 20.0 
+            ? 'Excellent improvement! Continue with similar remedial approaches for remaining concepts.'
+            : improvement >= 10.0 
+                ? 'Good progress! Try different question formats for challenging concepts.'
+                : 'Focus on one concept at a time with multiple practice sessions.',
+        priority: 1,
+        confidenceScore: 0.8,
+        reasons: ['Remedial performance assessment', 'Concept mastery analysis'],
+      ),
+      PersonalizedRecommendation(
+        id: 'fallback_remedial_rec_2',
+        type: RecommendationType.conceptReinforcement,
+        title: 'Address Remaining Gaps',
+        description: 'Target concepts that still show gaps in understanding.',
+        actionableAdvice: strugglingConcepts.isNotEmpty 
+            ? 'Focus on: ${strugglingConcepts.take(3).join(", ")}. Consider additional study materials.'
+            : 'Great concept mastery! Consider advanced application questions.',
+        priority: 2,
+        confidenceScore: 0.7,
+        reasons: ['Concept gap analysis', 'Learning progression tracking'],
+      ),
+    ];
+
+    final insights = [
+      AnalyticsInsight(
+        id: 'fallback_remedial_insight_1',
+        category: InsightCategory.performance,
+        title: 'Remedial Progress',
+        insight: improvement >= 15.0 
+            ? 'Strong improvement in concept understanding through remedial practice.'
+            : 'Moderate progress - consider adjusting study approach for better retention.',
+        significance: 0.8,
+        supportingData: ['Improvement: ${improvement.toStringAsFixed(1)}%', 'Session completion'],
+      ),
+    ];
+
+    final studyPlan = StudyPlan(
+      id: 'fallback_remedial_plan',
+      activities: [
+        StudyActivity(
+          type: 'concept_reinforcement',
+          description: 'Review and practice remaining challenging concepts',
+          duration: const Duration(minutes: 30),
+          priority: 1,
+          materials: ['Course materials', 'Practice questions'],
+        ),
+      ],
+      estimatedDuration: const Duration(minutes: 30),
+      focusAreas: {
+        'concept_mastery': 'Improve',
+        'retention': 'Maintain',
+      },
+      objectives: ['Master remaining concepts', 'Improve overall understanding'],
+    );
+
+    return {
+      'recommendations': recommendations,
+      'insights': insights,
+      'studyPlan': studyPlan,
+    };
+  }
+
   Future<bool> testConnection() async {
     try {
       final response = await _model.generateContent([

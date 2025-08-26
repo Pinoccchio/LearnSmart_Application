@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 import '../models/remedial_models.dart';
 import '../models/active_recall_models.dart';
@@ -388,16 +389,6 @@ class RemedialService extends ChangeNotifier {
       // Save updated session to database
       await _saveSessionToDatabase(completedSession);
       
-      // Generate analytics if possible
-      try {
-        _sessionAnalytics = await _generateSessionAnalytics(
-          session: completedSession,
-          results: results,
-        );
-      } catch (e) {
-        print('⚠️ [ANALYTICS] Failed to generate analytics: $e');
-      }
-      
       _currentSession = completedSession;
       
       print('✅ [SESSION COMPLETION] Session completed successfully');
@@ -405,12 +396,53 @@ class RemedialService extends ChangeNotifier {
       print('   Improvement: ${results.improvementFromOriginal.toStringAsFixed(1)}%');
       print('   Mastered concepts: ${results.masteredConcepts.length}');
       
-      notifyListeners();
+      // Use post-frame callback to notify listeners safely
+      safeNotifyListeners();
       return results;
       
     } catch (e) {
       print('❌ [SESSION COMPLETION] Error completing session: $e');
       rethrow;
+    }
+  }
+
+  /// Generate comprehensive analytics for the completed remedial session
+  Future<void> generateAnalyticsForSession({double originalAccuracy = 0.0}) async {
+    if (_currentSession == null) {
+      print('⚠️ [ANALYTICS] No active session available for analytics generation');
+      return;
+    }
+    
+    try {
+      print('📊 [ANALYTICS] Starting analytics generation for remedial session...');
+      
+      final results = RemedialResults.calculate(
+        _sessionFlashcards,
+        _sessionAttempts,
+        originalAccuracy,
+      );
+      
+      _sessionAnalytics = await _generateSessionAnalytics(
+        session: _currentSession!,
+        results: results,
+      );
+      
+      print('✅ [ANALYTICS] Analytics generation completed successfully');
+      
+    } catch (e) {
+      print('❌ [ANALYTICS] Failed to generate analytics: $e');
+      
+      // Generate fallback analytics to ensure some data is available
+      try {
+        _sessionAnalytics = await _generateFallbackAnalytics(
+          session: _currentSession!,
+          results: RemedialResults.calculate(_sessionFlashcards, _sessionAttempts, originalAccuracy),
+        );
+        print('✅ [ANALYTICS] Fallback analytics generated successfully');
+      } catch (fallbackError) {
+        print('❌ [ANALYTICS] Even fallback analytics failed: $fallbackError');
+        _sessionAnalytics = null;
+      }
     }
   }
 
@@ -422,13 +454,235 @@ class RemedialService extends ChangeNotifier {
     try {
       print('📊 [ANALYTICS] Generating remedial session analytics...');
       
-      // Generate basic analytics for remedial session
-      // Note: Full analytics requires course/module data and ActiveRecall format
-      // For now, return null to indicate analytics are not available
-      return null;
+      // Get course and module data
+      final course = await _getCourseData(session.moduleId);
+      final module = await _getModuleData(session.moduleId);
+      
+      if (course == null || module == null) {
+        print('⚠️ [ANALYTICS] Missing course/module data, cannot generate full analytics');
+        return null;
+      }
+      
+      // Generate comprehensive analytics using StudyAnalyticsService
+      final analytics = await _analyticsService.generateRemedialAnalytics(
+        sessionId: session.id,
+        userId: session.userId,
+        moduleId: session.moduleId,
+        session: session,
+        flashcards: session.flashcards,
+        attempts: session.attempts,
+        results: results,
+        course: course,
+        module: module,
+      );
+      
+      print('✅ [ANALYTICS] Successfully generated remedial session analytics');
+      return analytics;
       
     } catch (e) {
       print('❌ [ANALYTICS] Error generating analytics: $e');
+      return null;
+    }
+  }
+
+  /// Generate fallback analytics when full analytics generation fails
+  Future<StudySessionAnalytics> _generateFallbackAnalytics({
+    required RemedialSession session,
+    required RemedialResults results,
+  }) async {
+    print('📊 [FALLBACK ANALYTICS] Generating basic analytics for remedial session...');
+    
+    return StudySessionAnalytics(
+      id: '', // Database will generate UUID
+      sessionId: session.id,
+      userId: session.userId,
+      moduleId: session.moduleId,
+      analyzedAt: DateTime.now(),
+      performanceMetrics: PerformanceMetrics(
+        preStudyAccuracy: 0.0, // Not applicable for remedial
+        postStudyAccuracy: results.accuracyPercentage,
+        improvementPercentage: results.improvementFromOriginal,
+        averageResponseTime: results.averageResponseTime.toDouble(),
+        accuracyByDifficulty: 0.0,
+        materialPerformance: {},
+        conceptMastery: session.missedConcepts.asMap().map(
+          (index, concept) => MapEntry(concept, results.masteredConcepts.contains(concept) ? 100.0 : 50.0)
+        ),
+        overallLevel: results.isPassing ? PerformanceLevel.good : PerformanceLevel.average,
+      ),
+      learningPatterns: LearningPatterns(
+        patternType: LearningPatternType.strugglingConcepts,
+        learningVelocity: results.accuracyPercentage / _sessionFlashcards.length,
+        strongConcepts: results.masteredConcepts,
+        weakConcepts: results.stillStrugglingConcepts,
+        retentionRates: {},
+        temporalPatterns: [],
+      ),
+      behaviorAnalysis: BehaviorAnalysis(
+        totalStudyTime: Duration(seconds: results.averageResponseTime * _sessionFlashcards.length),
+        hintUsageCount: 0,
+        hintEffectiveness: 0.0,
+        commonErrorTypes: results.stillStrugglingConcepts.isEmpty ? [] : ['Concept mastery needed'],
+        questionAttemptPatterns: {
+          'total': _sessionFlashcards.length,
+          'correct': results.correctAnswers,
+        },
+        persistenceScore: results.isPassing ? 85.0 : 65.0,
+        engagementLevel: results.accuracyPercentage > 70 ? 80.0 : 60.0,
+      ),
+      cognitiveAnalysis: CognitiveAnalysis(
+        cognitiveLoadScore: 60.0,
+        memoryRetentionByType: {},
+        processingSpeed: 100 / results.averageResponseTime,
+        cognitiveStrengths: results.masteredConcepts.isNotEmpty ? ['Concept remediation'] : [],
+        cognitiveWeaknesses: results.stillStrugglingConcepts.isNotEmpty ? ['Areas needing more practice'] : [],
+        attentionSpan: 70.0,
+      ),
+      recommendations: [
+        PersonalizedRecommendation(
+          id: 'fallback_remedial_rec',
+          type: RecommendationType.studyTiming,
+          title: results.isPassing ? 'Great Recovery!' : 'Keep Practicing',
+          description: results.isPassing 
+              ? 'You successfully improved your understanding through targeted practice!'
+              : 'Continue working on the concepts you missed.',
+          actionableAdvice: results.isPassing
+              ? 'Review these concepts periodically to maintain mastery.'
+              : 'Focus on the struggling concepts: ${results.stillStrugglingConcepts.join(', ')}',
+          priority: 1,
+          confidenceScore: 0.7,
+          reasons: ['Basic remedial performance analysis'],
+        ),
+      ],
+      insights: [
+        AnalyticsInsight(
+          id: 'fallback_remedial_insight',
+          category: InsightCategory.performance,
+          title: 'Remedial Session Summary',
+          insight: 'You achieved ${results.accuracyPercentage.toStringAsFixed(1)}% accuracy in your remedial quiz, ${results.showsImprovement ? 'showing improvement' : 'maintaining performance'} from your original session.',
+          significance: 0.8,
+          supportingData: [
+            'Original concepts missed: ${session.missedConcepts.length}',
+            'Remedial score: ${results.accuracyPercentage.toStringAsFixed(1)}%',
+            'Concepts mastered: ${results.masteredConcepts.length}',
+            'Still practicing: ${results.stillStrugglingConcepts.length}',
+          ],
+        ),
+      ],
+      suggestedStudyPlan: StudyPlan(
+        id: 'fallback_remedial_plan',
+        activities: [
+          StudyActivity(
+            type: 'review',
+            description: results.isPassing 
+                ? 'Review mastered concepts to maintain understanding'
+                : 'Continue practicing struggling concepts',
+            duration: const Duration(minutes: 20),
+            priority: 1,
+            materials: results.stillStrugglingConcepts.isNotEmpty 
+                ? results.stillStrugglingConcepts 
+                : results.masteredConcepts,
+          ),
+        ],
+        estimatedDuration: const Duration(minutes: 20),
+        focusAreas: results.stillStrugglingConcepts.isNotEmpty 
+            ? results.stillStrugglingConcepts.asMap().map((index, concept) => MapEntry(concept, 'Focus on understanding $concept'))
+            : {'review': 'Periodic review of mastered concepts'},
+        objectives: results.isPassing 
+            ? ['Maintain mastery', 'Build confidence']
+            : ['Improve concept understanding', 'Achieve passing score'],
+      ),
+    );
+  }
+  
+  /// Get course data for analytics
+  Future<Course?> _getCourseData(String moduleId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('modules')
+          .select('''
+            course_id,
+            courses!inner(
+              id,
+              title,
+              description,
+              instructor_id,
+              created_at,
+              updated_at
+            )
+          ''')
+          .eq('id', moduleId)
+          .maybeSingle();
+          
+      if (response == null) return null;
+      
+      final courseData = response['courses'];
+      return Course(
+        id: courseData['id'],
+        title: courseData['title'],
+        description: courseData['description'] ?? '',
+        instructorId: courseData['instructor_id'],
+        createdAt: DateTime.parse(courseData['created_at']),
+      );
+      
+    } catch (e) {
+      print('❌ [COURSE DATA] Error fetching course data: $e');
+      return null;
+    }
+  }
+  
+  /// Get module data for analytics
+  Future<Module?> _getModuleData(String moduleId) async {
+    try {
+      final response = await SupabaseService.client
+          .from('modules')
+          .select('''
+            id,
+            title,
+            description,
+            course_id,
+            order_index,
+            created_at,
+            updated_at,
+            course_materials!inner(
+              id,
+              title,
+              description,
+              file_type,
+              file_url,
+              file_size,
+              upload_date
+            )
+          ''')
+          .eq('id', moduleId)
+          .maybeSingle();
+          
+      if (response == null) return null;
+      
+      // Convert materials
+      final materialsData = response['course_materials'] as List? ?? [];
+      final materials = materialsData.map((materialData) => CourseMaterial(
+        id: materialData['id'],
+        moduleId: moduleId,
+        title: materialData['title'],
+        description: materialData['description'],
+        fileUrl: materialData['file_url'],
+        fileType: materialData['file_type'],
+        fileName: materialData['file_name'] ?? materialData['title'],
+        orderIndex: materialData['order_index'] ?? 0,
+      )).toList();
+      
+      return Module(
+        id: response['id'],
+        courseId: response['course_id'],
+        title: response['title'],
+        description: response['description'] ?? '',
+        orderIndex: response['order_index'] ?? 0,
+        materials: materials,
+      );
+      
+    } catch (e) {
+      print('❌ [MODULE DATA] Error fetching module data: $e');
       return null;
     }
   }
@@ -522,6 +776,23 @@ class RemedialService extends ChangeNotifier {
     
     print('🔄 [SESSION] Remedial session state reset');
     notifyListeners();
+  }
+
+  /// Safely complete session and return results without immediate notification
+  Future<RemedialResults> completeSessionSilently({double originalAccuracy = 0.0}) async {
+    final results = await completeSession(originalAccuracy: originalAccuracy);
+    // Session is completed but listeners are not notified to avoid widget tree lock
+    return results;
+  }
+
+  /// Notify listeners manually when it's safe to do so
+  void safeNotifyListeners() {
+    // Use post-frame callback to ensure widget tree is not locked
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) {
+        notifyListeners();
+      }
+    });
   }
 
   /// Update remedial settings

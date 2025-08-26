@@ -449,10 +449,6 @@ class _PomodoroSessionScreenState extends State<PomodoroSessionScreen>
             Navigator.of(context).pop(); // Close Pomodoro screen
             Navigator.of(context).pop(); // Close technique selector modal
           },
-          onStudyAgain: () {
-            Navigator.of(context).pop(); // Close completion screen
-            _initializeSession(); // Start new session
-          },
         ),
       ),
     );

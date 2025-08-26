@@ -3,6 +3,7 @@ import '../models/study_analytics_models.dart';
 import '../models/active_recall_models.dart';
 import '../models/pomodoro_models.dart';
 import '../models/feynman_models.dart';
+import '../models/remedial_models.dart';
 import '../models/course_models.dart';
 import '../services/supabase_service.dart';
 import '../services/gemini_ai_service.dart';
@@ -117,9 +118,13 @@ class StudyAnalyticsService {
         final avgScore = scores.isNotEmpty ? scores.reduce((a, b) => a + b) / scores.length : 0.0;
         if (avgScore > bestScore) {
           bestScore = avgScore;
-          if (hour >= 6 && hour < 12) bestTimeOfDay = 'morning';
-          else if (hour >= 12 && hour < 18) bestTimeOfDay = 'afternoon';
-          else bestTimeOfDay = 'evening';
+          if (hour >= 6 && hour < 12) {
+            bestTimeOfDay = 'morning';
+          } else if (hour >= 12 && hour < 18) {
+            bestTimeOfDay = 'afternoon';
+          } else {
+            bestTimeOfDay = 'evening';
+          }
         }
       });
       
@@ -136,8 +141,11 @@ class StudyAnalyticsService {
         final firstAvg = firstHalf.reduce((a, b) => a + b) / firstHalf.length;
         final secondAvg = secondHalf.reduce((a, b) => a + b) / secondHalf.length;
         
-        if (secondAvg > firstAvg + 0.5) focusTrend = 'improving';
-        else if (firstAvg > secondAvg + 0.5) focusTrend = 'declining';
+        if (secondAvg > firstAvg + 0.5) {
+          focusTrend = 'improving';
+        } else if (firstAvg > secondAvg + 0.5) {
+          focusTrend = 'declining';
+        }
       }
       
       print('📈 [PERFORMANCE AGGREGATION] Processed $totalSessions sessions, ${allCycles.length} cycles');
@@ -1085,7 +1093,7 @@ class StudyAnalyticsService {
     final overallImprovement = (sessionImprovement * 10 + focusImprovement + completionImprovement) / 3;
     
     print('📊 [ENHANCED POMODORO ANALYTICS] Current session: ${cycles.length} cycles, ${sessionTimeMinutes}min');
-    print('📊 [ENHANCED POMODORO ANALYTICS] Module totals: ${totalCyclesInModule} cycles across ${totalSessionsInModule} sessions');
+    print('📊 [ENHANCED POMODORO ANALYTICS] Module totals: $totalCyclesInModule cycles across $totalSessionsInModule sessions');
     print('📊 [ENHANCED POMODORO ANALYTICS] Focus improvement vs history: ${focusImprovement.toStringAsFixed(1)}%');
     
     return PerformanceMetrics(
@@ -2874,6 +2882,610 @@ class StudyAnalyticsService {
     );
   }
 
+  /// Generate comprehensive analytics for a completed Remedial session
+  Future<StudySessionAnalytics> generateRemedialAnalytics({
+    required String sessionId,
+    required String userId,
+    required String moduleId,
+    required RemedialSession session,
+    required List<RemedialFlashcard> flashcards,
+    required List<RemedialAttempt> attempts,
+    required RemedialResults results,
+    required Course course,
+    required Module module,
+  }) async {
+    try {
+      print('📊 [REMEDIAL ANALYTICS] Starting comprehensive analysis for session: $sessionId');
+      
+      // Calculate descriptive analytics with historical context
+      final performanceMetrics = await _calculateRemedialPerformanceMetrics(session, flashcards, attempts, results);
+      
+      final learningPatterns = _analyzeRemedialLearningPatterns(session, flashcards, attempts, results);
+      
+      final behaviorAnalysis = _analyzeRemedialBehavior(session, flashcards, attempts);
+      
+      final cognitiveAnalysis = _analyzeRemedialCognition(session, flashcards, attempts, results);
+      
+      // Historical context for comparison
+      final historicalContext = await aggregateRemedialModulePerformance(userId, moduleId);
+      
+      // Prepare data for AI analysis
+      final analyticsData = {
+        'course': course.title,
+        'module': module.title,
+        'session_data': {
+          'session_id': sessionId,
+          'original_session_id': session.originalSessionId,
+          'user_id': userId,
+          'module_id': moduleId,
+          'total_questions': flashcards.length,
+          'correct_answers': results.correctAnswers,
+          'session_duration_minutes': session.completedAt != null ? 
+            session.completedAt!.difference(session.startedAt).inMinutes : 0,
+          'question_types': flashcards.map((f) => f.type.value).toSet().toList(),
+          'missed_concepts': session.missedConcepts,
+        },
+        'remedial_analysis': {
+          'original_accuracy': results.improvementFromOriginal,
+          'remedial_accuracy': results.accuracyPercentage,
+          'improvement_percentage': results.improvementFromOriginal,
+          'mastered_concepts': results.masteredConcepts,
+          'struggling_concepts': results.stillStrugglingConcepts,
+          'question_type_breakdown': results.questionTypeBreakdown.map((k, v) => MapEntry(k.value, v)),
+        },
+        'performance': {
+          'average_response_time': performanceMetrics.averageResponseTime,
+          'response_consistency': _calculateResponseConsistency(attempts),
+          'learning_velocity': _calculateLearningVelocity(attempts, results),
+          'retention_score': performanceMetrics.overallLevel.index * 25.0, // Convert level to score
+        },
+        'behavior': {
+          'engagement_level': behaviorAnalysis.engagementLevel * 100,
+          'study_persistence': behaviorAnalysis.persistenceScore * 100,
+          'attempt_patterns': behaviorAnalysis.commonErrorTypes,
+          'help_seeking': _analyzeHelpSeekingBehavior(flashcards),
+        },
+        'cognitive': {
+          'cognitive_load': cognitiveAnalysis.cognitiveLoadScore * 100,
+          'processing_efficiency': cognitiveAnalysis.processingSpeed * 100,
+          'memory_retention': _calculateMemoryRetention(results),
+          'concept_transfer': _calculateConceptTransferAbility(results),
+        },
+        'historical_context': {
+          'total_remedial_sessions': historicalContext['total_sessions'],
+          'improvement_trend': _determineImprovementTrend(historicalContext),
+          'common_missed_concepts': historicalContext['common_missed_concepts'] ?? [],
+          'average_success_rate': historicalContext['average_accuracy'] ?? 0.0,
+          'best_question_types': historicalContext['best_question_types'] ?? [],
+        },
+      };
+      
+      // Generate AI insights using the enhanced Gemini service
+      final aiResults = await _aiService.generateRemedialAnalyticsInsights(analyticsData);
+      
+      // Build comprehensive analytics object
+      final analytics = StudySessionAnalytics(
+        id: '', // Database will generate UUID
+        sessionId: sessionId,
+        userId: userId,
+        moduleId: moduleId,
+        analyzedAt: DateTime.now(),
+        performanceMetrics: performanceMetrics,
+        learningPatterns: learningPatterns,
+        behaviorAnalysis: behaviorAnalysis,
+        cognitiveAnalysis: cognitiveAnalysis,
+        recommendations: aiResults['recommendations'] as List<PersonalizedRecommendation>,
+        insights: aiResults['insights'] as List<AnalyticsInsight>,
+        suggestedStudyPlan: aiResults['studyPlan'] as StudyPlan,
+        additionalData: {
+          'remedial_session': true,
+          'original_session_id': session.originalSessionId,
+          'missed_concepts_count': session.missedConcepts.length,
+          'improvement_achieved': results.improvementFromOriginal,
+          'concepts_mastered': results.masteredConcepts.length,
+          'ai_generated_insights': true,
+          'session_type': 'remedial',
+        },
+      );
+
+      // Save to database
+      await _saveAnalyticsToDatabase(analytics, sessionType: 'remedial');
+      
+      print('✅ [REMEDIAL ANALYTICS] Analytics generation completed successfully');
+      return analytics;
+      
+    } catch (e) {
+      print('❌ [REMEDIAL ANALYTICS] Error generating session analytics: $e');
+      
+      // Return basic analytics if full analysis fails
+      return await _generateFallbackRemedialAnalytics(sessionId, userId, moduleId, session, flashcards, attempts, results);
+    }
+  }
+
+  /// Calculate performance metrics for remedial sessions
+  Future<PerformanceMetrics> _calculateRemedialPerformanceMetrics(
+    RemedialSession session,
+    List<RemedialFlashcard> flashcards,
+    List<RemedialAttempt> attempts,
+    RemedialResults results,
+  ) async {
+    // Get historical data for context
+    final historicalData = await aggregateRemedialModulePerformance(session.userId, session.moduleId);
+    
+    // Material performance by concept
+    final materialPerformance = <String, double>{};
+    for (final concept in session.missedConcepts) {
+      final conceptFlashcards = flashcards.where((f) => f.concept == concept).toList();
+      final conceptAttempts = attempts.where((a) => 
+        conceptFlashcards.any((f) => f.id == a.flashcardId)
+      ).toList();
+      final conceptAccuracy = conceptAttempts.isNotEmpty 
+          ? (conceptAttempts.where((a) => a.isCorrect).length / conceptAttempts.length) * 100
+          : 0.0;
+      materialPerformance[concept] = conceptAccuracy;
+    }
+    
+    // Add historical context
+    materialPerformance['Current Session'] = results.accuracyPercentage;
+    materialPerformance['Historical Avg'] = historicalData['average_accuracy'] as double? ?? 0.0;
+    materialPerformance['Total Sessions'] = (historicalData['total_sessions'] as int? ?? 0).toDouble();
+    
+    print('📊 [REMEDIAL METRICS] Session: ${flashcards.length} questions, accuracy: ${results.accuracyPercentage.toStringAsFixed(1)}%');
+    
+    // Calculate difficulty performance once
+    final difficultyPerformanceMap = _calculateRemedialDifficultyPerformance(flashcards, attempts);
+    final avgDifficultyAccuracy = difficultyPerformanceMap.values.isNotEmpty
+        ? difficultyPerformanceMap.values.reduce((a, b) => a + b) / difficultyPerformanceMap.values.length
+        : 0.0;
+    
+    return PerformanceMetrics(
+      preStudyAccuracy: results.improvementFromOriginal, // Original accuracy
+      postStudyAccuracy: results.accuracyPercentage,
+      improvementPercentage: results.improvementFromOriginal,
+      averageResponseTime: results.averageResponseTime.toDouble(),
+      accuracyByDifficulty: avgDifficultyAccuracy,
+      materialPerformance: materialPerformance,
+      conceptMastery: results.conceptMastery.map((k, v) => MapEntry(k, v ? 100.0 : 0.0)),
+      overallLevel: AnalyticsCalculator.determinePerformanceLevel(results.accuracyPercentage),
+    );
+  }
+
+  /// Analyze remedial learning patterns
+  LearningPatterns _analyzeRemedialLearningPatterns(
+    RemedialSession session,
+    List<RemedialFlashcard> flashcards,
+    List<RemedialAttempt> attempts,
+    RemedialResults results,
+  ) {
+    // Determine pattern type based on improvement
+    LearningPatternType patternType = LearningPatternType.steadyProgression;
+    if (results.improvementFromOriginal >= 20.0) {
+      patternType = LearningPatternType.acceleratedLearning;
+    } else if (results.improvementFromOriginal < 0.0) {
+      patternType = LearningPatternType.strugglingConcepts;
+    }
+    
+    // Analyze concept progression
+    final conceptProgression = <String, List<double>>{};
+    for (final concept in session.missedConcepts) {
+      final conceptFlashcards = flashcards.where((f) => f.concept == concept).toList();
+      final conceptAttempts = attempts.where((a) => 
+        conceptFlashcards.any((f) => f.id == a.flashcardId)
+      ).toList();
+      conceptProgression[concept] = conceptAttempts.map((a) => a.isCorrect ? 100.0 : 0.0).toList();
+    }
+    
+    // Identify strengths and weaknesses
+    final strongConcepts = results.masteredConcepts;
+    final weakConcepts = results.stillStrugglingConcepts;
+    
+    // Preferred learning approaches (based on best performing question types)
+    final preferredApproaches = results.questionTypeBreakdown.entries
+        .where((e) => e.value > 0)
+        .map((e) => e.key.displayName)
+        .toList();
+    
+    return LearningPatterns(
+      patternType: patternType,
+      learningVelocity: 0.0,
+      strongConcepts: strongConcepts,
+      weakConcepts: weakConcepts,
+      retentionRates: {},
+      temporalPatterns: [],
+    );
+  }
+
+  /// Analyze remedial behavior patterns
+  BehaviorAnalysis _analyzeRemedialBehavior(
+    RemedialSession session,
+    List<RemedialFlashcard> flashcards,
+    List<RemedialAttempt> attempts,
+  ) {
+    // Study duration
+    final sessionDuration = session.completedAt?.difference(session.startedAt) ?? Duration.zero;
+    
+    // Calculate hint usage - RemedialFlashcard doesn't have hints property
+    final hintsAvailable = 0; // Hints not available in remedial flashcards
+    final hintEffectiveness = 0.0; // No hints available
+    
+    // Common error types based on missed concepts
+    final incorrectAttempts = attempts.where((a) => !a.isCorrect).toList();
+    final commonErrorTypes = <String>[];
+    
+    if (incorrectAttempts.isNotEmpty) {
+      // Group by concept to find most challenging ones
+      final challengingConcepts = <String, int>{};
+      for (final attempt in incorrectAttempts) {
+        // Get concept from associated flashcard
+        final flashcard = flashcards.firstWhere(
+          (f) => f.id == attempt.flashcardId,
+          orElse: () => flashcards.first,
+        );
+        challengingConcepts[flashcard.concept] = (challengingConcepts[flashcard.concept] ?? 0) + 1;
+      }
+      
+      commonErrorTypes.addAll(
+        challengingConcepts.entries
+            .where((e) => e.value > 1)
+            .map((e) => e.key)
+            .take(3),
+      );
+    }
+    
+    // Question attempt patterns
+    final attemptPatterns = <String, int>{};
+    for (final attempt in attempts) {
+      final key = '${attempt.flashcardId}_attempts';
+      attemptPatterns[key] = (attemptPatterns[key] ?? 0) + 1;
+    }
+    
+    // Calculate engagement and persistence
+    final completionRate = attempts.length / flashcards.length;
+    final engagementLevel = completionRate.clamp(0.0, 1.0);
+    final persistenceScore = attemptPatterns.values.isNotEmpty 
+        ? attemptPatterns.values.reduce((a, b) => a > b ? a : b) / flashcards.length
+        : 0.0;
+    
+    return BehaviorAnalysis(
+      totalStudyTime: sessionDuration,
+      hintUsageCount: hintsAvailable,
+      hintEffectiveness: hintEffectiveness,
+      commonErrorTypes: commonErrorTypes,
+      questionAttemptPatterns: attemptPatterns,
+      persistenceScore: persistenceScore.clamp(0.0, 1.0),
+      engagementLevel: engagementLevel,
+    );
+  }
+
+  /// Analyze remedial cognitive patterns
+  CognitiveAnalysis _analyzeRemedialCognition(
+    RemedialSession session,
+    List<RemedialFlashcard> flashcards,
+    List<RemedialAttempt> attempts,
+    RemedialResults results,
+  ) {
+    // Calculate cognitive load based on question complexity and response times
+    double cognitiveLoadScore = 0.5; // Base load
+    if (results.averageResponseTime > 60) { // More than 1 minute per question
+      cognitiveLoadScore += 0.3;
+    }
+    cognitiveLoadScore = cognitiveLoadScore.clamp(0.0, 1.0);
+    
+    // Memory retention by type (analyzing different question types)
+    final memoryRetentionByType = <String, double>{};
+    for (final questionType in RemedialQuestionType.values) {
+      final typeAttempts = attempts.where((a) => 
+        flashcards.any((f) => f.id == a.flashcardId && f.type == questionType)
+      ).toList();
+      
+      if (typeAttempts.isNotEmpty) {
+        final correctCount = typeAttempts.where((a) => a.isCorrect).length;
+        final accuracy = (correctCount / typeAttempts.length) * 100;
+        memoryRetentionByType[questionType.displayName] = accuracy;
+      }
+    }
+    
+    // Processing speed based on average response time
+    double processingSpeed = 1.0 - (results.averageResponseTime / 300.0); // Assume 5 min max
+    processingSpeed = processingSpeed.clamp(0.0, 1.0);
+    
+    // Attention span based on completion rate and session duration
+    final completionRate = attempts.length / flashcards.length;
+    double attentionSpan = completionRate;
+    attentionSpan = attentionSpan.clamp(0.0, 1.0);
+    
+    // Identify cognitive strengths and weaknesses
+    final cognitiveStrengths = <String>[];
+    final cognitiveWeaknesses = <String>[];
+    
+    if (processingSpeed > 0.7) cognitiveStrengths.add('Fast processing');
+    if (results.improvementFromOriginal > 20.0) cognitiveStrengths.add('Strong retention');
+    if (attentionSpan > 0.8) cognitiveStrengths.add('Good attention');
+    
+    if (processingSpeed < 0.4) cognitiveWeaknesses.add('Slow processing');
+    if (results.improvementFromOriginal < 5.0) cognitiveWeaknesses.add('Memory challenges');
+    if (attentionSpan < 0.6) cognitiveWeaknesses.add('Attention issues');
+    
+    return CognitiveAnalysis(
+      cognitiveLoadScore: cognitiveLoadScore,
+      memoryRetentionByType: memoryRetentionByType,
+      processingSpeed: processingSpeed,
+      cognitiveStrengths: cognitiveStrengths,
+      cognitiveWeaknesses: cognitiveWeaknesses,
+      attentionSpan: attentionSpan,
+    );
+  }
+
+  /// Helper methods for remedial analytics
+  
+  Map<String, double> _calculateRemedialDifficultyPerformance(
+    List<RemedialFlashcard> flashcards,
+    List<RemedialAttempt> attempts,
+  ) {
+    final difficultyPerformance = <String, double>{};
+    
+    for (final difficulty in RemedialDifficulty.values) {
+      final difficultyFlashcards = flashcards.where((f) => f.difficulty == difficulty).toList();
+      if (difficultyFlashcards.isNotEmpty) {
+        final difficultyAttempts = attempts.where((a) => 
+          difficultyFlashcards.any((f) => f.id == a.flashcardId)
+        ).toList();
+        
+        final accuracy = difficultyAttempts.isNotEmpty
+          ? (difficultyAttempts.where((a) => a.isCorrect).length / difficultyAttempts.length) * 100
+          : 0.0;
+        
+        difficultyPerformance[difficulty.value] = accuracy;
+      }
+    }
+    
+    return difficultyPerformance;
+  }
+
+  double _calculateResponseConsistency(List<RemedialAttempt> attempts) {
+    if (attempts.length < 2) return 1.0;
+    
+    final responseTimes = attempts.map((a) => a.responseTimeSeconds.toDouble()).toList();
+    final avgTime = responseTimes.reduce((a, b) => a + b) / responseTimes.length;
+    
+    final variance = responseTimes.map((t) => pow(t - avgTime, 2)).reduce((a, b) => a + b) / responseTimes.length;
+    final stdDev = sqrt(variance);
+    
+    // Lower standard deviation = higher consistency
+    final consistency = 1.0 - (stdDev / avgTime).clamp(0.0, 1.0);
+    return consistency;
+  }
+
+  double _calculateLearningVelocity(List<RemedialAttempt> attempts, RemedialResults results) {
+    if (attempts.isEmpty) return 0.0;
+    
+    final sessionDuration = attempts.last.attemptedAt.difference(attempts.first.attemptedAt).inMinutes;
+    if (sessionDuration == 0) return 0.0;
+    
+    // Learning velocity = improvement per minute
+    final velocity = results.improvementFromOriginal / sessionDuration;
+    return velocity.clamp(0.0, 10.0); // Cap at reasonable maximum
+  }
+
+  double _calculateRemedialPersistenceScore(List<RemedialAttempt> attempts) {
+    if (attempts.isEmpty) return 0.0;
+    
+    // Higher attempts on same flashcard = higher persistence
+    final flashcardAttemptCounts = <String, int>{};
+    for (final attempt in attempts) {
+      flashcardAttemptCounts[attempt.flashcardId] = (flashcardAttemptCounts[attempt.flashcardId] ?? 0) + 1;
+    }
+    
+    final avgAttemptsPerCard = flashcardAttemptCounts.values.reduce((a, b) => a + b) / flashcardAttemptCounts.length;
+    return (avgAttemptsPerCard - 1.0).clamp(0.0, 1.0); // Normalize to 0-1
+  }
+
+  String _analyzeHelpSeekingBehavior(List<RemedialFlashcard> flashcards) {
+    // RemedialFlashcard doesn't have hints property
+    final hintsAvailable = 0; // No hints available in remedial flashcards
+    
+    return 'No hints available in remedial mode';
+  }
+
+  double _calculateProcessingEfficiency(List<RemedialAttempt> attempts, RemedialResults results) {
+    if (attempts.isEmpty) return 0.0;
+    
+    // Efficiency = accuracy / average time (normalized)
+    final efficiency = results.accuracyPercentage / (results.averageResponseTime / 60.0); // per minute
+    return (efficiency / 100.0).clamp(0.0, 1.0);
+  }
+
+  double _calculateMemoryRetention(RemedialResults results) {
+    // Memory retention based on how well concepts were mastered
+    final masteryRate = results.masteredConcepts.length / (results.masteredConcepts.length + results.stillStrugglingConcepts.length);
+    return masteryRate.clamp(0.0, 1.0);
+  }
+
+  double _calculateConceptTransferAbility(RemedialResults results) {
+    // Ability to transfer learning across different question types
+    final questionTypePerformance = results.questionTypeBreakdown.values;
+    if (questionTypePerformance.isEmpty) return 0.0;
+    
+    final avgPerformance = questionTypePerformance.reduce((a, b) => a + b) / questionTypePerformance.length;
+    return (avgPerformance / results.accuracyPercentage).clamp(0.0, 1.0);
+  }
+
+  String _determineImprovementTrend(Map<String, dynamic> historicalContext) {
+    final totalSessions = historicalContext['total_sessions'] as int? ?? 0;
+    if (totalSessions < 2) return 'insufficient_data';
+    
+    // This would need historical trend analysis - simplified for now
+    final avgAccuracy = historicalContext['average_accuracy'] as double? ?? 0.0;
+    if (avgAccuracy > 75.0) return 'improving';
+    if (avgAccuracy > 50.0) return 'stable';
+    return 'declining';
+  }
+
+  /// Aggregate historical performance data for remedial sessions
+  Future<Map<String, dynamic>> aggregateRemedialModulePerformance(String userId, String moduleId) async {
+    try {
+      print('📊 [REMEDIAL HISTORICAL] Aggregating performance for user: $userId, module: $moduleId');
+      
+      final response = await SupabaseService.client
+          .from('remedial_sessions')
+          .select('''
+            id,
+            missed_concepts,
+            created_at,
+            remedial_attempts!inner(
+              is_correct,
+              response_time,
+              concept
+            )
+          ''')
+          .eq('user_id', userId)
+          .eq('module_id', moduleId)
+          .eq('status', 'completed');
+
+      if (response.isEmpty) {
+        print('📊 [REMEDIAL HISTORICAL] No historical data found');
+        return _getEmptyRemedialHistoricalData();
+      }
+
+      // Calculate aggregated metrics
+      final allAttempts = <Map<String, dynamic>>[];
+      final allMissedConcepts = <String>[];
+      final questionTypeCounts = <String, int>{};
+
+      for (final session in response) {
+        final attempts = session['remedial_attempts'] as List;
+        allAttempts.addAll(attempts.cast<Map<String, dynamic>>());
+        
+        final missedConcepts = List<String>.from(session['missed_concepts'] ?? []);
+        allMissedConcepts.addAll(missedConcepts);
+      }
+
+      final totalCorrect = allAttempts.where((a) => a['is_correct'] == true).length;
+      final avgAccuracy = allAttempts.isNotEmpty ? (totalCorrect / allAttempts.length) * 100 : 0.0;
+      
+      // Find most common missed concepts
+      final conceptCounts = <String, int>{};
+      for (final concept in allMissedConcepts) {
+        conceptCounts[concept] = (conceptCounts[concept] ?? 0) + 1;
+      }
+      
+      final commonMissedConcepts = conceptCounts.entries
+          .toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+      print('✅ [REMEDIAL HISTORICAL] Processed ${response.length} sessions, ${allAttempts.length} attempts');
+
+      return {
+        'total_sessions': response.length,
+        'total_attempts': allAttempts.length,
+        'average_accuracy': avgAccuracy,
+        'common_missed_concepts': commonMissedConcepts.take(5).map((e) => e.key).toList(),
+        'best_question_types': [], // Would need more detailed analysis
+        'sessions_over_time': response.map((s) => s['created_at']).toList(),
+      };
+
+    } catch (e) {
+      print('❌ [REMEDIAL HISTORICAL] Error aggregating performance: $e');
+      return _getEmptyRemedialHistoricalData();
+    }
+  }
+
+  Map<String, dynamic> _getEmptyRemedialHistoricalData() {
+    return {
+      'total_sessions': 0,
+      'total_attempts': 0,
+      'average_accuracy': 0.0,
+      'common_missed_concepts': <String>[],
+      'best_question_types': <String>[],
+      'sessions_over_time': <String>[],
+    };
+  }
+
+  /// Generate fallback analytics when full analysis fails
+  Future<StudySessionAnalytics> _generateFallbackRemedialAnalytics(
+    String sessionId,
+    String userId,
+    String moduleId,
+    RemedialSession session,
+    List<RemedialFlashcard> flashcards,
+    List<RemedialAttempt> attempts,
+    RemedialResults results,
+  ) async {
+    print('🔄 [REMEDIAL FALLBACK] Generating fallback analytics for session: $sessionId');
+    
+    // Basic performance metrics
+    final performanceMetrics = PerformanceMetrics(
+      preStudyAccuracy: results.improvementFromOriginal,
+      postStudyAccuracy: results.accuracyPercentage,
+      improvementPercentage: results.improvementFromOriginal,
+      averageResponseTime: results.averageResponseTime.toDouble(),
+      accuracyByDifficulty: results.accuracyPercentage,
+      materialPerformance: {'Overall': results.accuracyPercentage},
+      conceptMastery: results.conceptMastery.map((k, v) => MapEntry(k, v ? 100.0 : 0.0)),
+      overallLevel: AnalyticsCalculator.determinePerformanceLevel(results.accuracyPercentage),
+    );
+
+    // Basic learning patterns
+    final learningPatterns = LearningPatterns(
+      patternType: results.improvementFromOriginal > 15.0 
+          ? LearningPatternType.acceleratedLearning 
+          : LearningPatternType.steadyProgression,
+      learningVelocity: 0.0,
+      strongConcepts: results.masteredConcepts,
+      weakConcepts: results.stillStrugglingConcepts,
+      retentionRates: {},
+      temporalPatterns: [],
+    );
+
+    // Basic behavior analysis
+    final behaviorAnalysis = BehaviorAnalysis(
+      totalStudyTime: session.completedAt?.difference(session.startedAt) ?? Duration.zero,
+      hintUsageCount: 0, // RemedialFlashcard doesn't have hints property
+      hintEffectiveness: 0.7,
+      commonErrorTypes: results.stillStrugglingConcepts.take(3).toList(),
+      questionAttemptPatterns: {'total_attempts': attempts.length},
+      persistenceScore: attempts.length / flashcards.length,
+      engagementLevel: attempts.length / flashcards.length,
+    );
+
+    // Basic cognitive analysis
+    final cognitiveAnalysis = CognitiveAnalysis(
+      cognitiveLoadScore: 0.5,
+      memoryRetentionByType: {'overall': results.accuracyPercentage / 100},
+      processingSpeed: 0.7,
+      cognitiveStrengths: results.accuracyPercentage > 70 ? ['Concept mastery'] : [],
+      cognitiveWeaknesses: results.accuracyPercentage < 60 ? ['Retention challenges'] : [],
+      attentionSpan: 0.8,
+    );
+
+    // Create basic analytics object
+    return StudySessionAnalytics(
+      id: '',
+      sessionId: sessionId,
+      userId: userId,
+      moduleId: moduleId,
+      analyzedAt: DateTime.now(),
+      performanceMetrics: performanceMetrics,
+      learningPatterns: learningPatterns,
+      behaviorAnalysis: behaviorAnalysis,
+      cognitiveAnalysis: cognitiveAnalysis,
+      recommendations: [], // Fallback has no AI recommendations
+      insights: [],
+      suggestedStudyPlan: StudyPlan(
+        id: 'remedial_fallback_plan',
+        activities: [],
+        estimatedDuration: const Duration(minutes: 30),
+        focusAreas: {},
+        objectives: [],
+      ),
+      additionalData: {
+        'fallback_analytics': true,
+        'remedial_session': true,
+        'improvement_achieved': results.improvementFromOriginal,
+      },
+    );
+  }
+
   /// Validate that a session exists in the appropriate session table
   Future<bool> _validateSessionExists(String sessionId, String sessionType) async {
     try {
@@ -2890,6 +3502,9 @@ class StudyAnalyticsService {
           break;
         case 'feynman':
           tableName = 'feynman_sessions';
+          break;
+        case 'remedial':
+          tableName = 'remedial_sessions';
           break;
         default:
           print('❌ [ANALYTICS] Unknown session type: $sessionType');

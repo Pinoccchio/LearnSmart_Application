@@ -39,7 +39,7 @@ class RemedialSessionScreen extends StatefulWidget {
 
 class _RemedialSessionScreenState extends State<RemedialSessionScreen> 
     with WidgetsBindingObserver {
-  late RemedialService _remedialService;
+  RemedialService? _remedialService;
   bool _isInitialized = false;
   bool _isInitializing = false;
   String? _error;
@@ -68,9 +68,9 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
     WidgetsBinding.instance.removeObserver(this);
     _answerController.dispose();
     _debounceTimer?.cancel();
-    if (_isInitialized) {
-      _remedialService.removeListener(_onServiceStateChanged);
-      _remedialService.resetSession();
+    if (_isInitialized && _remedialService != null) {
+      _remedialService!.removeListener(_onServiceStateChanged);
+      _remedialService!.resetSession();
     }
     super.dispose();
   }
@@ -96,7 +96,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
       await _checkMemoryUsage('initialization_start');
       
       _remedialService = RemedialService();
-      _remedialService.addListener(_onServiceStateChanged);
+      _remedialService!.addListener(_onServiceStateChanged);
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final userId = authProvider.currentUser?.id;
@@ -111,7 +111,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
       print('   Original attempts: ${widget.originalAttempts.length}');
 
       // Create remedial session
-      final session = await _remedialService.createRemedialSession(
+      final session = await _remedialService!.createRemedialSession(
         originalSessionId: widget.originalSessionId,
         userId: userId,
         moduleId: widget.module.id,
@@ -161,7 +161,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
   }
 
   void _handleAnswerSubmit() async {
-    if (_currentAnswer.trim().isEmpty || _remedialService.isProcessingAnswer) {
+    if (_currentAnswer.trim().isEmpty || _remedialService?.isProcessingAnswer == true) {
       return;
     }
 
@@ -169,7 +169,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
     _answerController.clear();
 
     try {
-      final isCorrect = await _remedialService.processAnswer(answer);
+      final isCorrect = await _remedialService!.processAnswer(answer);
       
       _setFeedbackStateDebounced(isCorrect, true);
 
@@ -187,12 +187,12 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
   }
 
   void _handleNextFlashcard() {
-    if (!_remedialService.hasMoreFlashcards) {
+    if (_remedialService?.hasMoreFlashcards != true) {
       _completeSession();
       return;
     }
 
-    _remedialService.nextFlashcard();
+    _remedialService!.nextFlashcard();
     
     _setAnswerStateDebounced('', false, false);
   }
@@ -210,18 +210,34 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
       final originalAccuracy = (widget.originalResults.postStudyCorrect / 
                                widget.originalResults.totalFlashcards) * 100;
       
-      final results = await _remedialService.completeSession(
+      // === REMEDIAL SESSION LIFECYCLE: Completion Phase ===
+      print('🔄 [REMEDIAL SESSION LIFECYCLE] Phase 1: Session Data Completion');
+      final results = await _remedialService!.completeSession(
+        originalAccuracy: originalAccuracy,
+      );
+      
+      print('🔄 [REMEDIAL SESSION LIFECYCLE] Phase 2: Analytics Generation');
+      print('📊 [REMEDIAL SESSION LIFECYCLE] Generating analytics for remedial session...');
+      
+      // Generate comprehensive analytics following the same pattern as other techniques
+      await _remedialService!.generateAnalyticsForSession(
         originalAccuracy: originalAccuracy,
       );
       
       // Check memory after completion processing
       await _checkMemoryUsage('completion_complete');
       
+      print('🔄 [REMEDIAL SESSION LIFECYCLE] Phase 3: UI State Completion');
       _isProcessingHeavyOperation = false;
 
       if (mounted) {
-        // Delay navigation to avoid lifecycle issues
-        await Future.delayed(const Duration(milliseconds: 100));
+        // Remove listener before navigation to prevent setState during widget tree lock
+        if (_remedialService != null) {
+          _remedialService!.removeListener(_onServiceStateChanged);
+        }
+        
+        // Small delay to allow UI to update before navigation
+        await Future.delayed(const Duration(milliseconds: 500));
         
         if (mounted) {
           Navigator.of(context).pushReplacement(
@@ -231,7 +247,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
                 module: widget.module,
                 originalResults: widget.originalResults,
                 remedialResults: results,
-                sessionAnalytics: _remedialService.sessionAnalytics,
+                sessionAnalytics: _remedialService?.sessionAnalytics,
                 onBackToModule: () {
                   // Navigate back to module details by popping multiple screens
                   if (Navigator.of(context).canPop()) {
@@ -540,7 +556,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
       return _buildLoadingState();
     }
 
-    if (_remedialService.sessionFlashcards.isEmpty) {
+    if (_remedialService?.sessionFlashcards.isEmpty != false) {
       return _buildNoQuestionsState();
     }
 
@@ -614,7 +630,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
             ),
           ),
           const SizedBox(height: 12),
-          if (_remedialService.isGeneratingQuestions)
+          if (_remedialService?.isGeneratingQuestions == true)
             const Text(
               'AI is generating personalized questions\nbased on concepts you missed',
               style: TextStyle(
@@ -671,7 +687,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
   }
 
   Widget _buildQuizInterface() {
-    final currentFlashcard = _remedialService.currentFlashcard;
+    final currentFlashcard = _remedialService?.currentFlashcard;
     
     if (currentFlashcard == null) {
       return const Center(child: CircularProgressIndicator());
@@ -681,9 +697,9 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
       children: [
         // Progress Section
         RemedialProgressWidget(
-          currentIndex: _remedialService.currentFlashcardIndex,
-          totalQuestions: _remedialService.sessionFlashcards.length,
-          progress: _remedialService.progress,
+          currentIndex: _remedialService?.currentFlashcardIndex ?? 0,
+          totalQuestions: _remedialService?.sessionFlashcards.length ?? 0,
+          progress: _remedialService?.progress ?? 0.0,
         ),
         
         // Question Section
@@ -699,7 +715,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
             onSubmitAnswer: _handleAnswerSubmit,
             showingFeedback: _showingFeedback,
             lastAnswerCorrect: _lastAnswerCorrect,
-            isProcessing: _remedialService.isProcessingAnswer,
+            isProcessing: _remedialService?.isProcessingAnswer ?? false,
           ),
         ),
         
@@ -711,7 +727,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
 
   Widget _buildSubmitButton() {
     final canSubmit = _currentAnswer.trim().isNotEmpty && 
-                     !_remedialService.isProcessingAnswer &&
+                     _remedialService?.isProcessingAnswer != true &&
                      !_showingFeedback;
 
     return Container(
@@ -735,7 +751,7 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: _remedialService.isProcessingAnswer
+            child: _remedialService?.isProcessingAnswer == true
                 ? const SizedBox(
                     width: 20,
                     height: 20,
