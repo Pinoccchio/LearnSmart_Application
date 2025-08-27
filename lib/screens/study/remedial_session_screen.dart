@@ -220,9 +220,31 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
       print('📊 [REMEDIAL SESSION LIFECYCLE] Generating analytics for remedial session...');
       
       // Generate comprehensive analytics following the same pattern as other techniques
-      await _remedialService!.generateAnalyticsForSession(
-        originalAccuracy: originalAccuracy,
-      );
+      try {
+        await _remedialService!.generateAnalyticsForSession(
+          originalAccuracy: originalAccuracy,
+        );
+        
+        // Verify analytics were generated
+        if (_remedialService?.sessionAnalytics != null) {
+          print('✅ [ANALYTICS VERIFICATION] Analytics successfully generated and available');
+          print('   Analytics ID: ${_remedialService!.sessionAnalytics!.id}');
+          print('   Recommendations count: ${_remedialService!.sessionAnalytics!.recommendations.length}');
+          print('   Insights count: ${_remedialService!.sessionAnalytics!.insights.length}');
+        } else {
+          print('⚠️ [ANALYTICS VERIFICATION] Analytics generation completed but no analytics object available');
+          print('   This might indicate a failure in the analytics generation process');
+          print('   User will still see completion screen but with limited analytics data');
+        }
+        
+      } catch (analyticsError) {
+        print('❌ [ANALYTICS ERROR] Analytics generation failed: $analyticsError');
+        print('   Analytics error type: ${analyticsError.runtimeType}');
+        print('   User will still proceed to completion screen with available data');
+        
+        // Don't throw the error - let the user proceed to completion screen
+        // The service should have fallback/emergency analytics available
+      }
       
       // Check memory after completion processing
       await _checkMemoryUsage('completion_complete');
@@ -236,49 +258,72 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
           _remedialService!.removeListener(_onServiceStateChanged);
         }
         
+        // Prepare analytics data for completion screen
+        final analyticsData = _remedialService?.sessionAnalytics;
+        print('🔄 [NAVIGATION] Preparing to navigate to completion screen...');
+        print('   Analytics available: ${analyticsData != null}');
+        if (analyticsData != null) {
+          print('   Analytics has recommendations: ${analyticsData.recommendations.isNotEmpty}');
+          print('   Analytics has insights: ${analyticsData.insights.isNotEmpty}');
+        }
+        
         // Small delay to allow UI to update before navigation
         await Future.delayed(const Duration(milliseconds: 500));
         
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => RemedialCompletionScreen(
-                course: widget.course,
-                module: widget.module,
-                originalResults: widget.originalResults,
-                remedialResults: results,
-                sessionAnalytics: _remedialService?.sessionAnalytics,
-                onBackToModule: () {
-                  // Navigate back to module details by popping multiple screens
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop(); // Close completion screen
-                  }
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop(); // Close remedial screen
-                  }
-                },
-                onRetakeRemedial: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop(); // Close completion screen
-                  }
-                  // Restart this remedial screen
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (context) => RemedialSessionScreen(
-                        course: widget.course,
-                        module: widget.module,
-                        originalSessionId: widget.originalSessionId,
-                        originalFlashcards: widget.originalFlashcards,
-                        originalAttempts: widget.originalAttempts,
-                        originalResults: widget.originalResults,
-                        customSettings: widget.customSettings,
+          try {
+            print('🔄 [NAVIGATION] Navigating to RemedialCompletionScreen...');
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => RemedialCompletionScreen(
+                  course: widget.course,
+                  module: widget.module,
+                  originalResults: widget.originalResults,
+                  remedialResults: results,
+                  sessionAnalytics: analyticsData,  // Use the prepared analytics data
+                  onBackToModule: () {
+                    print('🔄 [NAVIGATION] Back to module requested');
+                    // Navigate back to module details by popping multiple screens
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop(); // Close completion screen
+                    }
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop(); // Close remedial screen
+                    }
+                  },
+                  onRetakeRemedial: () {
+                    print('🔄 [NAVIGATION] Retake remedial requested');
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop(); // Close completion screen
+                    }
+                    // Restart this remedial screen
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => RemedialSessionScreen(
+                          course: widget.course,
+                          module: widget.module,
+                          originalSessionId: widget.originalSessionId,
+                          originalFlashcards: widget.originalFlashcards,
+                          originalAttempts: widget.originalAttempts,
+                          originalResults: widget.originalResults,
+                          customSettings: widget.customSettings,
+                        ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
-            ),
-          );
+            );
+            
+            print('✅ [NAVIGATION] Successfully navigated to RemedialCompletionScreen');
+            
+          } catch (navigationError) {
+            print('❌ [NAVIGATION ERROR] Failed to navigate to completion screen: $navigationError');
+            // Still try to show some completion feedback
+            if (mounted) {
+              _showCompletionDialog(results);
+            }
+          }
         }
       }
 
@@ -293,6 +338,79 @@ class _RemedialSessionScreenState extends State<RemedialSessionScreen>
         _showErrorDialog('Failed to complete the session. Please try again.');
       }
     }
+  }
+  
+  void _showCompletionDialog(RemedialResults results) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              results.isPassing ? LucideIcons.checkCircle : LucideIcons.target,
+              color: results.isPassing ? Colors.green : Colors.orange,
+            ),
+            const SizedBox(width: 8),
+            Text(results.isPassing ? 'Great Work!' : 'Keep Practicing!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Remedial Quiz Completed', 
+                 style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Score: ${results.accuracyPercentage.toStringAsFixed(1)}%'),
+            Text('Questions: ${results.totalQuestions}'),
+            Text('Correct: ${results.correctAnswers}'),
+            if (results.showsImprovement)
+              Text('Improvement: +${results.improvementFromOriginal.toStringAsFixed(1)}%',
+                   style: const TextStyle(color: Colors.green)),
+            const SizedBox(height: 8),
+            if (results.masteredConcepts.isNotEmpty) ...[
+              const Text('Mastered Concepts:', 
+                         style: TextStyle(fontWeight: FontWeight.w600)),
+              ...results.masteredConcepts.take(3).map((concept) => 
+                  Text('• $concept', style: const TextStyle(fontSize: 12))),
+              if (results.masteredConcepts.length > 3)
+                Text('• ...and ${results.masteredConcepts.length - 3} more'),
+            ],
+          ],
+        ),
+        actions: [
+          if (!results.isPassing)
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                // Restart remedial session
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => RemedialSessionScreen(
+                      course: widget.course,
+                      module: widget.module,
+                      originalSessionId: widget.originalSessionId,
+                      originalFlashcards: widget.originalFlashcards,
+                      originalAttempts: widget.originalAttempts,
+                      originalResults: widget.originalResults,
+                      customSettings: widget.customSettings,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Retake Quiz'),
+            ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Close remedial screen
+            },
+            child: const Text('Back to Module'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showErrorDialog(String message) {

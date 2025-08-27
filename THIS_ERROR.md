@@ -1,15 +1,1 @@
-/flutter (23031): 👤 [PROFILE AI] Generating intelligent profile insights for user: d844b45a-80e4-4a32-9088-f85b051e8e60
-D/TextSelection(23031): onUseCache cache=null
-D/TextSelection(23031): onUseCache cache=null
-I/flutter (23031): 👤 [PROFILE AI] Raw response: ```json
-I/flutter (23031): {
-I/flutter (23031):   "personalizedRecommendations": [
-I/flutter (23031):     {
-I/flutter (23031):       "icon": "calendar",
-I/flutter (23031):       "color": "warning",
-I/flutter (23031):       "title": "Improve Study Consistency",
-I/flutter (23031):       "description": "Your study consistency is currently at 14%. Aim to establish a regular study schedule to build momentum. Try setting specific study...
-I/flutter (23031): ✅ [PROFILE AI] Successfully generated profile insights
-I/flutter (23031): ✅ [PROFILE] AI insights generated successfully
-I/flutter (23031): ✅ [PROFILE] Profile data loaded in 20536ms
-I/flutter (23031): ✅ [APP PROVIDER] Profile data loaded successfully
+i want you to analyze the overall codebase and also all the tables and columns from the supabase mpc and after i want  you to fix these issues as you can see in the completeion and session screen like the active recall and all technique it is good after the qnswering quiz it is generating analytics and so on .. so after we take a remedial quiz so we click the last sUBMIT ANSWER it just automatilcaly go to @lib\screens\study\remedial_completion_screen.dart we are from the @lib\screens\study\remedial_session_screen.dart liek what? it dont generate the analytics or what? so wi want you to analyze evuyrthing ulta think athen fix thesers issues  check if because of wrong name of variables or paremeteris @lib\services\ analyze if it passed to ai and everuything ⎿  Read lib\screens\study\remedial_completion_screen.dart (770 lines) ⎿  Read lib\screens\study\remedial_session_screen.dart (777 lines) ⎿  Listed directory lib\services\

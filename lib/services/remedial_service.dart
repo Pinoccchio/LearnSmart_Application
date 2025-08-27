@@ -221,14 +221,25 @@ class RemedialService extends ChangeNotifier {
       // Save to database
       await _saveSessionToDatabase(updatedSession);
       
-      // Initialize current session
+      // Initialize current session state - THIS IS CRITICAL FOR DATA FLOW
       _currentSession = updatedSession;
-      _sessionFlashcards = remedialFlashcards;
-      _sessionAttempts = [];
+      _sessionFlashcards = remedialFlashcards;  // Store in service state for analytics
+      _sessionAttempts = [];                    // Initialize empty attempts list
       _currentFlashcardIndex = 0;
       _sessionAnalytics = null;
       
       print('✅ [REMEDIAL SESSION] Created session with ${remedialFlashcards.length} questions');
+      print('   Session ID: ${updatedSession.id}');
+      print('   Session flashcards: ${updatedSession.flashcards.length}');
+      print('   Service flashcards: ${_sessionFlashcards.length}');
+      print('   Session attempts: ${updatedSession.attempts.length}');
+      print('   Service attempts: ${_sessionAttempts.length}');
+      
+      // Verify data consistency
+      if (updatedSession.flashcards.length != _sessionFlashcards.length) {
+        print('⚠️ [DATA CONSISTENCY WARNING] Mismatch between session and service flashcard counts');
+      }
+      
       _isGeneratingQuestions = false;
       notifyListeners();
       
@@ -370,18 +381,21 @@ class RemedialService extends ChangeNotifier {
     
     try {
       print('🏁 [SESSION COMPLETION] Completing remedial session...');
+      print('   Current flashcards in service: ${_sessionFlashcards.length}');
+      print('   Current attempts in service: ${_sessionAttempts.length}');
       
-      // Calculate results
+      // Calculate results using current service state
       final results = RemedialResults.calculate(
         _sessionFlashcards,
         _sessionAttempts,
         originalAccuracy,
       );
       
-      // Update session status
+      // Update session with current service state data - THIS IS THE CRITICAL FIX
       final completedSession = _currentSession!.copyWith(
         status: RemedialSessionStatus.completed,
-        attempts: _sessionAttempts,
+        flashcards: _sessionFlashcards,  // ✅ FIXED: Ensure current flashcards are included
+        attempts: _sessionAttempts,      // ✅ FIXED: Ensure current attempts are included
         completedAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -389,12 +403,14 @@ class RemedialService extends ChangeNotifier {
       // Save updated session to database
       await _saveSessionToDatabase(completedSession);
       
+      // Update current session reference with the completed session data
       _currentSession = completedSession;
       
       print('✅ [SESSION COMPLETION] Session completed successfully');
       print('   Final accuracy: ${results.accuracyPercentage.toStringAsFixed(1)}%');
       print('   Improvement: ${results.improvementFromOriginal.toStringAsFixed(1)}%');
       print('   Mastered concepts: ${results.masteredConcepts.length}');
+      print('   Session now contains: ${completedSession.flashcards.length} flashcards, ${completedSession.attempts.length} attempts');
       
       // Use post-frame callback to notify listeners safely
       safeNotifyListeners();
@@ -415,33 +431,80 @@ class RemedialService extends ChangeNotifier {
     
     try {
       print('📊 [ANALYTICS] Starting analytics generation for remedial session...');
+      print('   Session ID: ${_currentSession!.id}');
+      print('   User ID: ${_currentSession!.userId}');
+      print('   Module ID: ${_currentSession!.moduleId}');
+      print('   Original accuracy: ${originalAccuracy.toStringAsFixed(1)}%');
+      print('   Session status: ${_currentSession!.status.name}');
+      print('   Session flashcards: ${_currentSession!.flashcards.length}');
+      print('   Session attempts: ${_currentSession!.attempts.length}');
+      print('   Service flashcards: ${_sessionFlashcards.length}');
+      print('   Service attempts: ${_sessionAttempts.length}');
       
+      // Calculate results using service state for consistency
+      print('📊 [ANALYTICS] Calculating results...');
       final results = RemedialResults.calculate(
         _sessionFlashcards,
         _sessionAttempts,
         originalAccuracy,
       );
       
+      print('📊 [ANALYTICS] Results calculated:');
+      print('   Total questions: ${results.totalQuestions}');
+      print('   Correct answers: ${results.correctAnswers}');
+      print('   Accuracy: ${results.accuracyPercentage.toStringAsFixed(1)}%');
+      print('   Improvement: ${results.improvementFromOriginal.toStringAsFixed(1)}%');
+      print('   Mastered concepts: ${results.masteredConcepts.length}');
+      print('   Struggling concepts: ${results.stillStrugglingConcepts.length}');
+      
+      print('📊 [ANALYTICS] Calling _generateSessionAnalytics...');
       _sessionAnalytics = await _generateSessionAnalytics(
         session: _currentSession!,
         results: results,
       );
       
-      print('✅ [ANALYTICS] Analytics generation completed successfully');
+      if (_sessionAnalytics != null) {
+        print('✅ [ANALYTICS] Analytics generation completed successfully');
+        print('   Analytics ID: ${_sessionAnalytics!.id}');
+        print('   Recommendations: ${_sessionAnalytics!.recommendations.length}');
+        print('   Insights: ${_sessionAnalytics!.insights.length}');
+      } else {
+        print('⚠️ [ANALYTICS] Primary analytics generation returned null, trying fallback...');
+        throw Exception('Primary analytics generation failed');
+      }
       
     } catch (e) {
-      print('❌ [ANALYTICS] Failed to generate analytics: $e');
+      print('❌ [ANALYTICS] Failed to generate primary analytics: $e');
+      print('   Error type: ${e.runtimeType}');
       
       // Generate fallback analytics to ensure some data is available
       try {
+        print('📊 [ANALYTICS] Attempting fallback analytics generation...');
+        final fallbackResults = RemedialResults.calculate(_sessionFlashcards, _sessionAttempts, originalAccuracy);
+        
         _sessionAnalytics = await _generateFallbackAnalytics(
           session: _currentSession!,
-          results: RemedialResults.calculate(_sessionFlashcards, _sessionAttempts, originalAccuracy),
+          results: fallbackResults,
         );
+        
         print('✅ [ANALYTICS] Fallback analytics generated successfully');
+        print('   Fallback analytics ID: ${_sessionAnalytics!.id}');
+        print('   Fallback recommendations: ${_sessionAnalytics!.recommendations.length}');
+        print('   Fallback insights: ${_sessionAnalytics!.insights.length}');
+        
       } catch (fallbackError) {
         print('❌ [ANALYTICS] Even fallback analytics failed: $fallbackError');
-        _sessionAnalytics = null;
+        print('   Fallback error type: ${fallbackError.runtimeType}');
+        print('   Creating minimal emergency analytics...');
+        
+        // Create absolutely minimal analytics as last resort
+        try {
+          _sessionAnalytics = _createEmergencyAnalytics(_currentSession!, originalAccuracy);
+          print('✅ [ANALYTICS] Emergency analytics created successfully');
+        } catch (emergencyError) {
+          print('❌ [ANALYTICS] Emergency analytics creation failed: $emergencyError');
+          _sessionAnalytics = null;
+        }
       }
     }
   }
@@ -453,6 +516,24 @@ class RemedialService extends ChangeNotifier {
   }) async {
     try {
       print('📊 [ANALYTICS] Generating remedial session analytics...');
+      print('   Session flashcards: ${session.flashcards.length}');
+      print('   Session attempts: ${session.attempts.length}');
+      print('   Service flashcards: ${_sessionFlashcards.length}');
+      print('   Service attempts: ${_sessionAttempts.length}');
+      
+      // Verify that session data is populated - use service state as fallback
+      final flashcardsToUse = session.flashcards.isNotEmpty ? session.flashcards : _sessionFlashcards;
+      final attemptsToUse = session.attempts.isNotEmpty ? session.attempts : _sessionAttempts;
+      
+      if (flashcardsToUse.isEmpty) {
+        print('⚠️ [ANALYTICS] No flashcards available for analytics generation');
+        return null;
+      }
+      
+      if (attemptsToUse.isEmpty) {
+        print('⚠️ [ANALYTICS] No attempts available for analytics generation');
+        return null;
+      }
       
       // Get course and module data
       final course = await _getCourseData(session.moduleId);
@@ -463,14 +544,17 @@ class RemedialService extends ChangeNotifier {
         return null;
       }
       
+      print('📊 [ANALYTICS] Calling StudyAnalyticsService.generateRemedialAnalytics...');
+      print('   Using ${flashcardsToUse.length} flashcards and ${attemptsToUse.length} attempts');
+      
       // Generate comprehensive analytics using StudyAnalyticsService
       final analytics = await _analyticsService.generateRemedialAnalytics(
         sessionId: session.id,
         userId: session.userId,
         moduleId: session.moduleId,
         session: session,
-        flashcards: session.flashcards,
-        attempts: session.attempts,
+        flashcards: flashcardsToUse,  // ✅ FIXED: Use verified flashcards data
+        attempts: attemptsToUse,      // ✅ FIXED: Use verified attempts data
         results: results,
         course: course,
         module: module,
@@ -481,6 +565,7 @@ class RemedialService extends ChangeNotifier {
       
     } catch (e) {
       print('❌ [ANALYTICS] Error generating analytics: $e');
+      print('   Error details: ${e.toString()}');
       return null;
     }
   }
@@ -595,6 +680,99 @@ class RemedialService extends ChangeNotifier {
     );
   }
   
+  /// Create emergency analytics as absolute last resort
+  StudySessionAnalytics _createEmergencyAnalytics(RemedialSession session, double originalAccuracy) {
+    print('🚨 [EMERGENCY ANALYTICS] Creating minimal analytics for session: ${session.id}');
+    
+    final results = RemedialResults.calculate(_sessionFlashcards, _sessionAttempts, originalAccuracy);
+    
+    return StudySessionAnalytics(
+      id: '', // Database will generate UUID
+      sessionId: session.id,
+      userId: session.userId,
+      moduleId: session.moduleId,
+      analyzedAt: DateTime.now(),
+      performanceMetrics: PerformanceMetrics(
+        preStudyAccuracy: 0.0,
+        postStudyAccuracy: results.accuracyPercentage,
+        improvementPercentage: results.improvementFromOriginal,
+        averageResponseTime: results.averageResponseTime.toDouble(),
+        accuracyByDifficulty: results.accuracyPercentage,
+        materialPerformance: {},
+        conceptMastery: {},
+        overallLevel: results.isPassing ? PerformanceLevel.good : PerformanceLevel.needsImprovement,
+      ),
+      learningPatterns: LearningPatterns(
+        patternType: LearningPatternType.strugglingConcepts,
+        learningVelocity: 50.0,
+        strongConcepts: results.masteredConcepts,
+        weakConcepts: results.stillStrugglingConcepts,
+        retentionRates: {},
+        temporalPatterns: [],
+      ),
+      behaviorAnalysis: BehaviorAnalysis(
+        totalStudyTime: Duration(seconds: results.averageResponseTime * results.totalQuestions),
+        hintUsageCount: 0,
+        hintEffectiveness: 0.0,
+        commonErrorTypes: ['Concept review needed'],
+        questionAttemptPatterns: {'emergency_data': 1},
+        persistenceScore: 50.0,
+        engagementLevel: 50.0,
+      ),
+      cognitiveAnalysis: CognitiveAnalysis(
+        cognitiveLoadScore: 50.0,
+        memoryRetentionByType: {},
+        processingSpeed: 50.0,
+        cognitiveStrengths: ['Attempt completion'],
+        cognitiveWeaknesses: ['Detailed analysis unavailable'],
+        attentionSpan: 50.0,
+      ),
+      recommendations: [
+        PersonalizedRecommendation(
+          id: 'emergency_rec',
+          type: RecommendationType.studyTiming,
+          title: 'Session Complete',
+          description: 'You completed the remedial session with ${results.accuracyPercentage.toStringAsFixed(1)}% accuracy.',
+          actionableAdvice: results.isPassing 
+              ? 'Great work on improving your understanding!' 
+              : 'Continue practicing the concepts you found challenging.',
+          priority: 1,
+          confidenceScore: 0.5,
+          reasons: ['Emergency analytics - limited analysis available'],
+        ),
+      ],
+      insights: [
+        AnalyticsInsight(
+          id: 'emergency_insight',
+          category: InsightCategory.performance,
+          title: 'Remedial Session Summary',
+          insight: 'Completed remedial session with ${results.accuracyPercentage.toStringAsFixed(1)}% accuracy.',
+          significance: 0.5,
+          supportingData: [
+            'Questions answered: ${results.totalQuestions}',
+            'Correct answers: ${results.correctAnswers}',
+            'Session completed successfully',
+          ],
+        ),
+      ],
+      suggestedStudyPlan: StudyPlan(
+        id: 'emergency_plan',
+        activities: [
+          StudyActivity(
+            type: 'review',
+            description: 'Continue reviewing the material',
+            duration: const Duration(minutes: 15),
+            priority: 1,
+            materials: session.missedConcepts,
+          ),
+        ],
+        estimatedDuration: const Duration(minutes: 15),
+        focusAreas: {'general': 'Continue studying the material'},
+        objectives: ['Review completed session material'],
+      ),
+    );
+  }
+  
   /// Get course data for analytics
   Future<Course?> _getCourseData(String moduleId) async {
     try {
@@ -691,8 +869,17 @@ class RemedialService extends ChangeNotifier {
   Future<void> _saveSessionToDatabase(RemedialSession session) async {
     try {
       print('💾 [DATABASE] Saving remedial session: ${session.id}');
+      print('   Session status: ${session.status.name}');
+      print('   Session flashcards: ${session.flashcards.length}');
+      print('   Session attempts: ${session.attempts.length}');
       
       final sessionData = session.toJson();
+      
+      // Verify the JSON data contains the expected fields
+      print('💾 [DATABASE] Session JSON contains:');
+      print('   remedial_flashcards: ${(sessionData['remedial_flashcards'] as List?)?.length ?? 0} items');
+      print('   remedial_attempts: ${(sessionData['remedial_attempts'] as List?)?.length ?? 0} items');
+      print('   status: ${sessionData['status']}');
       
       // Check if session exists
       final existingSession = await SupabaseService.client
@@ -703,13 +890,32 @@ class RemedialService extends ChangeNotifier {
       
       if (existingSession != null) {
         // Update existing session
+        print('💾 [DATABASE] Updating existing session...');
         await SupabaseService.client
             .from('remedial_sessions')
             .update(sessionData)
             .eq('id', session.id);
         print('✅ [DATABASE] Updated existing remedial session');
+        
+        // Verify the update by reading it back
+        final verificationResult = await SupabaseService.client
+            .from('remedial_sessions')
+            .select('remedial_flashcards, remedial_attempts, status')
+            .eq('id', session.id)
+            .maybeSingle();
+            
+        if (verificationResult != null) {
+          final savedFlashcards = (verificationResult['remedial_flashcards'] as List?)?.length ?? 0;
+          final savedAttempts = (verificationResult['remedial_attempts'] as List?)?.length ?? 0;
+          print('✅ [DATABASE VERIFICATION] Session saved with:');
+          print('   Flashcards: $savedFlashcards');
+          print('   Attempts: $savedAttempts');
+          print('   Status: ${verificationResult['status']}');
+        }
+        
       } else {
         // Insert new session
+        print('💾 [DATABASE] Inserting new session...');
         await SupabaseService.client
             .from('remedial_sessions')
             .insert(sessionData);
@@ -718,6 +924,14 @@ class RemedialService extends ChangeNotifier {
       
     } catch (e) {
       print('❌ [DATABASE] Error saving remedial session: $e');
+      print('   Error details: ${e.toString()}');
+      
+      // Don't rethrow immediately - try to provide more context
+      if (e.toString().contains('column') && e.toString().contains('does not exist')) {
+        print('❌ [DATABASE] Database schema mismatch detected');
+        print('   This might be due to missing columns in the remedial_sessions table');
+      }
+      
       rethrow;
     }
   }
@@ -725,11 +939,15 @@ class RemedialService extends ChangeNotifier {
   /// Save remedial attempt to database (store in session data for now)
   Future<void> _saveAttemptToDatabase(RemedialAttempt attempt) async {
     try {
-      // For now, attempts are stored as part of the session data
-      // In a more complex setup, you might have a separate attempts table
-      print('💾 [DATABASE] Attempt saved to session data: ${attempt.id}');
+      // Attempts are stored as part of the session data in the remedial_sessions table
+      // This method is called after each attempt and the full session is saved periodically
+      print('💾 [DATABASE] Attempt recorded in session data: ${attempt.id}');
+      print('   Flashcard: ${attempt.flashcardId}');
+      print('   Correct: ${attempt.isCorrect}');
+      print('   Response time: ${attempt.responseTimeSeconds}s');
+      print('   Current session attempts count: ${_sessionAttempts.length}');
     } catch (e) {
-      print('❌ [DATABASE] Error saving attempt: $e');
+      print('❌ [DATABASE] Error processing attempt data: $e');
     }
   }
 

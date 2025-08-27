@@ -16,7 +16,9 @@
       "WebSearch",
       "WebFetch(domain:ai.google.dev)",
       "WebFetch(domain:medium.com)",
-      "Bash(flutter run:*)"
+      "Bash(flutter run:*)",
+      "Bash(lsof:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
