@@ -1,19 +1,11 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/contexts/auth-context'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { INSTRUCTOR_COURSE, STUDY_TECHNIQUES, TEACHING_INSIGHTS } from "@/lib/constants"
-
-// TODO: Replace INSTRUCTOR_STATS usage with real API data from /api/instructor/students
-// Temporary placeholders until analytics page gets its own real data API
-const TEMP_STATS = {
-  averageScore: 0,
-  activeStudents: 0,
-  contentGenerated: 0,
-  interventionsSent: 0
-}
+import { INSTRUCTOR_COURSE } from "@/lib/constants"
 import { 
   TrendingUp, 
   Users, 
@@ -32,9 +24,221 @@ import {
   MessageSquare
 } from "lucide-react"
 
+interface AnalyticsData {
+  keyMetrics: {
+    courseEffectiveness: number
+    studentEngagement: number
+    contentGenerated: number
+    interventionsSent: number
+  }
+  studyTechniques: Array<{
+    technique?: string
+    name?: string
+    type: string
+    usage?: string
+    usagePercentage?: number
+    adoptionRate?: number
+    effectiveness?: string
+    effectivenessPercentage?: number
+    totalSessions: number
+    averagePerformance?: number
+    averageScore?: number
+    uniqueUsers?: number
+  }>
+  modulePerformance: Array<{
+    id: string
+    title: string
+    studentsCompleted: number
+    totalStudents: number
+    averageScore: number
+    status: string
+  }>
+  studentEngagement: {
+    peakHours: Array<{
+      time: string
+      activity: number
+      percentage: number
+    }>
+    contentTypes: Array<{
+      type: string
+      engagement: number
+      percentage: number
+      color: string
+    }>
+  }
+  weeklyPerformance: {
+    averageQuizScores: number
+    moduleCompletion: number
+    studySessionDuration: number
+    contentEngagement: number
+    interventionsSent: number
+  }
+  totalStudents: number
+  activeStudents: number
+}
+
+interface AIInsightsData {
+  insights: Array<{
+    id: string
+    title: string
+    description: string
+    type: 'success' | 'warning' | 'info' | 'critical'
+    action: string
+    confidence: number
+    priority: number
+  }>
+  recommendations: Array<{
+    id: string
+    type: string
+    title: string
+    description: string
+    actionSteps: string[]
+    priority: number
+  }>
+  aiStatus: string
+}
+
 export default function InstructorAnalytics() {
+  const { user } = useAuth()
   const [timeRange, setTimeRange] = useState('month')
   const [showDetailedView, setShowDetailedView] = useState(false)
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
+  const [aiInsights, setAIInsights] = useState<AIInsightsData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch analytics data
+  const fetchAnalyticsData = async () => {
+    if (!user?.id) {
+      console.log('No user authenticated')
+      setError('Please log in to view analytics')
+      setLoading(false)
+      return
+    }
+
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const [analyticsResponse, aiResponse, techniquesResponse, engagementResponse] = await Promise.all([
+        fetch(`/api/instructor/analytics?timeRange=${timeRange}`, {
+          headers: {
+            'X-User-ID': user.id,
+            'X-User-Role': user.role
+          }
+        }),
+        fetch(`/api/instructor/analytics/ai-insights?timeRange=${timeRange}`, {
+          headers: {
+            'X-User-ID': user.id,
+            'X-User-Role': user.role
+          }
+        }),
+        fetch(`/api/instructor/analytics/study-techniques?timeRange=${timeRange}`, {
+          headers: {
+            'X-User-ID': user.id,
+            'X-User-Role': user.role
+          }
+        }),
+        fetch(`/api/instructor/analytics/student-engagement?timeRange=${timeRange}`, {
+          headers: {
+            'X-User-ID': user.id,
+            'X-User-Role': user.role
+          }
+        })
+      ])
+
+      let baseAnalytics = null
+      if (analyticsResponse.ok) {
+        const analyticsResult = await analyticsResponse.json()
+        baseAnalytics = analyticsResult.data
+      }
+
+      // Merge study techniques data if available
+      if (techniquesResponse.ok) {
+        const techniquesResult = await techniquesResponse.json()
+        if (baseAnalytics && techniquesResult.data) {
+          baseAnalytics.studyTechniques = techniquesResult.data.techniques || []
+          baseAnalytics.techniquesSummary = techniquesResult.data.summary || {}
+        }
+      }
+
+      // Merge engagement data if available
+      if (engagementResponse.ok) {
+        const engagementResult = await engagementResponse.json()
+        if (baseAnalytics && engagementResult.data) {
+          baseAnalytics.studentEngagement = engagementResult.data.engagement || {}
+        }
+      }
+
+      if (baseAnalytics) {
+        setAnalyticsData(baseAnalytics)
+      } else {
+        throw new Error('Failed to fetch analytics data')
+      }
+
+      if (aiResponse.ok) {
+        const aiResult = await aiResponse.json()
+        setAIInsights(aiResult.data)
+      } else {
+        console.warn('AI insights failed to load')
+        setAIInsights({ insights: [], recommendations: [], aiStatus: 'error' })
+      }
+
+    } catch (err) {
+      console.error('Error fetching analytics:', err)
+      setError('Failed to load analytics data')
+      // Set fallback data
+      setAnalyticsData({
+        keyMetrics: { courseEffectiveness: 0, studentEngagement: 0, contentGenerated: 0, interventionsSent: 0 },
+        studyTechniques: [],
+        modulePerformance: [],
+        studentEngagement: { peakHours: [], contentTypes: [] },
+        weeklyPerformance: { averageQuizScores: 0, moduleCompletion: 0, studySessionDuration: 0, contentEngagement: 0, interventionsSent: 0 },
+        totalStudents: 0,
+        activeStudents: 0
+      })
+      setAIInsights({ insights: [], recommendations: [], aiStatus: 'error' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (user) {
+      fetchAnalyticsData()
+    }
+  }, [user, timeRange])
+
+  const handleTimeRangeChange = (newRange: string) => {
+    setTimeRange(newRange)
+  }
+
+  const handleRefresh = () => {
+    fetchAnalyticsData()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-300">Loading teaching analytics...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !analyticsData) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-300 mb-4">{error}</p>
+          <Button onClick={handleRefresh}>Try Again</Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -42,20 +246,51 @@ export default function InstructorAnalytics() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Teaching Analytics</h1>
-            <p className="text-gray-600 dark:text-gray-300 mt-1">AI-powered insights for Criminal Jurisprudence course effectiveness</p>
+            <p className="text-gray-600 dark:text-gray-300 mt-1">
+              AI-powered insights for {analyticsData?.totalStudents || 0} students
+              {error && <span className="text-amber-600"> (Limited data available)</span>}
+            </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Calendar className="h-4 w-4 mr-2" />
-              Time Range
-            </Button>
-            <Button variant="outline" size="sm">
+            <div className="relative">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowDetailedView(!showDetailedView)}
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                {timeRange === 'week' ? 'Last Week' : 
+                 timeRange === 'month' ? 'Last Month' : 
+                 timeRange === 'quarter' ? 'Last Quarter' : 'Last Month'}
+              </Button>
+              {showDetailedView && (
+                <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border rounded-lg shadow-lg z-10 min-w-[120px]">
+                  {['week', 'month', 'quarter'].map(range => (
+                    <button
+                      key={range}
+                      onClick={() => {
+                        handleTimeRangeChange(range)
+                        setShowDetailedView(false)
+                      }}
+                      className="block w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm capitalize"
+                    >
+                      Last {range}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
               <Download className="h-4 w-4 mr-2" />
-              Export Report
+              Refresh Data
             </Button>
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Button 
+              size="sm" 
+              className={`${aiInsights?.aiStatus === 'success' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'} text-white`}
+              onClick={() => window.scrollTo({ top: document.getElementById('ai-insights')?.offsetTop, behavior: 'smooth' })}
+            >
               <Brain className="h-4 w-4 mr-2" />
-              AI Insights
+              {aiInsights?.aiStatus === 'success' ? 'AI Insights' : 'AI Limited'}
             </Button>
           </div>
         </div>
@@ -69,8 +304,11 @@ export default function InstructorAnalytics() {
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{TEMP_STATS.averageScore}%</div>
-            <p className="text-xs text-green-600 mt-1">+2.3% this month</p>
+            <div className="text-2xl font-bold">{analyticsData?.keyMetrics.courseEffectiveness || 0}%</div>
+            <p className="text-xs text-green-600 mt-1">
+              {analyticsData?.keyMetrics.courseEffectiveness > 70 ? 'Above target' : 
+               analyticsData?.keyMetrics.courseEffectiveness > 60 ? 'On track' : 'Needs improvement'}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -79,28 +317,32 @@ export default function InstructorAnalytics() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{TEMP_STATS.activeStudents}</div>
-            <p className="text-xs text-emerald-600 mt-1">Active this week</p>
+            <div className="text-2xl font-bold">{analyticsData?.keyMetrics.studentEngagement || 0}</div>
+            <p className="text-xs text-emerald-600 mt-1">
+              of {analyticsData?.totalStudents || 0} students active
+            </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">Content Generated</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">Study Sessions</CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{TEMP_STATS.contentGenerated}</div>
-            <p className="text-xs text-blue-600 mt-1">AI-powered materials</p>
+            <div className="text-2xl font-bold">{analyticsData?.keyMetrics.contentGenerated || 0}</div>
+            <p className="text-xs text-blue-600 mt-1">Total sessions completed</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">Interventions Sent</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">AI Recommendations</CardTitle>
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{TEMP_STATS.interventionsSent}</div>
-            <p className="text-xs text-amber-600 mt-1">To at-risk students</p>
+            <div className="text-2xl font-bold">{aiInsights?.recommendations.length || 0}</div>
+            <p className="text-xs text-amber-600 mt-1">
+              {aiInsights?.aiStatus === 'success' ? 'AI-generated insights' : 'Limited insights available'}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -110,62 +352,88 @@ export default function InstructorAnalytics() {
         <Card>
           <CardHeader>
             <CardTitle className="text-gray-900 dark:text-white">Study Techniques Performance</CardTitle>
-            <CardDescription className="dark:text-gray-300">How different study methods perform in your criminology course</CardDescription>
+            <CardDescription className="dark:text-gray-300">How different study methods perform in your courses</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {STUDY_TECHNIQUES.map((technique, index) => (
-                <div key={index} className="space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 dark:text-white">{technique.name}</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{technique.description}</p>
-                    </div>
-                    <div className="text-right ml-4">
-                      <Badge variant="default" className="bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300">
-                        {technique.effectiveness}
-                      </Badge>
-                    </div>
-                  </div>
+              {analyticsData?.studyTechniques && analyticsData.studyTechniques.length > 0 ? (
+                analyticsData.studyTechniques.map((technique, index) => {
+                  const techniqueName = technique.technique || technique.name || 'Unknown Technique'
+                  const effectivenessValue = technique.effectivenessPercentage || technique.averageScore || 0
+                  const adoptionValue = technique.adoptionRate || technique.usagePercentage || 0
+                  const performanceValue = technique.averagePerformance || technique.averageScore || effectivenessValue
                   
-                  <div className="space-y-2">
-                    {/* Effectiveness Bar */}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Effectiveness in Criminal Law</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{technique.effectiveness}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                      <div 
-                        className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: technique.effectiveness }}
-                      ></div>
-                    </div>
-                    
-                    {/* Usage Bar */}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">Student Adoption Rate</span>
-                      <span className="font-medium text-gray-900 dark:text-white">{technique.usage}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                      <div 
-                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: technique.usage }}
-                      ></div>
-                    </div>
-                  </div>
+                  return (
+                    <div key={index} className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 dark:text-white">{techniqueName}</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {technique.totalSessions} sessions • {technique.uniqueUsers || 0} students
+                          </p>
+                        </div>
+                        <div className="text-right ml-4">
+                          <Badge 
+                            variant="default" 
+                            className={`${
+                              performanceValue >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300' :
+                              performanceValue >= 60 ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300' :
+                              'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
+                            }`}
+                          >
+                            {effectivenessValue}% effective
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {/* Effectiveness Bar */}
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Effectiveness</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{effectivenessValue}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                          <div 
+                            className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(effectivenessValue, 100)}%` }}
+                          ></div>
+                        </div>
+                        
+                        {/* Usage Bar */}
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">Student Adoption Rate</span>
+                          <span className="font-medium text-gray-900 dark:text-white">{adoptionValue}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                          <div 
+                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(adoptionValue, 100)}%` }}
+                          ></div>
+                        </div>
+                      </div>
 
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Recommend to Students
-                    </Button>
-                  </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline">
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </Button>
+                        {performanceValue >= 70 && (
+                          <Button size="sm" variant="outline">
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Recommend to Students
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-center py-8">
+                  <BookOpen className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600 dark:text-gray-400">No study technique data available yet.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Data will appear as students complete study sessions.</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -177,125 +445,169 @@ export default function InstructorAnalytics() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {INSTRUCTOR_COURSE.modules.map((module) => (
-                <div key={module.id} className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 dark:text-white">{module.title}</h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge 
-                          variant="outline"
-                          className={module.status === 'published' ? 'border-green-500 text-green-700 dark:text-green-400' : 'border-amber-500 text-amber-700 dark:text-amber-400'}
-                        >
-                          {module.status}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs dark:text-black dark:bg-gray-300">
-                          {module.difficulty}
-                        </Badge>
+              {analyticsData?.modulePerformance && analyticsData.modulePerformance.length > 0 ? (
+                analyticsData.modulePerformance.map((module) => (
+                  <div key={module.id} className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 dark:text-white">{module.title}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge 
+                            variant="outline"
+                            className={`${
+                              module.status === 'excellent' ? 'border-green-500 text-green-700 dark:text-green-400' :
+                              module.status === 'good' ? 'border-emerald-500 text-emerald-700 dark:text-emerald-400' :
+                              module.status === 'needs_improvement' ? 'border-amber-500 text-amber-700 dark:text-amber-400' :
+                              'border-red-500 text-red-700 dark:text-red-400'
+                            }`}
+                          >
+                            {module.status === 'excellent' ? 'Excellent' :
+                             module.status === 'good' ? 'Good' :
+                             module.status === 'needs_improvement' ? 'Needs Improvement' : 'Critical'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">{module.averageScore}%</div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">Avg Score</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-gray-900 dark:text-white">{module.averageScore}%</div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Avg Score</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">Completed:</span>
+                        <span className="font-medium ml-1 text-gray-900 dark:text-white">
+                          {module.studentsCompleted}/{module.totalStudents}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">Completion Rate:</span>
+                        <span className="font-medium ml-1 text-gray-900 dark:text-white">
+                          {Math.round((module.studentsCompleted / Math.max(module.totalStudents, 1)) * 100)}%
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Completed:</span>
-                      <span className="font-medium ml-1 text-gray-900 dark:text-white">{module.studentsCompleted}/{INSTRUCTOR_COURSE.totalStudents}</span>
+                    
+                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-300 ${
+                          module.averageScore >= 80 ? 'bg-green-500' :
+                          module.averageScore >= 70 ? 'bg-emerald-500' :
+                          module.averageScore >= 60 ? 'bg-amber-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${(module.studentsCompleted / Math.max(module.totalStudents, 1)) * 100}%` }}
+                      ></div>
                     </div>
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400">Completion Rate:</span>
-                      <span className="font-medium ml-1 text-gray-900 dark:text-white">{Math.round((module.studentsCompleted / INSTRUCTOR_COURSE.totalStudents) * 100)}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
-                    <div 
-                      className={`h-3 rounded-full transition-all duration-300 ${
-                        module.averageScore >= 80 ? 'bg-green-500' :
-                        module.averageScore >= 70 ? 'bg-emerald-500' :
-                        module.averageScore >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${(module.studentsCompleted / INSTRUCTOR_COURSE.totalStudents) * 100}%` }}
-                    ></div>
-                  </div>
 
-                  {module.averageScore < 70 && (
-                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
-                      <div className="flex items-center">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 mr-2" />
-                        <p className="text-sm text-amber-700">
-                          Below target performance. Consider additional resources or review sessions.
-                        </p>
+                    {module.averageScore < 70 && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                        <div className="flex items-center">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 mr-2" />
+                          <p className="text-sm text-amber-700 dark:text-amber-300">
+                            Below target performance. Consider additional resources or review sessions.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <BarChart3 className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600 dark:text-gray-400">No module performance data available yet.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Data will appear as students progress through modules.</p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* AI Teaching Insights & Student Engagement Patterns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" id="ai-insights">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-              <Sparkles className="h-5 w-5 text-blue-500" />
+              <Sparkles className={`h-5 w-5 ${
+                aiInsights?.aiStatus === 'success' ? 'text-blue-500' : 'text-amber-500'
+              }`} />
               AI Teaching Insights
             </CardTitle>
-            <CardDescription className="dark:text-gray-300">Personalized recommendations to improve teaching effectiveness</CardDescription>
+            <CardDescription className="dark:text-gray-300">
+              {aiInsights?.aiStatus === 'success' 
+                ? 'AI-powered recommendations to improve teaching effectiveness'
+                : 'Limited AI insights available - using basic analytics'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {TEACHING_INSIGHTS.map((insight, index) => (
-                <div 
-                  key={index}
-                  className={`p-4 rounded-lg border ${
-                    insight.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' :
-                    insight.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
-                    'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                  }`}
-                >
-                  <div className="flex items-start">
-                    <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
-                      insight.type === 'success' ? 'bg-green-500' :
-                      insight.type === 'warning' ? 'bg-amber-500' :
-                      'bg-blue-500'
-                    }`}></div>
-                    <div className="flex-1">
-                      <h4 className={`font-medium ${
-                        insight.type === 'success' ? 'text-green-900 dark:text-green-100' :
-                        insight.type === 'warning' ? 'text-amber-900 dark:text-amber-100' :
-                        'text-blue-900 dark:text-blue-100'
-                      }`}>
-                        {insight.title}
-                      </h4>
-                      <p className={`text-sm mt-1 ${
-                        insight.type === 'success' ? 'text-green-700 dark:text-green-300' :
-                        insight.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
-                        'text-blue-700 dark:text-blue-300'
-                      }`}>
-                        {insight.description}
-                      </p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className={`mt-3 text-xs text-gray-900 dark:text-white ${
-                          insight.type === 'success' ? 'border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800' :
-                          insight.type === 'warning' ? 'border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800' :
-                          'border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800'
-                        }`}
-                      >
-                        {insight.action}
-                      </Button>
+              {aiInsights?.insights && aiInsights.insights.length > 0 ? (
+                aiInsights.insights.slice(0, 4).map((insight, index) => (
+                  <div 
+                    key={insight.id}
+                    className={`p-4 rounded-lg border ${
+                      insight.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' :
+                      insight.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
+                      insight.type === 'critical' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
+                      'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                    }`}
+                  >
+                    <div className="flex items-start">
+                      <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
+                        insight.type === 'success' ? 'bg-green-500' :
+                        insight.type === 'warning' ? 'bg-amber-500' :
+                        insight.type === 'critical' ? 'bg-red-500' :
+                        'bg-blue-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className={`font-medium ${
+                            insight.type === 'success' ? 'text-green-900 dark:text-green-100' :
+                            insight.type === 'warning' ? 'text-amber-900 dark:text-amber-100' :
+                            insight.type === 'critical' ? 'text-red-900 dark:text-red-100' :
+                            'text-blue-900 dark:text-blue-100'
+                          }`}>
+                            {insight.title}
+                          </h4>
+                          <Badge variant="secondary" className="text-xs">
+                            {Math.round(insight.confidence * 100)}% confidence
+                          </Badge>
+                        </div>
+                        <p className={`text-sm mt-1 ${
+                          insight.type === 'success' ? 'text-green-700 dark:text-green-300' :
+                          insight.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
+                          insight.type === 'critical' ? 'text-red-700 dark:text-red-300' :
+                          'text-blue-700 dark:text-blue-300'
+                        }`}>
+                          {insight.description}
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className={`mt-3 text-xs text-gray-900 dark:text-white ${
+                            insight.type === 'success' ? 'border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800' :
+                            insight.type === 'warning' ? 'border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800' :
+                            insight.type === 'critical' ? 'border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-800' :
+                            'border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800'
+                          }`}
+                        >
+                          {insight.action}
+                        </Button>
+                      </div>
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600 dark:text-gray-400">No AI insights available yet.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                    {aiInsights?.aiStatus === 'error' 
+                      ? 'AI service temporarily unavailable.'
+                      : 'More data needed for AI analysis.'}
+                  </p>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
@@ -311,50 +623,62 @@ export default function InstructorAnalytics() {
               <div>
                 <h4 className="font-medium text-gray-900 dark:text-white mb-3">Peak Study Hours</h4>
                 <div className="space-y-3">
-                  {[
-                    { time: "7:00 - 9:00 PM", activity: 85, label: "Evening Study Peak" },
-                    { time: "2:00 - 4:00 PM", activity: 72, label: "Afternoon Sessions" },
-                    { time: "10:00 - 12:00 PM", activity: 58, label: "Morning Study" },
-                    { time: "8:00 - 10:00 PM", activity: 91, label: "Prime Study Time" }
-                  ].map((period, index) => (
-                    <div key={index} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">{period.time}</span>
-                        <span className="font-medium text-gray-900 dark:text-white">{period.activity}% active</span>
+                  {analyticsData?.studentEngagement?.peakHours && analyticsData.studentEngagement.peakHours.length > 0 ? (
+                    analyticsData.studentEngagement.peakHours.slice(0, 4).map((period, index) => (
+                      <div key={index} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">{period.time}</span>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {period.activity} sessions ({period.percentage}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                          <div 
+                            className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(period.percentage, 100)}%` }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                        <div 
-                          className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${period.activity}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{period.label}</p>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <Clock className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No peak hours data available yet</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
               {/* Content Engagement */}
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Content Type Performance</h4>
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Study Technique Performance</h4>
                 <div className="space-y-3">
-                  {[
-                    { type: "Video Lectures", engagement: 92, color: "bg-blue-500" },
-                    { type: "Interactive Quizzes", engagement: 89, color: "bg-emerald-500" },
-                    { type: "Case Studies", engagement: 78, color: "bg-purple-500" },
-                    { type: "Reading Materials", engagement: 65, color: "bg-amber-500" }
-                  ].map((content, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center">
-                        <div className={`w-3 h-3 rounded-full ${content.color} mr-3`}></div>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{content.type}</span>
+                  {analyticsData?.studentEngagement?.contentTypes && analyticsData.studentEngagement.contentTypes.length > 0 ? (
+                    analyticsData.studentEngagement.contentTypes.map((content, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div className="flex items-center">
+                          <div 
+                            className="w-3 h-3 rounded-full mr-3" 
+                            style={{ backgroundColor: content.color }}
+                          ></div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{content.type}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {content.engagement} sessions
+                          </span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {content.percentage}% of total
+                          </p>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{content.engagement}%</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">engagement</p>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <BarChart3 className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">No content engagement data available yet</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
@@ -365,8 +689,10 @@ export default function InstructorAnalytics() {
       {/* Weekly Performance Summary */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-gray-900 dark:text-white">Weekly Teaching Performance Summary</CardTitle>
-          <CardDescription className="dark:text-gray-300">Overview of your course impact and student outcomes this week</CardDescription>
+          <CardTitle className="text-gray-900 dark:text-white">Teaching Performance Summary</CardTitle>
+          <CardDescription className="dark:text-gray-300">
+            Overview of your course impact and student outcomes for the selected time period
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -374,16 +700,30 @@ export default function InstructorAnalytics() {
               <h4 className="font-medium text-gray-900 dark:text-white">Student Success Metrics</h4>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Average Quiz Scores</span>
-                  <span className="font-medium text-green-600 dark:text-green-400">78.5%</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Average Scores</span>
+                  <span className={`font-medium ${
+                    (analyticsData?.weeklyPerformance?.averageQuizScores || 0) >= 80 ? 'text-green-600 dark:text-green-400' :
+                    (analyticsData?.weeklyPerformance?.averageQuizScores || 0) >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
+                    'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {analyticsData?.weeklyPerformance?.averageQuizScores || 0}%
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Module Completion</span>
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400">91%</span>
+                  <span className={`font-medium ${
+                    (analyticsData?.weeklyPerformance?.moduleCompletion || 0) >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
+                    (analyticsData?.weeklyPerformance?.moduleCompletion || 0) >= 70 ? 'text-blue-600 dark:text-blue-400' :
+                    'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {analyticsData?.weeklyPerformance?.moduleCompletion || 0}%
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600 dark:text-gray-400">Study Session Duration</span>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">42 min avg</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                    {analyticsData?.weeklyPerformance?.studySessionDuration || 0} min avg
+                  </span>
                 </div>
               </div>
             </div>
@@ -392,16 +732,26 @@ export default function InstructorAnalytics() {
               <h4 className="font-medium text-gray-900 dark:text-white">Teaching Effectiveness</h4>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Content Engagement</span>
-                  <span className="font-medium text-emerald-600 dark:text-emerald-400">85%</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Student Engagement</span>
+                  <span className={`font-medium ${
+                    (analyticsData?.weeklyPerformance?.contentEngagement || 0) >= 80 ? 'text-emerald-600 dark:text-emerald-400' :
+                    (analyticsData?.weeklyPerformance?.contentEngagement || 0) >= 60 ? 'text-blue-600 dark:text-blue-400' :
+                    'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {analyticsData?.weeklyPerformance?.contentEngagement || 0}%
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Discussion Participation</span>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">67%</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Active Students</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                    {analyticsData?.activeStudents || 0} of {analyticsData?.totalStudents || 0}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Assignment Submissions</span>
-                  <span className="font-medium text-purple-600 dark:text-purple-400">89%</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Study Sessions</span>
+                  <span className="font-medium text-purple-600 dark:text-purple-400">
+                    {analyticsData?.keyMetrics?.contentGenerated || 0} completed
+                  </span>
                 </div>
               </div>
             </div>
@@ -409,21 +759,34 @@ export default function InstructorAnalytics() {
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900 dark:text-white">AI Recommendations</h4>
               <div className="space-y-2">
-                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <p className="text-xs text-blue-700 dark:text-white">
-                    <strong>Peak Engagement:</strong> Schedule important content during 7-9 PM for maximum impact
-                  </p>
-                </div>
-                <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <p className="text-xs text-green-700 dark:text-white">
-                    <strong>Study Technique:</strong> Promote Active Recall technique - shows 87% effectiveness
-                  </p>
-                </div>
-                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                  <p className="text-xs text-amber-700 dark:text-white">
-                    <strong>At-Risk Alert:</strong> 2 students need immediate intervention for Criminal Procedure
-                  </p>
-                </div>
+                {aiInsights?.recommendations && aiInsights.recommendations.length > 0 ? (
+                  aiInsights.recommendations.slice(0, 3).map((rec, index) => (
+                    <div 
+                      key={rec.id}
+                      className={`p-3 rounded-lg border ${
+                        rec.priority <= 2 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
+                        rec.priority === 3 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
+                        'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                      }`}
+                    >
+                      <p className={`text-xs ${
+                        rec.priority <= 2 ? 'text-red-700 dark:text-red-300' :
+                        rec.priority === 3 ? 'text-amber-700 dark:text-amber-300' :
+                        'text-blue-700 dark:text-blue-300'
+                      }`}>
+                        <strong>{rec.title}:</strong> {rec.description.substring(0, 60)}...
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {aiInsights?.aiStatus === 'error' 
+                        ? 'AI recommendations temporarily unavailable'
+                        : 'No specific recommendations at this time - continue current approach'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

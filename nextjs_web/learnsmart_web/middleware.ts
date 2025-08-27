@@ -54,7 +54,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // No automatic session refresh - simplified middleware
+  try {
+    // Refresh session to ensure cookies are updated for server components
+    await supabase.auth.getSession()
+  } catch (error) {
+    console.error('Middleware session refresh error:', error)
+  }
+
   return response
 }
 

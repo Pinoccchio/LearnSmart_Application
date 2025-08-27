@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LogOut, Bell, Settings, User, GraduationCap, Menu, LayoutDashboard, BookOpen, Users, BarChart3 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import ProtectedRoute from '@/components/auth/protected-route'
 
 // Create context for sidebar state
 const InstructorSidebarContext = createContext<{
@@ -97,14 +98,16 @@ export default function InstructorLayout({
   }, [user?.id, courses.length, coursesLoading])
 
   return (
-    <InstructorSidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
-      <InstructorCoursesContext.Provider value={{ courses, coursesLoading, coursesError, refreshCourses }}>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-          <InstructorSidebar />
-          <InstructorContent>{children}</InstructorContent>
-        </div>
-      </InstructorCoursesContext.Provider>
-    </InstructorSidebarContext.Provider>
+    <ProtectedRoute requiredRole="instructor">
+      <InstructorSidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
+        <InstructorCoursesContext.Provider value={{ courses, coursesLoading, coursesError, refreshCourses }}>
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+            <InstructorSidebar />
+            <InstructorContent>{children}</InstructorContent>
+          </div>
+        </InstructorCoursesContext.Provider>
+      </InstructorSidebarContext.Provider>
+    </ProtectedRoute>
   )
 }
 

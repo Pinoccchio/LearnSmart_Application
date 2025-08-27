@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LogOut, Bell, Settings, User, Shield, Menu, LayoutDashboard, BookOpen, Users, BarChart3 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import ProtectedRoute from '@/components/auth/protected-route'
 
 // Create context for sidebar state
 const AdminSidebarContext = createContext<{
@@ -99,14 +100,16 @@ export default function AdminLayout({
   }, [user?.id, user?.role, dashboardData, dataLoading])
 
   return (
-    <AdminSidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
-      <AdminDataContext.Provider value={{ dashboardData, dataLoading, dataError, refreshData }}>
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-          <AdminSidebar />
-          <AdminContent>{children}</AdminContent>
-        </div>
-      </AdminDataContext.Provider>
-    </AdminSidebarContext.Provider>
+    <ProtectedRoute requiredRole="admin">
+      <AdminSidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>
+        <AdminDataContext.Provider value={{ dashboardData, dataLoading, dataError, refreshData }}>
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+            <AdminSidebar />
+            <AdminContent>{children}</AdminContent>
+          </div>
+        </AdminDataContext.Provider>
+      </AdminSidebarContext.Provider>
+    </ProtectedRoute>
   )
 }
 

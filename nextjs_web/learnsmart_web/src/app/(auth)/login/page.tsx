@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -24,10 +24,34 @@ export default function LoginPage() {
   const [showResendButton, setShowResendButton] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
+  const { user, isLoading: authLoading } = useAuth()
   const { login } = useAuth()
   const router = useRouter()
 
-  // No auto-redirect for authenticated users - they can access login page
+  // Check if user is already authenticated and redirect
+  useEffect(() => {
+    if (authLoading) return // Wait for auth check to complete
+    
+    if (user) {
+      console.log('🔐 Login page: User already authenticated, redirecting', user.role)
+      
+      // User is already authenticated, redirect to their dashboard
+      switch (user.role) {
+        case 'admin':
+          router.replace('/admin')
+          break
+        case 'instructor':
+          router.replace('/instructor')
+          break
+        case 'student':
+          // Students should be redirected away from web platform
+          router.replace('/')
+          break
+        default:
+          router.replace('/')
+      }
+    }
+  }, [user, authLoading, router])
 
   // Validation helper functions
   const validateEmail = (email: string) => {
@@ -172,6 +196,20 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading while checking authentication or if already authenticated
+  if (authLoading || user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">
+            {user ? 'Redirecting to dashboard...' : 'Checking authentication...'}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
