@@ -1,8 +1,8 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { useRouter, usePathname } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 interface User {
@@ -29,8 +29,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
 
   // Helper function for role-based redirects
   const handleRoleBasedRedirect = (userRole: string) => {
@@ -42,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.push('/instructor')
         break
       case 'student':
-        // Block student access to web platform
         throw new Error('Student accounts cannot access the web platform. Please use the mobile app.')
       default:
         throw new Error('Account role not recognized. Please contact support.')
@@ -50,31 +50,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        fetchUserProfile(session.user.id)
-      }
-      setIsLoading(false)
-    })
-
-    // Listen for auth changes
+    // Simple auth state listener - no auto-authentication
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        await fetchUserProfile(session.user.id)
-      } else {
+      console.log('Auth state change:', event, session?.user?.id)
+      
+      if (event === 'SIGNED_OUT' || !session) {
         setUser(null)
       }
-      setIsLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
-  const fetchUserProfile = async (userId: string, shouldRedirect = false, retryCount = 0) => {
+  const fetchUserProfile = async (userId: string, shouldRedirect = false): Promise<void> => {
     try {
+      console.log('🔄 Fetching user profile for:', userId, 'shouldRedirect:', shouldRedirect)
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
@@ -82,17 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (error) {
-        console.error('Supabase error fetching profile:', error)
-        
-        // Retry logic for network errors (max 3 retries)
-        if (retryCount < 3 && (error.code === 'NETWORK_ERROR' || error.code === 'CONNECTION_ERROR')) {
-          console.log(`Retrying fetchUserProfile (${retryCount + 1}/3)...`)
-          // Wait for a short time before retrying
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          return fetchUserProfile(userId, shouldRedirect, retryCount + 1)
-        }
-        
-        throw error
+        console.error('❌ Supabase error fetching profile:', error.message || error)
+        throw new Error(`Profile fetch failed: ${error.message || 'Unknown error'}`)
       }
 
       if (data) {
@@ -108,14 +94,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           updated_at: data.updated_at
         }
         
+        console.log('✅ User profile loaded:', userData.email, userData.role)
         setUser(userData)
         
-        // Only redirect on fresh login, not on page reload
+        // Redirect after login if requested
         if (shouldRedirect) {
           try {
             handleRoleBasedRedirect(data.role)
           } catch (redirectError: any) {
-            // If redirect fails (e.g., student access blocked), logout and throw error
             await supabase.auth.signOut()
             setUser(null)
             throw redirectError
@@ -124,24 +110,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Update last_login time
         if (shouldRedirect) {
-          // Don't await this, just fire and forget
           supabase
             .from('users')
             .update({ last_login: new Date().toISOString() })
             .eq('id', userId)
-            .then()
-            .catch(err => console.warn('Failed to update last_login:', err))
+            .then(() => {})
+            .catch((err: any) => console.warn('Failed to update last_login:', err))
         }
       } else {
-        console.warn('No user profile found for ID:', userId)
+        console.warn('⚠️ No user profile found for ID:', userId)
       }
     } catch (error: any) {
-      console.error('Error fetching user profile:', error)
-      
-      // If this was a login attempt (shouldRedirect), report the error
+      console.error('❌ Error fetching user profile:', error)
       if (shouldRedirect) {
-        // Set error state that can be accessed by UI components
-        console.error(`Profile fetch failed: ${error.message || 'Unknown error'}`)
+        throw error
       }
     }
   }
@@ -236,12 +218,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     setIsLoading(true)
+    
     try {
-      const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      console.log('🔄 Starting logout process...')
+      
       setUser(null)
+      
+      const { error } = await supabase.auth.signOut({ scope: 'global' })
+      if (error) {
+        console.error('Supabase signOut error:', error)
+      }
+      
+      try {
+        localStorage.removeItem('supabase.auth.token')
+        sessionStorage.clear()
+        
+        const keys = Object.keys(localStorage)
+        keys.forEach(key => {
+          if (key.includes('supabase') || key.includes('auth')) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch (storageError) {
+        console.warn('Error clearing storage:', storageError)
+      }
+      
+      console.log('✅ Logout completed successfully')
+      router.push('/')
+      
     } catch (error) {
-      console.error('Logout error:', error)
+      console.error('❌ Logout error:', error)
+      setUser(null)
+      router.push('/')
     } finally {
       setIsLoading(false)
     }

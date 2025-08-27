@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context"
 import { AdminDataContext } from "./layout"
 import { MOCK_ACTIVITIES, MOCK_COURSES, AT_RISK_STUDENTS, STUDY_TECHNIQUES } from "@/lib/constants"
 import { Users, BookOpen, TrendingUp, Target, AlertTriangle, Clock, TrendingUp as TrendingUpIcon, Loader2 } from "lucide-react"
+import { DashboardStatsLoading, DashboardCardsLoading } from "@/components/common/dashboard-loading"
 
 export default function AdminDashboard() {
   const { user } = useAuth()
@@ -71,27 +72,38 @@ export default function AdminDashboard() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                {stat.change} from last month
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {dataLoading ? (
+        <div className="mb-8">
+          <DashboardStatsLoading />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {stats.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-900 dark:text-white">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                  {stat.change}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Recent Activity */}
+      {dataLoading ? (
+        <div className="mb-8">
+          <DashboardCardsLoading />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Recent Activity */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-gray-900 dark:text-white">Recent Activities</CardTitle>
@@ -152,7 +164,8 @@ export default function AdminDashboard() {
             </Button>
           </CardContent>
         </Card>
-      </div>
+        </div>
+      )}
 
       {/* Course Performance & Study Techniques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

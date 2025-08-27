@@ -89,12 +89,12 @@ export default function InstructorLayout({
     fetchCourses()
   }
 
-  // Fetch courses when user is available
+  // Fetch courses when user is available - with caching
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && courses.length === 0 && !coursesLoading) {
       fetchCourses()
     }
-  }, [user?.id])
+  }, [user?.id, courses.length, coursesLoading])
 
   return (
     <InstructorSidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>

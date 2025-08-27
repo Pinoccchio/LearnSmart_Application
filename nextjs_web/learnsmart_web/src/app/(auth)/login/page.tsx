@@ -24,8 +24,10 @@ export default function LoginPage() {
   const [showResendButton, setShowResendButton] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false)
-  const { login, user } = useAuth()
+  const { login } = useAuth()
   const router = useRouter()
+
+  // No auto-redirect for authenticated users - they can access login page
 
   // Validation helper functions
   const validateEmail = (email: string) => {

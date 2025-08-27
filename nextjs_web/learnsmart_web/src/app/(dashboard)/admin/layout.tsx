@@ -91,12 +91,12 @@ export default function AdminLayout({
     fetchData()
   }
 
-  // Fetch data when user is available
+  // Fetch data when user is available - with caching
   useEffect(() => {
-    if (user?.id && user?.role === 'admin') {
+    if (user?.id && user?.role === 'admin' && !dashboardData && !dataLoading) {
       fetchData()
     }
-  }, [user?.id, user?.role])
+  }, [user?.id, user?.role, dashboardData, dataLoading])
 
   return (
     <AdminSidebarContext.Provider value={{ isCollapsed, setIsCollapsed }}>

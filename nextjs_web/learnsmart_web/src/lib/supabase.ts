@@ -1,3 +1,4 @@
+// Legacy client - keeping for backward compatibility but prefer using createClient from supabase/client.ts
 import { createClient } from '@supabase/supabase-js'
 import { Database } from './database.types'
 
