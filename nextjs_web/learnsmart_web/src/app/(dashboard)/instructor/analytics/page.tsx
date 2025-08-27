@@ -117,7 +117,7 @@ function InsightCard({ insight }: InsightCardProps) {
 
   return (
     <div 
-      className={`p-4 rounded-lg border transition-all duration-200 h-full flex flex-col ${
+      className={`p-4 rounded-lg border transition-all duration-200 h-full flex flex-col min-h-[200px] ${
         insight.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' :
         insight.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700' :
         insight.type === 'critical' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700' :
@@ -133,11 +133,11 @@ function InsightCard({ insight }: InsightCardProps) {
         }`}></div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-2">
-            <h4 className={`font-medium text-sm leading-tight break-words hyphens-auto flex-1 ${
-              insight.type === 'success' ? 'text-green-900 dark:text-green-200' :
-              insight.type === 'warning' ? 'text-amber-900 dark:text-amber-200' :
-              insight.type === 'critical' ? 'text-red-900 dark:text-red-200' :
-              'text-blue-900 dark:text-blue-200'
+            <h4 className={`font-semibold text-sm leading-tight break-words hyphens-auto flex-1 ${
+              insight.type === 'success' ? 'text-green-800 dark:text-green-100' :
+              insight.type === 'warning' ? 'text-amber-800 dark:text-amber-100' :
+              insight.type === 'critical' ? 'text-red-800 dark:text-red-100' :
+              'text-blue-800 dark:text-blue-100'
             }`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
               {insight.title}
             </h4>
@@ -146,10 +146,10 @@ function InsightCard({ insight }: InsightCardProps) {
             </Badge>
           </div>
           <div className={`text-sm flex-1 ${
-            insight.type === 'success' ? 'text-green-700 dark:text-green-300' :
-            insight.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
-            insight.type === 'critical' ? 'text-red-700 dark:text-red-300' :
-            'text-blue-700 dark:text-blue-300'
+            insight.type === 'success' ? 'text-green-700 dark:text-green-200' :
+            insight.type === 'warning' ? 'text-amber-700 dark:text-amber-200' :
+            insight.type === 'critical' ? 'text-red-700 dark:text-red-200' :
+            'text-blue-700 dark:text-blue-200'
           }`}>
             <p className="break-words hyphens-auto leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
               {shouldTruncate && !isExpanded 
@@ -173,22 +173,24 @@ function InsightCard({ insight }: InsightCardProps) {
           </div>
         </div>
       </div>
-      <div className="mt-3 pt-2">
+      <div className="mt-3 pt-2 border-t border-gray-200 dark:border-gray-600">
         <Button 
           variant="outline" 
           size="sm" 
-          className={`text-xs w-full truncate ${
+          className={`text-xs w-full min-h-[2rem] px-2 py-1 whitespace-normal text-center leading-tight font-medium ${
             insight.type === 'success' 
-              ? 'border-green-300 dark:border-green-600 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-800/50' :
+              ? 'border-green-400 dark:border-green-500 text-green-800 dark:text-green-100 hover:bg-green-100 dark:hover:bg-green-800/50 bg-green-50/50 dark:bg-green-900/20' :
             insight.type === 'warning' 
-              ? 'border-amber-300 dark:border-amber-600 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-800/50' :
+              ? 'border-amber-400 dark:border-amber-500 text-amber-800 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-800/50 bg-amber-50/50 dark:bg-amber-900/20' :
             insight.type === 'critical' 
-              ? 'border-red-300 dark:border-red-600 text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/50' :
-            'border-blue-300 dark:border-blue-600 text-blue-800 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-800/50'
+              ? 'border-red-400 dark:border-red-500 text-red-800 dark:text-red-100 hover:bg-red-100 dark:hover:bg-red-800/50 bg-red-50/50 dark:bg-red-900/20' :
+            'border-blue-400 dark:border-blue-500 text-blue-800 dark:text-blue-100 hover:bg-blue-100 dark:hover:bg-blue-800/50 bg-blue-50/50 dark:bg-blue-900/20'
           }`}
           title={insight.action}
         >
-          {insight.action}
+          <span className="break-words hyphens-auto" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+            {insight.action}
+          </span>
         </Button>
       </div>
     </div>
@@ -710,9 +712,9 @@ export default function InstructorAnalytics() {
             (analyticsData?.studentEngagement?.contentTypes && analyticsData.studentEngagement.contentTypes.length > 0);
           
           return (
-            <div className={hasEngagementData ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
+            <div className={hasEngagementData ? "grid grid-cols-1 xl:grid-cols-2 gap-6" : ""}>
               {/* AI Teaching Insights */}
-              <Card className={hasEngagementData ? "" : "mx-auto max-w-4xl"}>
+              <Card className={hasEngagementData ? "" : "mx-auto max-w-6xl"}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
                     <Sparkles className={`h-5 w-5 ${
@@ -727,13 +729,13 @@ export default function InstructorAnalytics() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="max-h-96 overflow-y-auto">
-                  <div className={`space-y-4 ${hasEngagementData ? "" : "grid grid-cols-1 md:grid-cols-2 gap-4"}`}>
+                  <div className={`gap-4 ${hasEngagementData ? "grid grid-cols-1 lg:grid-cols-1 xl:grid-cols-2" : "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3"} ${aiInsights?.insights && aiInsights.insights.length === 0 ? "flex" : ""}`}>
                     {aiInsights?.insights && aiInsights.insights.length > 0 ? (
                       aiInsights.insights.slice(0, hasEngagementData ? 4 : 6).map((insight, index) => (
                         <InsightCard key={insight.id} insight={insight} />
                       ))
                     ) : (
-                      <div className={`text-center py-8 ${hasEngagementData ? "" : "md:col-span-2"}`}>
+                      <div className={`text-center py-8 flex flex-col items-center justify-center ${hasEngagementData ? "" : "md:col-span-2 xl:col-span-3"} w-full`}>
                         <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                         <p className="text-gray-600 dark:text-gray-400">No AI insights available yet.</p>
                         <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
@@ -826,7 +828,7 @@ export default function InstructorAnalytics() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900 dark:text-white">Student Success Metrics</h4>
               <div className="space-y-3">
@@ -889,14 +891,14 @@ export default function InstructorAnalytics() {
 
             <div className="space-y-4 min-w-0">
               <h4 className="font-medium text-gray-900 dark:text-white">AI Recommendations</h4>
-              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                 {aiInsights?.recommendations && aiInsights.recommendations.length > 0 ? (
                   aiInsights.recommendations.slice(0, 3).map((rec, index) => (
                     <RecommendationCard key={rec.id} recommendation={rec} />
                   ))
                 ) : (
                   <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 break-words">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 break-words hyphens-auto leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                       {aiInsights?.aiStatus === 'error' 
                         ? 'AI recommendations temporarily unavailable'
                         : aiInsights?.aiStatus === 'insufficient_data'
