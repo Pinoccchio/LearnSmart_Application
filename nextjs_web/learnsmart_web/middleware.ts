@@ -2,10 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
+  let supabaseResponse = NextResponse.next({
+    request,
   })
 
   const supabase = createServerClient(
@@ -13,55 +11,50 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value
+        getAll() {
+          return request.cookies.getAll()
         },
-        set(name: string, value: string, options: any) {
-          request.cookies.set({
-            name,
-            value,
-            ...options,
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
+            request,
           })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value,
-            ...options,
-          })
-        },
-        remove(name: string, options: any) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
 
+  // IMPORTANT: Avoid writing any logic between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
+
   try {
-    // Refresh session to ensure cookies are updated for server components
-    await supabase.auth.getSession()
+    // This will refresh session if expired - required for Server Components
+    // https://supabase.com/docs/guides/auth/server-side/nextjs
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    
+    // Optional: Add user info to request headers for API routes
+    if (user) {
+      supabaseResponse.headers.set('x-user-id', user.id)
+      // Note: Don't put sensitive data in headers as they can be accessed by client-side code
+    }
   } catch (error) {
-    console.error('Middleware session refresh error:', error)
+    // If getUser throws, return early to avoid infinite loops
+    console.error('Middleware auth error:', error)
+    // Don't throw error, just continue without user context
   }
 
-  return response
+  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
+  // creating a new response object with NextResponse.next() make sure to:
+  // 1. Pass the request in it, like so: NextResponse.next({ request })
+  // 2. Copy over the cookies, like so: supabaseResponse.cookies.getAll().forEach(...)
+  // 3. Change the response's cookies, like so: response.cookies.set(...)
+  return supabaseResponse
 }
 
 export const config = {

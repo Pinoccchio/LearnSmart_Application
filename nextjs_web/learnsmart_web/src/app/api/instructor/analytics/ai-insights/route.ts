@@ -187,7 +187,8 @@ export async function GET(request: NextRequest) {
         const effectiveness = techniqueAnalytics.length > 0 ? 
           techniqueAnalytics.reduce((sum, a) => {
             const performance = a.performance_metrics || {}
-            return sum + (performance.overall_accuracy || performance.improvement || 0)
+            return sum + (performance.post_study_accuracy || performance.improvement_percentage || 
+                         performance.overall_accuracy || performance.improvement || 0)
           }, 0) / techniqueAnalytics.length : 0
 
         const adoptionRate = courseStudentIds.length > 0 ? 
@@ -226,16 +227,24 @@ export async function GET(request: NextRequest) {
 
       const modulePerformance = Array.from(moduleMap.values()).map(module => {
         const studentCount = module.students.length
-        const completionRate = studentCount > 0 ? module.totalProgress / studentCount : 0
-        const strugglingCount = module.students.filter(s => (s.completion_percentage || 0) < 60).length
         
-        // Calculate average score from analytics for this module
-        const moduleAnalytics = courseAnalytics.filter(a => a.module_id === module.moduleId)
-        const averageScore = moduleAnalytics.length > 0 ?
-          moduleAnalytics.reduce((sum, a) => {
-            const performance = a.performance_metrics || {}
-            return sum + (performance.overall_accuracy || 0)
-          }, 0) / moduleAnalytics.length : completionRate * 0.8 // Estimate
+        // Calculate completion rate from actual completion status
+        const completedCount = module.students.filter(s => 
+          s.status === 'completed' || s.passed === true
+        ).length
+        const completionRate = studentCount > 0 ? (completedCount / studentCount) * 100 : 0
+        
+        // Calculate average score from best_score/latest_score
+        const scoresWithValues = module.students
+          .map(s => parseFloat(s.best_score || s.latest_score || '0'))
+          .filter(score => score > 0)
+        const averageScore = scoresWithValues.length > 0 ?
+          scoresWithValues.reduce((sum, score) => sum + score, 0) / scoresWithValues.length : 0
+        
+        // Count struggling students (score < 60 or needs_remedial)
+        const strugglingCount = module.students.filter(s => 
+          parseFloat(s.best_score || s.latest_score || '0') < 60 || s.needs_remedial
+        ).length
 
         return {
           moduleId: module.moduleId,
@@ -261,13 +270,17 @@ export async function GET(request: NextRequest) {
 
       // Calculate overall metrics
       const activeStudents = new Set(courseSessions.map(s => s.user_id)).size
-      const averageProgress = courseModuleProgress.length > 0 ?
-        courseModuleProgress.reduce((sum, mp) => sum + (mp.completion_percentage || 0), 0) / courseModuleProgress.length : 0
-      const averageScore = courseAnalytics.length > 0 ?
-        courseAnalytics.reduce((sum, a) => {
-          const performance = a.performance_metrics || {}
-          return sum + (performance.overall_accuracy || 0)
-        }, 0) / courseAnalytics.length : 0
+      
+      // Calculate average progress from module completion rates
+      const averageProgress = modulePerformance.length > 0 ?
+        modulePerformance.reduce((sum, m) => sum + m.completionRate, 0) / modulePerformance.length : 0
+      
+      // Calculate average score from module scores
+      const moduleScores = modulePerformance
+        .map(m => m.averageScore)
+        .filter(score => score > 0)
+      const averageScore = moduleScores.length > 0 ?
+        moduleScores.reduce((sum, score) => sum + score, 0) / moduleScores.length : 0
 
       return {
         courseId: course.id,
@@ -299,8 +312,10 @@ export async function GET(request: NextRequest) {
       const moduleProgressData = studentModuleProgress.map(mp => ({
         moduleId: mp.module_id,
         moduleName: mp.modules?.title || 'Unknown Module',
-        completionPercentage: mp.completion_percentage || 0,
-        averageScore: mp.completion_percentage || 0, // Simplified - could be enhanced with actual scores
+        completionPercentage: mp.status === 'completed' ? 100 : 
+                             mp.status === 'in_progress' ? 
+                             (parseFloat(mp.latest_score || '0') > 70 ? 80 : 50) : 0,
+        averageScore: parseFloat(mp.best_score || mp.latest_score || '0'),
         lastActivity: mp.updated_at || mp.created_at
       }))
 
@@ -323,7 +338,8 @@ export async function GET(request: NextRequest) {
         const effectiveness = studentTechniqueAnalytics.length > 0 ?
           studentTechniqueAnalytics.reduce((sum, a) => {
             const performance = a.performance_metrics || {}
-            return sum + (performance.overall_accuracy || 0)
+            return sum + (performance.post_study_accuracy || performance.improvement_percentage || 
+                         performance.overall_accuracy || 0)
           }, 0) / studentTechniqueAnalytics.length : 0
 
         return {
@@ -338,14 +354,21 @@ export async function GET(request: NextRequest) {
       const overallProgress = moduleProgressData.length > 0 ?
         moduleProgressData.reduce((sum, m) => sum + m.completionPercentage, 0) / moduleProgressData.length : 0
 
-      // Determine risk level
+      // Calculate average score from module scores
+      const moduleScores = moduleProgressData
+        .map(m => m.averageScore)
+        .filter(score => score > 0)
+      const avgModuleScore = moduleScores.length > 0 ?
+        moduleScores.reduce((sum, score) => sum + score, 0) / moduleScores.length : 0
+
+      // Determine risk level based on progress, scores, and activity
       const daysSinceLastActivity = studentSessions.length > 0 ?
         Math.floor((Date.now() - new Date(Math.max(...studentSessions.map(s => new Date(s.created_at).getTime()))).getTime()) / (1000 * 60 * 60 * 24)) : 999
 
       let riskLevel: 'low' | 'medium' | 'high' = 'low'
-      if (overallProgress < 30 || daysSinceLastActivity > 14) {
+      if (overallProgress < 30 || avgModuleScore < 50 || daysSinceLastActivity > 14) {
         riskLevel = 'high'
-      } else if (overallProgress < 60 || daysSinceLastActivity > 7) {
+      } else if (overallProgress < 60 || avgModuleScore < 70 || daysSinceLastActivity > 7) {
         riskLevel = 'medium'
       }
 
@@ -370,32 +393,88 @@ export async function GET(request: NextRequest) {
 
     console.log('🤖 [AI INSIGHTS] Generating AI-powered insights...')
 
+    // Check if we have sufficient data for meaningful AI analysis
+    const totalStudentsAnalyzed = studentPerformanceData.length
+    const totalSessionsAnalyzed = courseAnalyticsData.reduce((sum, course) => 
+      sum + course.studySessionsData.reduce((courseSum, technique) => courseSum + technique.totalSessions, 0), 0
+    )
+
+    console.log('📊 [AI INSIGHTS] Data summary:', {
+      courses: courseAnalyticsData.length,
+      students: totalStudentsAnalyzed,
+      sessions: totalSessionsAnalyzed
+    })
+
+    if (totalStudentsAnalyzed === 0 || totalSessionsAnalyzed === 0) {
+      console.log('⚠️ [AI INSIGHTS] Insufficient data for AI analysis')
+      return NextResponse.json({
+        success: true,
+        data: {
+          insights: [],
+          recommendations: [],
+          aiStatus: 'insufficient_data',
+          message: 'Not enough student activity data available for AI analysis',
+          coursesAnalyzed: courses.length,
+          studentsAnalyzed: totalStudentsAnalyzed,
+          atRiskStudents: 0,
+          timeRange,
+          generatedAt: new Date().toISOString()
+        }
+      })
+    }
+
     // Generate AI insights for each course
     const allInsights = []
     const allRecommendations = []
+    let aiAnalysisSuccessful = false
 
     for (const courseData of courseAnalyticsData) {
       try {
+        // Only generate insights for courses with actual data
+        const hasStudentData = courseData.totalStudents > 0
+        const hasSessionData = courseData.studySessionsData.some(technique => technique.totalSessions > 0)
+        
+        if (!hasStudentData || !hasSessionData) {
+          console.log(`⚠️ [AI INSIGHTS] Skipping course ${courseData.courseName} - insufficient data`)
+          continue
+        }
+
+        console.log(`🤖 [AI INSIGHTS] Generating insights for course: ${courseData.courseName}`)
+
         // Generate teaching insights
         const teachingInsights = await teachingAnalyticsAI.generateTeachingInsights(courseData)
-        allInsights.push(...teachingInsights)
+        if (teachingInsights && teachingInsights.length > 0) {
+          allInsights.push(...teachingInsights)
+          aiAnalysisSuccessful = true
+        }
 
         // Generate technique analysis
         const techniqueAnalysis = await teachingAnalyticsAI.analyzeTechniqueEffectiveness(courseData)
-        allInsights.push(...techniqueAnalysis.insights)
-        allRecommendations.push(...techniqueAnalysis.recommendations)
+        if (techniqueAnalysis.insights && techniqueAnalysis.insights.length > 0) {
+          allInsights.push(...techniqueAnalysis.insights)
+        }
+        if (techniqueAnalysis.recommendations && techniqueAnalysis.recommendations.length > 0) {
+          allRecommendations.push(...techniqueAnalysis.recommendations)
+        }
 
       } catch (error) {
         console.error('❌ [AI INSIGHTS] Error generating insights for course:', courseData.courseName, error)
+        // Continue processing other courses instead of failing completely
       }
     }
 
-    // Generate student interventions
+    // Generate student interventions for at-risk students
     try {
-      const interventions = await teachingAnalyticsAI.generateStudentInterventions(
-        studentPerformanceData.filter(s => s.riskLevel === 'high' || s.riskLevel === 'medium')
-      )
-      allRecommendations.push(...interventions)
+      const atRiskStudents = studentPerformanceData.filter(s => s.riskLevel === 'high' || s.riskLevel === 'medium')
+      
+      if (atRiskStudents.length > 0) {
+        console.log(`🚨 [AI INSIGHTS] Generating interventions for ${atRiskStudents.length} at-risk students`)
+        const interventions = await teachingAnalyticsAI.generateStudentInterventions(atRiskStudents)
+        if (interventions && interventions.length > 0) {
+          allRecommendations.push(...interventions)
+          aiAnalysisSuccessful = true
+        }
+      }
     } catch (error) {
       console.error('❌ [AI INSIGHTS] Error generating interventions:', error)
     }
@@ -406,12 +485,25 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ [AI INSIGHTS] Generated', allInsights.length, 'insights and', allRecommendations.length, 'recommendations')
 
+    // Determine AI status based on results
+    let aiStatus = 'success'
+    let message = ''
+    
+    if (!aiAnalysisSuccessful && allInsights.length === 0 && allRecommendations.length === 0) {
+      aiStatus = 'limited_data'
+      message = 'AI analysis generated limited results due to sparse data. More student activity needed for comprehensive insights.'
+    } else if (allInsights.length === 0 && allRecommendations.length === 0) {
+      aiStatus = 'no_insights'
+      message = 'No specific insights generated at this time. Continue monitoring student progress.'
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         insights: allInsights.slice(0, 10), // Limit to top 10 insights
         recommendations: allRecommendations.slice(0, 8), // Limit to top 8 recommendations
-        aiStatus: 'success',
+        aiStatus,
+        message,
         coursesAnalyzed: courses.length,
         studentsAnalyzed: studentPerformanceData.length,
         atRiskStudents: studentPerformanceData.filter(s => s.riskLevel === 'high').length,

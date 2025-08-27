@@ -32,58 +32,101 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true) // Start with true to check session
   const [connectionError, setConnectionError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
 
 
-  // Check for existing user with improved error handling and connection monitoring
-  const checkAuth = async () => {
+  // Robust authentication check with session-first approach to avoid getUser hangs
+  const checkAuth = async (isRetry = false) => {
     try {
-      console.log('🔄 Checking authentication state...')
-      setConnectionError(false)
+      console.log(`🔄 Checking authentication state... ${isRetry ? '(retry)' : ''}`)
+      if (!isRetry) {
+        setConnectionError(false)
+        setRetryCount(0)
+      }
       
-      // Add timeout to session check
-      const sessionPromise = supabase.auth.getSession()
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Session check timeout')), 8000)
-      )
-      
-      const { data: { session }, error: sessionError } = await Promise.race([
-        sessionPromise, 
-        timeoutPromise
-      ]) as any
+      // Start with getSession first - it's more reliable and doesn't hang
+      console.log('📋 Checking session first...')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError) {
-        if (sessionError.message === 'Session check timeout') {
-          console.error('⚠️ Session check timed out - connection issues')
-          setConnectionError(true)
-          setUser(null)
-          return
-        }
-        console.error('❌ Session error:', sessionError)
+        console.error('❌ Session check failed:', sessionError)
         setUser(null)
         return
       }
       
-      if (session?.user) {
-        console.log('✅ Session found, fetching user profile')
-        try {
-          await fetchUserProfile(session.user.id, false)
-          setConnectionError(false) // Clear connection error if successful
-        } catch (profileError) {
-          console.error('❌ Profile fetch failed:', profileError)
-          // Check if it's a connection issue
-          if (profileError.message?.includes('timeout') || profileError.message?.includes('fetch')) {
-            setConnectionError(true)
-          }
-          setUser(null)
-        }
-      } else {
-        console.log('👤 No active session')
+      if (!session?.user) {
+        console.log('👤 No active session found')
         setUser(null)
-        setConnectionError(false)
+        return
       }
+      
+      console.log('✅ Session found, verifying with getUser...')
+      
+      // Only use getUser for verification if we have a session, with short timeout
+      try {
+        const getUserPromise = supabase.auth.getUser()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getUser timeout')), 3000) // Shorter timeout
+        )
+        
+        const { data: { user: authUser }, error: getUserError } = await Promise.race([
+          getUserPromise, 
+          timeoutPromise
+        ]) as any
+        
+        if (getUserError) {
+          if (getUserError.message === 'getUser timeout') {
+            console.warn('⚠️ getUser() timed out, using session data instead')
+            setRetryCount(prev => prev + 1)
+            if (retryCount >= 1) { // Show connection error after first timeout
+              setConnectionError(true)
+            }
+            
+            // Use session user data instead of failing
+            await fetchUserProfile(session.user.id, false)
+            
+            // Auto-retry after a delay if we haven't exceeded retry limit
+            if (retryCount < 3 && !isRetry) {
+              setTimeout(() => {
+                console.log('🔄 Auto-retrying authentication...')
+                checkAuth(true)
+              }, 5000) // Retry after 5 seconds
+            }
+            return
+          } else {
+            console.error('❌ getUser verification failed:', getUserError)
+            // If getUser fails but we have a session, still try to use session data
+            if (session.user) {
+              console.log('🔄 getUser failed, falling back to session data')
+              await fetchUserProfile(session.user.id, false)
+              return
+            }
+          }
+        } else if (authUser) {
+          console.log('✅ User verified via getUser()')
+          await fetchUserProfile(authUser.id, false)
+          setConnectionError(false)
+          setRetryCount(0) // Reset retry count on success
+          return
+        }
+      } catch (verificationError: any) {
+        console.warn('⚠️ getUser verification failed, using session data:', verificationError.message)
+        setRetryCount(prev => prev + 1)
+        if (retryCount < 2) { // Only show connection error after multiple failures
+          setConnectionError(true)
+        }
+        // Fall back to session data
+        await fetchUserProfile(session.user.id, false)
+        return
+      }
+      
+      // If we reach here, something went wrong
+      console.log('👤 Authentication verification failed')
+      setUser(null)
+      
     } catch (error: any) {
       console.error('❌ Auth check error:', error)
       if (error.message?.includes('timeout') || error.message?.includes('fetch')) {
@@ -99,26 +142,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check authentication on mount
     checkAuth()
 
-    // Listen for auth state changes
+    // Listen for auth state changes with proper error handling
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.id)
+      console.log('🔔 Auth state change:', event, session?.user?.id)
       
       if (event === 'SIGNED_IN' && session?.user) {
         console.log('✅ User signed in, fetching profile')
         try {
           await fetchUserProfile(session.user.id, false)
+          setConnectionError(false) // Clear any connection errors on successful sign in
         } catch (error) {
           console.error('❌ Failed to fetch profile on auth change:', error)
-          // Don't set user to null here, let them try to login again
+          // Set connection error if profile fetch fails
+          if (error.message?.includes('timeout') || error.message?.includes('fetch')) {
+            setConnectionError(true)
+          }
         }
       } else if (event === 'SIGNED_OUT' || !session) {
         console.log('👋 User signed out')
         setUser(null)
+        setConnectionError(false) // Clear connection errors on sign out
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        console.log('🔄 Token refreshed')
-        // Don't refetch profile on token refresh, just continue
+        console.log('🔄 Token refreshed for user:', session.user.id)
+        // Token refresh is handled by middleware, no need to refetch profile
+      } else {
+        console.log('🔔 Other auth event:', event)
       }
     })
 
@@ -131,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔄 Fetching user profile for:', userId)
       
-      // Add timeout to profile fetch as well
+      // Add timeout to profile fetch with shorter timeout for better UX
       const profilePromise = supabase
         .from('users')
         .select('*')
@@ -139,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single()
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 8000)
       )
       
       const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any
@@ -147,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         if (error.message === 'Profile fetch timeout') {
           console.error('⚠️ Profile fetch timed out for user:', userId)
-          throw new Error('Profile fetch timed out. Please try again.')
+          throw new Error('Profile fetch timeout')
         }
         console.error('❌ Supabase error fetching profile:', error.message || error)
         throw new Error(`Profile fetch failed: ${error.message || 'Unknown error'}`)
@@ -169,14 +219,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('✅ User profile loaded:', userData.email, userData.role)
         setUser(userData)
         
-        // Update last_login time if requested (usually on login)
+        // Update last_login time if requested (usually on login) - non-blocking
         if (updateLastLogin) {
-          // Don't wait for last_login update, do it in background
           supabase
             .from('users')
             .update({ last_login: new Date().toISOString() })
             .eq('id', userId)
-            .then(() => console.log('✅ Last login updated'))
+            .then(() => console.log('✅ Last login timestamp updated'))
             .catch((err: any) => console.warn('⚠️ Failed to update last_login:', err))
         }
       } else {
@@ -257,19 +306,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      console.log('🔐 Attempting login for:', email)
+      setConnectionError(false)
+      
+      // Add timeout to login request
+      const loginPromise = supabase.auth.signInWithPassword({
         email,
         password,
       })
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Login timeout')), 10000)
+      )
+      
+      const { data, error } = await Promise.race([loginPromise, timeoutPromise]) as any
 
-      if (error) throw error
+      if (error) {
+        if (error.message === 'Login timeout') {
+          console.error('⚠️ Login request timed out')
+          setConnectionError(true)
+          throw new Error('Login request timed out. Please check your connection and try again.')
+        }
+        console.error('❌ Login error:', error.message)
+        throw error
+      }
 
       if (data.user) {
+        console.log('✅ Login successful, fetching profile')
         // Fetch user profile and update last login
         await fetchUserProfile(data.user.id, true)
       }
-    } catch (error) {
-      console.error('Login error:', error)
+    } catch (error: any) {
+      console.error('❌ Login error:', error)
+      if (error.message?.includes('timeout') || error.message?.includes('fetch')) {
+        setConnectionError(true)
+      }
       throw error
     } finally {
       setIsLoading(false)
@@ -317,10 +388,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ user, login, register, logout, isLoading, connectionError }}>
       {children}
-      {/* Show connection error banner if there are issues */}
-      {connectionError && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white text-center py-2 text-sm">
-          ⚠️ Connection issues detected. Some features may not work properly.
+      {/* Show connection error banner only after multiple failures */}
+      {connectionError && retryCount >= 2 && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white text-center py-3 text-sm shadow-lg">
+          <div className="flex items-center justify-center gap-3">
+            <span>⚠️ Authentication timeout detected. Using cached session data.</span>
+            <button
+              onClick={() => {
+                setConnectionError(false)
+                setRetryCount(0)
+                checkAuth(true)
+              }}
+              className="text-xs bg-amber-600 hover:bg-amber-700 px-2 py-1 rounded transition-colors"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       )}
     </AuthContext.Provider>

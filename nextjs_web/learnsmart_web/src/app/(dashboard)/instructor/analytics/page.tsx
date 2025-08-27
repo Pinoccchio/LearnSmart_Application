@@ -98,6 +98,169 @@ interface AIInsightsData {
   aiStatus: string
 }
 
+// Component for individual insight cards with overflow handling
+interface InsightCardProps {
+  insight: {
+    id: string
+    title: string
+    description: string
+    type: 'success' | 'warning' | 'info' | 'critical'
+    action: string
+    confidence: number
+    priority: number
+  }
+}
+
+function InsightCard({ insight }: InsightCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const shouldTruncate = insight.description.length > 120
+
+  return (
+    <div 
+      className={`p-4 rounded-lg border transition-all duration-200 h-full flex flex-col ${
+        insight.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' :
+        insight.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700' :
+        insight.type === 'critical' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700' :
+        'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700'
+      }`}
+    >
+      <div className="flex items-start flex-1">
+        <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
+          insight.type === 'success' ? 'bg-green-500 dark:bg-green-400' :
+          insight.type === 'warning' ? 'bg-amber-500 dark:bg-amber-400' :
+          insight.type === 'critical' ? 'bg-red-500 dark:bg-red-400' :
+          'bg-blue-500 dark:bg-blue-400'
+        }`}></div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h4 className={`font-medium text-sm leading-tight break-words hyphens-auto flex-1 ${
+              insight.type === 'success' ? 'text-green-900 dark:text-green-200' :
+              insight.type === 'warning' ? 'text-amber-900 dark:text-amber-200' :
+              insight.type === 'critical' ? 'text-red-900 dark:text-red-200' :
+              'text-blue-900 dark:text-blue-200'
+            }`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+              {insight.title}
+            </h4>
+            <Badge variant="secondary" className="text-xs flex-shrink-0 ml-2 dark:bg-gray-700 dark:text-gray-200">
+              {Math.round(insight.confidence * 100)}%
+            </Badge>
+          </div>
+          <div className={`text-sm flex-1 ${
+            insight.type === 'success' ? 'text-green-700 dark:text-green-300' :
+            insight.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
+            insight.type === 'critical' ? 'text-red-700 dark:text-red-300' :
+            'text-blue-700 dark:text-blue-300'
+          }`}>
+            <p className="break-words hyphens-auto leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+              {shouldTruncate && !isExpanded 
+                ? `${insight.description.substring(0, 120)}...` 
+                : insight.description
+              }
+              {shouldTruncate && (
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className={`ml-2 text-xs underline hover:no-underline whitespace-nowrap ${
+                    insight.type === 'success' ? 'text-green-600 dark:text-green-400' :
+                    insight.type === 'warning' ? 'text-amber-600 dark:text-amber-400' :
+                    insight.type === 'critical' ? 'text-red-600 dark:text-red-400' :
+                    'text-blue-600 dark:text-blue-400'
+                  }`}
+                >
+                  {isExpanded ? 'Show less' : 'Show more'}
+                </button>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 pt-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className={`text-xs w-full truncate ${
+            insight.type === 'success' 
+              ? 'border-green-300 dark:border-green-600 text-green-800 dark:text-green-200 hover:bg-green-100 dark:hover:bg-green-800/50' :
+            insight.type === 'warning' 
+              ? 'border-amber-300 dark:border-amber-600 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-800/50' :
+            insight.type === 'critical' 
+              ? 'border-red-300 dark:border-red-600 text-red-800 dark:text-red-200 hover:bg-red-100 dark:hover:bg-red-800/50' :
+            'border-blue-300 dark:border-blue-600 text-blue-800 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-800/50'
+          }`}
+          title={insight.action}
+        >
+          {insight.action}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// Component for recommendation cards with overflow handling
+interface RecommendationCardProps {
+  recommendation: {
+    id: string
+    type: string
+    title: string
+    description: string
+    actionSteps?: string[]
+    priority: number
+  }
+}
+
+function RecommendationCard({ recommendation }: RecommendationCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const shouldTruncate = recommendation.description.length > 90
+
+  return (
+    <div 
+      className={`p-3 rounded-lg border transition-all duration-200 h-full flex flex-col ${
+        recommendation.priority <= 2 ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700' :
+        recommendation.priority === 3 ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700' :
+        'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700'
+      }`}
+    >
+      <div className="flex-1 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <h5 className={`text-xs font-medium leading-tight break-words hyphens-auto flex-1 ${
+            recommendation.priority <= 2 ? 'text-red-800 dark:text-red-200' :
+            recommendation.priority === 3 ? 'text-amber-800 dark:text-amber-200' :
+            'text-blue-800 dark:text-blue-200'
+          }`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+            {recommendation.title}
+          </h5>
+          <Badge variant="outline" className="text-xs flex-shrink-0 ml-1 dark:border-gray-600 dark:text-gray-300">
+            P{recommendation.priority}
+          </Badge>
+        </div>
+        <div className="flex-1">
+          <p className={`text-xs break-words hyphens-auto leading-relaxed ${
+            recommendation.priority <= 2 ? 'text-red-700 dark:text-red-300' :
+            recommendation.priority === 3 ? 'text-amber-700 dark:text-amber-300' :
+            'text-blue-700 dark:text-blue-300'
+          }`} style={{ wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+            {shouldTruncate && !isExpanded 
+              ? `${recommendation.description.substring(0, 90)}...` 
+              : recommendation.description
+            }
+            {shouldTruncate && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className={`ml-1 underline hover:no-underline whitespace-nowrap text-xs ${
+                  recommendation.priority <= 2 ? 'text-red-600 dark:text-red-400' :
+                  recommendation.priority === 3 ? 'text-amber-600 dark:text-amber-400' :
+                  'text-blue-600 dark:text-blue-400'
+                }`}
+              >
+                {isExpanded ? 'less' : 'more'}
+              </button>
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function InstructorAnalytics() {
   const { user } = useAuth()
   const [timeRange, setTimeRange] = useState('month')
@@ -186,18 +349,35 @@ export default function InstructorAnalytics() {
 
     } catch (err) {
       console.error('Error fetching analytics:', err)
-      setError('Failed to load analytics data')
-      // Set fallback data
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load analytics data'
+      setError(`Analytics Error: ${errorMessage}`)
+      
+      // Set empty fallback data with proper structure
       setAnalyticsData({
-        keyMetrics: { courseEffectiveness: 0, studentEngagement: 0, contentGenerated: 0, interventionsSent: 0 },
+        keyMetrics: { 
+          courseEffectiveness: 0, 
+          studentEngagement: 0, 
+          contentGenerated: 0, 
+          interventionsSent: 0 
+        },
         studyTechniques: [],
         modulePerformance: [],
         studentEngagement: { peakHours: [], contentTypes: [] },
-        weeklyPerformance: { averageQuizScores: 0, moduleCompletion: 0, studySessionDuration: 0, contentEngagement: 0, interventionsSent: 0 },
+        weeklyPerformance: { 
+          averageQuizScores: 0, 
+          moduleCompletion: 0, 
+          studySessionDuration: 0, 
+          contentEngagement: 0, 
+          interventionsSent: 0 
+        },
         totalStudents: 0,
         activeStudents: 0
       })
-      setAIInsights({ insights: [], recommendations: [], aiStatus: 'error' })
+      setAIInsights({ 
+        insights: [], 
+        recommendations: [], 
+        aiStatus: 'error' 
+      })
     } finally {
       setLoading(false)
     }
@@ -339,32 +519,40 @@ export default function InstructorAnalytics() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{aiInsights?.recommendations.length || 0}</div>
+            <div className="text-2xl font-bold">{aiInsights?.recommendations?.length || 0}</div>
             <p className="text-xs text-amber-600 mt-1">
-              {aiInsights?.aiStatus === 'success' ? 'AI-generated insights' : 'Limited insights available'}
+              {aiInsights?.aiStatus === 'success' 
+                ? 'AI-generated insights' 
+                : aiInsights?.aiStatus === 'insufficient_data' 
+                  ? 'Insufficient data for AI analysis'
+                  : aiInsights?.aiStatus === 'limited_data'
+                    ? 'Limited insights due to sparse data'
+                    : 'Basic analytics available'
+              }
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Study Techniques Performance & Teaching Effectiveness */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-gray-900 dark:text-white">Study Techniques Performance</CardTitle>
-            <CardDescription className="dark:text-gray-300">How different study methods perform in your courses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {analyticsData?.studyTechniques && analyticsData.studyTechniques.length > 0 ? (
-                analyticsData.studyTechniques.map((technique, index) => {
+      {/* Study Techniques Performance & Module Performance */}
+      <div className="space-y-6 mb-8">
+        {/* Study Techniques Performance - Full Width */}
+        {analyticsData?.studyTechniques && analyticsData.studyTechniques.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white">Study Techniques Performance</CardTitle>
+              <CardDescription className="dark:text-gray-300">How different study methods perform in your courses</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {analyticsData.studyTechniques.map((technique, index) => {
                   const techniqueName = technique.technique || technique.name || 'Unknown Technique'
                   const effectivenessValue = technique.effectivenessPercentage || technique.averageScore || 0
                   const adoptionValue = technique.adoptionRate || technique.usagePercentage || 0
                   const performanceValue = technique.averagePerformance || technique.averageScore || effectivenessValue
                   
                   return (
-                    <div key={index} className="space-y-3">
+                    <div key={index} className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900 dark:text-white">{techniqueName}</h4>
@@ -372,81 +560,78 @@ export default function InstructorAnalytics() {
                             {technique.totalSessions} sessions • {technique.uniqueUsers || 0} students
                           </p>
                         </div>
-                        <div className="text-right ml-4">
-                          <Badge 
-                            variant="default" 
-                            className={`${
-                              performanceValue >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300' :
-                              performanceValue >= 60 ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300' :
-                              'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
-                            }`}
-                          >
-                            {effectivenessValue}% effective
-                          </Badge>
-                        </div>
+                        <Badge 
+                          variant="default" 
+                          className={`ml-2 flex-shrink-0 ${
+                            performanceValue >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300' :
+                            performanceValue >= 60 ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300' :
+                            'bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
+                          }`}
+                        >
+                          {effectivenessValue}% effective
+                        </Badge>
                       </div>
                       
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {/* Effectiveness Bar */}
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Effectiveness</span>
-                          <span className="font-medium text-gray-900 dark:text-white">{effectivenessValue}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                          <div 
-                            className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(effectivenessValue, 100)}%` }}
-                          ></div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">Effectiveness</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{effectivenessValue}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                            <div 
+                              className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${Math.min(effectivenessValue, 100)}%` }}
+                            ></div>
+                          </div>
                         </div>
                         
                         {/* Usage Bar */}
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">Student Adoption Rate</span>
-                          <span className="font-medium text-gray-900 dark:text-white">{adoptionValue}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                          <div 
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(adoptionValue, 100)}%` }}
-                          ></div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">Adoption Rate</span>
+                            <span className="font-medium text-gray-900 dark:text-white">{adoptionValue}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                            <div 
+                              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${Math.min(adoptionValue, 100)}%` }}
+                            ></div>
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-4 w-4 mr-2" />
-                          View Details
+                        <Button size="sm" variant="outline" className="flex-1">
+                          <Eye className="h-4 w-4 mr-1" />
+                          Details
                         </Button>
                         {performanceValue >= 70 && (
-                          <Button size="sm" variant="outline">
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Recommend to Students
+                          <Button size="sm" variant="outline" className="flex-1">
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            Recommend
                           </Button>
                         )}
                       </div>
                     </div>
                   )
-                })
-              ) : (
-                <div className="text-center py-8">
-                  <BookOpen className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600 dark:text-gray-400">No study technique data available yet.</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Data will appear as students complete study sessions.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-gray-900 dark:text-white">Module Performance Analysis</CardTitle>
-            <CardDescription className="dark:text-gray-300">Student performance breakdown by course modules</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {analyticsData?.modulePerformance && analyticsData.modulePerformance.length > 0 ? (
-                analyticsData.modulePerformance.map((module) => (
+        {/* Module Performance Analysis - Full Width */}
+        {analyticsData?.modulePerformance && analyticsData.modulePerformance.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white">Module Performance Analysis</CardTitle>
+              <CardDescription className="dark:text-gray-300">Student performance breakdown by course modules</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {analyticsData.modulePerformance.map((module) => (
                   <div key={module.id} className="space-y-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -510,180 +695,126 @@ export default function InstructorAnalytics() {
                       </div>
                     )}
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <BarChart3 className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600 dark:text-gray-400">No module performance data available yet.</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Data will appear as students progress through modules.</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* AI Teaching Insights & Student Engagement Patterns */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8" id="ai-insights">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-              <Sparkles className={`h-5 w-5 ${
-                aiInsights?.aiStatus === 'success' ? 'text-blue-500' : 'text-amber-500'
-              }`} />
-              AI Teaching Insights
-            </CardTitle>
-            <CardDescription className="dark:text-gray-300">
-              {aiInsights?.aiStatus === 'success' 
-                ? 'AI-powered recommendations to improve teaching effectiveness'
-                : 'Limited AI insights available - using basic analytics'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {aiInsights?.insights && aiInsights.insights.length > 0 ? (
-                aiInsights.insights.slice(0, 4).map((insight, index) => (
-                  <div 
-                    key={insight.id}
-                    className={`p-4 rounded-lg border ${
-                      insight.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' :
-                      insight.type === 'warning' ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
-                      insight.type === 'critical' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
-                      'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                    }`}
-                  >
-                    <div className="flex items-start">
-                      <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
-                        insight.type === 'success' ? 'bg-green-500' :
-                        insight.type === 'warning' ? 'bg-amber-500' :
-                        insight.type === 'critical' ? 'bg-red-500' :
-                        'bg-blue-500'
-                      }`}></div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h4 className={`font-medium ${
-                            insight.type === 'success' ? 'text-green-900 dark:text-green-100' :
-                            insight.type === 'warning' ? 'text-amber-900 dark:text-amber-100' :
-                            insight.type === 'critical' ? 'text-red-900 dark:text-red-100' :
-                            'text-blue-900 dark:text-blue-100'
-                          }`}>
-                            {insight.title}
-                          </h4>
-                          <Badge variant="secondary" className="text-xs">
-                            {Math.round(insight.confidence * 100)}% confidence
-                          </Badge>
-                        </div>
-                        <p className={`text-sm mt-1 ${
-                          insight.type === 'success' ? 'text-green-700 dark:text-green-300' :
-                          insight.type === 'warning' ? 'text-amber-700 dark:text-amber-300' :
-                          insight.type === 'critical' ? 'text-red-700 dark:text-red-300' :
-                          'text-blue-700 dark:text-blue-300'
-                        }`}>
-                          {insight.description}
+      <div className="space-y-6 mb-8" id="ai-insights">
+        {/* Determine if we have engagement data to show */}
+        {(() => {
+          const hasEngagementData = (analyticsData?.studentEngagement?.peakHours && analyticsData.studentEngagement.peakHours.length > 0) ||
+            (analyticsData?.studentEngagement?.contentTypes && analyticsData.studentEngagement.contentTypes.length > 0);
+          
+          return (
+            <div className={hasEngagementData ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
+              {/* AI Teaching Insights */}
+              <Card className={hasEngagementData ? "" : "mx-auto max-w-4xl"}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+                    <Sparkles className={`h-5 w-5 ${
+                      aiInsights?.aiStatus === 'success' ? 'text-blue-500' : 'text-amber-500'
+                    }`} />
+                    AI Teaching Insights
+                  </CardTitle>
+                  <CardDescription className="dark:text-gray-300">
+                    {aiInsights?.aiStatus === 'success' 
+                      ? 'AI-powered recommendations to improve teaching effectiveness'
+                      : 'Limited AI insights available - using basic analytics'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="max-h-96 overflow-y-auto">
+                  <div className={`space-y-4 ${hasEngagementData ? "" : "grid grid-cols-1 md:grid-cols-2 gap-4"}`}>
+                    {aiInsights?.insights && aiInsights.insights.length > 0 ? (
+                      aiInsights.insights.slice(0, hasEngagementData ? 4 : 6).map((insight, index) => (
+                        <InsightCard key={insight.id} insight={insight} />
+                      ))
+                    ) : (
+                      <div className={`text-center py-8 ${hasEngagementData ? "" : "md:col-span-2"}`}>
+                        <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-gray-600 dark:text-gray-400">No AI insights available yet.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                          {aiInsights?.aiStatus === 'error' 
+                            ? 'AI service temporarily unavailable.'
+                            : 'More data needed for AI analysis.'}
                         </p>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className={`mt-3 text-xs text-gray-900 dark:text-white ${
-                            insight.type === 'success' ? 'border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-800' :
-                            insight.type === 'warning' ? 'border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800' :
-                            insight.type === 'critical' ? 'border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-800' :
-                            'border-blue-300 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800'
-                          }`}
-                        >
-                          {insight.action}
-                        </Button>
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <Sparkles className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-600 dark:text-gray-400">No AI insights available yet.</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                    {aiInsights?.aiStatus === 'error' 
-                      ? 'AI service temporarily unavailable.'
-                      : 'More data needed for AI analysis.'}
-                  </p>
-                </div>
+                </CardContent>
+              </Card>
+
+              {/* Student Engagement Patterns - Only show if has data */}
+              {hasEngagementData && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Student Engagement Patterns</CardTitle>
+                    <CardDescription className="dark:text-gray-300">When and how students interact with your course content</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Peak Activity Times */}
+                      {analyticsData?.studentEngagement?.peakHours && analyticsData.studentEngagement.peakHours.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Peak Study Hours</h4>
+                          <div className="space-y-3">
+                            {analyticsData.studentEngagement.peakHours.slice(0, 4).map((period, index) => (
+                              <div key={index} className="space-y-1">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600 dark:text-gray-400">{period.time}</span>
+                                  <span className="font-medium text-gray-900 dark:text-white">
+                                    {period.activity} sessions ({period.percentage}%)
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                                  <div 
+                                    className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
+                                    style={{ width: `${Math.min(period.percentage, 100)}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Content Engagement */}
+                      {analyticsData?.studentEngagement?.contentTypes && analyticsData.studentEngagement.contentTypes.length > 0 && (
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Study Technique Performance</h4>
+                          <div className="space-y-3">
+                            {analyticsData.studentEngagement.contentTypes.map((content, index) => (
+                              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                <div className="flex items-center">
+                                  <div 
+                                    className="w-3 h-3 rounded-full mr-3" 
+                                    style={{ backgroundColor: content.color }}
+                                  ></div>
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">{content.type}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {content.engagement} sessions
+                                  </span>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {content.percentage}% of total
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-gray-900 dark:text-white">Student Engagement Patterns</CardTitle>
-            <CardDescription className="dark:text-gray-300">When and how students interact with your course content</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {/* Peak Activity Times */}
-              <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Peak Study Hours</h4>
-                <div className="space-y-3">
-                  {analyticsData?.studentEngagement?.peakHours && analyticsData.studentEngagement.peakHours.length > 0 ? (
-                    analyticsData.studentEngagement.peakHours.slice(0, 4).map((period, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">{period.time}</span>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {period.activity} sessions ({period.percentage}%)
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                          <div 
-                            className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(period.percentage, 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4">
-                      <Clock className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No peak hours data available yet</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Content Engagement */}
-              <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Study Technique Performance</h4>
-                <div className="space-y-3">
-                  {analyticsData?.studentEngagement?.contentTypes && analyticsData.studentEngagement.contentTypes.length > 0 ? (
-                    analyticsData.studentEngagement.contentTypes.map((content, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                        <div className="flex items-center">
-                          <div 
-                            className="w-3 h-3 rounded-full mr-3" 
-                            style={{ backgroundColor: content.color }}
-                          ></div>
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">{content.type}</span>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {content.engagement} sessions
-                          </span>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {content.percentage}% of total
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4">
-                      <BarChart3 className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No content engagement data available yet</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          )
+        })()}
       </div>
 
       {/* Weekly Performance Summary */}
@@ -695,13 +826,13 @@ export default function InstructorAnalytics() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900 dark:text-white">Student Success Metrics</h4>
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Average Scores</span>
-                  <span className={`font-medium ${
+                <div className="flex justify-between items-center min-w-0">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Average Scores</span>
+                  <span className={`font-medium flex-shrink-0 ml-2 ${
                     (analyticsData?.weeklyPerformance?.averageQuizScores || 0) >= 80 ? 'text-green-600 dark:text-green-400' :
                     (analyticsData?.weeklyPerformance?.averageQuizScores || 0) >= 70 ? 'text-emerald-600 dark:text-emerald-400' :
                     'text-amber-600 dark:text-amber-400'
@@ -709,9 +840,9 @@ export default function InstructorAnalytics() {
                     {analyticsData?.weeklyPerformance?.averageQuizScores || 0}%
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Module Completion</span>
-                  <span className={`font-medium ${
+                <div className="flex justify-between items-center min-w-0">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Module Completion</span>
+                  <span className={`font-medium flex-shrink-0 ml-2 ${
                     (analyticsData?.weeklyPerformance?.moduleCompletion || 0) >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
                     (analyticsData?.weeklyPerformance?.moduleCompletion || 0) >= 70 ? 'text-blue-600 dark:text-blue-400' :
                     'text-amber-600 dark:text-amber-400'
@@ -719,9 +850,9 @@ export default function InstructorAnalytics() {
                     {analyticsData?.weeklyPerformance?.moduleCompletion || 0}%
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Study Session Duration</span>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                <div className="flex justify-between items-center min-w-0">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Study Session Duration</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2">
                     {analyticsData?.weeklyPerformance?.studySessionDuration || 0} min avg
                   </span>
                 </div>
@@ -731,9 +862,9 @@ export default function InstructorAnalytics() {
             <div className="space-y-4">
               <h4 className="font-medium text-gray-900 dark:text-white">Teaching Effectiveness</h4>
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Student Engagement</span>
-                  <span className={`font-medium ${
+                <div className="flex justify-between items-center min-w-0">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Student Engagement</span>
+                  <span className={`font-medium flex-shrink-0 ml-2 ${
                     (analyticsData?.weeklyPerformance?.contentEngagement || 0) >= 80 ? 'text-emerald-600 dark:text-emerald-400' :
                     (analyticsData?.weeklyPerformance?.contentEngagement || 0) >= 60 ? 'text-blue-600 dark:text-blue-400' :
                     'text-amber-600 dark:text-amber-400'
@@ -741,49 +872,36 @@ export default function InstructorAnalytics() {
                     {analyticsData?.weeklyPerformance?.contentEngagement || 0}%
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Active Students</span>
-                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                <div className="flex justify-between items-center min-w-0">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Active Students</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2">
                     {analyticsData?.activeStudents || 0} of {analyticsData?.totalStudents || 0}
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Study Sessions</span>
-                  <span className="font-medium text-purple-600 dark:text-purple-400">
+                <div className="flex justify-between items-center min-w-0">
+                  <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Study Sessions</span>
+                  <span className="font-medium text-purple-600 dark:text-purple-400 flex-shrink-0 ml-2">
                     {analyticsData?.keyMetrics?.contentGenerated || 0} completed
                   </span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 min-w-0">
               <h4 className="font-medium text-gray-900 dark:text-white">AI Recommendations</h4>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                 {aiInsights?.recommendations && aiInsights.recommendations.length > 0 ? (
                   aiInsights.recommendations.slice(0, 3).map((rec, index) => (
-                    <div 
-                      key={rec.id}
-                      className={`p-3 rounded-lg border ${
-                        rec.priority <= 2 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' :
-                        rec.priority === 3 ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' :
-                        'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                      }`}
-                    >
-                      <p className={`text-xs ${
-                        rec.priority <= 2 ? 'text-red-700 dark:text-red-300' :
-                        rec.priority === 3 ? 'text-amber-700 dark:text-amber-300' :
-                        'text-blue-700 dark:text-blue-300'
-                      }`}>
-                        <strong>{rec.title}:</strong> {rec.description.substring(0, 60)}...
-                      </p>
-                    </div>
+                    <RecommendationCard key={rec.id} recommendation={rec} />
                   ))
                 ) : (
                   <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 break-words">
                       {aiInsights?.aiStatus === 'error' 
                         ? 'AI recommendations temporarily unavailable'
-                        : 'No specific recommendations at this time - continue current approach'}
+                        : aiInsights?.aiStatus === 'insufficient_data'
+                          ? 'Insufficient data for AI recommendations'
+                          : 'No specific recommendations at this time - continue current approach'}
                     </p>
                   </div>
                 )}

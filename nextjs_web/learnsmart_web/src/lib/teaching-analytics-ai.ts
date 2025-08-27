@@ -476,54 +476,211 @@ Return ONLY the JSON response.
    * Fallback teaching insights when AI fails
    */
   private getFallbackTeachingInsights(courseData: CourseAnalyticsData): TeachingInsight[] {
+    console.log('🔄 [TEACHING AI] Generating fallback insights for course:', courseData.courseName)
     const insights: TeachingInsight[] = []
 
-    // Engagement insight
-    const engagementRate = (courseData.activeStudents / courseData.totalStudents) * 100
-    if (engagementRate < 60) {
+    // Check if we have any meaningful data
+    const hasStudents = courseData.totalStudents > 0
+    const hasSessions = courseData.studySessionsData.some(t => t.totalSessions > 0)
+    const hasModules = courseData.modulePerformance && courseData.modulePerformance.length > 0
+
+    if (!hasStudents) {
       insights.push({
-        id: 'fallback_engagement',
-        title: 'Low Student Engagement',
-        description: `Only ${Math.round(engagementRate)}% of students are actively studying. Consider strategies to increase participation.`,
-        type: 'warning',
-        action: 'Schedule check-ins with inactive students',
-        confidence: 0.8,
+        id: 'no_students_enrolled',
+        title: 'No Student Enrollment',
+        description: 'This course currently has no enrolled students. Consider promoting the course or reviewing enrollment requirements.',
+        type: 'info',
+        action: 'Review course enrollment and marketing strategy',
+        confidence: 1.0,
         priority: 1,
+        supportingData: ['Zero enrolled students']
+      })
+      return insights
+    }
+
+    if (!hasSessions && !hasModules) {
+      insights.push({
+        id: 'no_student_activity',
+        title: 'No Student Activity Detected',
+        description: `${courseData.totalStudents} students are enrolled but no study activity has been recorded yet.`,
+        type: 'warning',
+        action: 'Encourage students to begin studying and engage with course materials',
+        confidence: 0.9,
+        priority: 1,
+        supportingData: [`${courseData.totalStudents} enrolled students`, 'No study sessions recorded']
+      })
+      return insights
+    }
+
+    // Engagement insights
+    const engagementRate = courseData.totalStudents > 0 ? (courseData.activeStudents / courseData.totalStudents) * 100 : 0
+    
+    if (engagementRate === 0) {
+      insights.push({
+        id: 'zero_engagement',
+        title: 'No Recent Student Activity',
+        description: 'No students have been active in the past 7 days. Immediate intervention may be needed.',
+        type: 'critical',
+        action: 'Contact students immediately to identify barriers to engagement',
+        confidence: 0.95,
+        priority: 1,
+        supportingData: [`${courseData.totalStudents} total students`, 'No recent activity']
+      })
+    } else if (engagementRate < 30) {
+      insights.push({
+        id: 'very_low_engagement',
+        title: 'Very Low Student Engagement',
+        description: `Only ${Math.round(engagementRate)}% of students have been active recently. This requires immediate attention.`,
+        type: 'critical',
+        action: 'Implement engagement strategies and reach out to inactive students',
+        confidence: 0.9,
+        priority: 1,
+        supportingData: [`${courseData.activeStudents}/${courseData.totalStudents} active students`]
+      })
+    } else if (engagementRate < 60) {
+      insights.push({
+        id: 'low_engagement',
+        title: 'Low Student Engagement',
+        description: `${Math.round(engagementRate)}% engagement rate suggests students need more motivation or support.`,
+        type: 'warning',
+        action: 'Schedule check-ins with inactive students and review course structure',
+        confidence: 0.8,
+        priority: 2,
+        supportingData: [`${courseData.activeStudents}/${courseData.totalStudents} active students`]
+      })
+    } else if (engagementRate >= 80) {
+      insights.push({
+        id: 'good_engagement',
+        title: 'Strong Student Engagement',
+        description: `Excellent engagement with ${Math.round(engagementRate)}% of students actively participating.`,
+        type: 'success',
+        action: 'Continue current engagement strategies and consider sharing best practices',
+        confidence: 0.85,
+        priority: 3,
         supportingData: [`${courseData.activeStudents}/${courseData.totalStudents} active students`]
       })
     }
 
-    // Performance insight
-    if (courseData.averageScore < 70) {
-      insights.push({
-        id: 'fallback_performance',
-        title: 'Below-Target Performance',
-        description: `Course average of ${courseData.averageScore}% indicates students need additional support.`,
-        type: 'warning',
-        action: 'Consider remedial content or technique adjustments',
-        confidence: 0.9,
-        priority: 1,
-        supportingData: [`Average score: ${courseData.averageScore}%`]
-      })
+    // Performance insights based on available data
+    if (courseData.averageScore > 0) {
+      if (courseData.averageScore < 50) {
+        insights.push({
+          id: 'very_low_performance',
+          title: 'Critical Performance Issues',
+          description: `Course average of ${courseData.averageScore}% indicates serious learning difficulties.`,
+          type: 'critical',
+          action: 'Implement immediate remedial support and review course difficulty',
+          confidence: 0.95,
+          priority: 1,
+          supportingData: [`Average score: ${courseData.averageScore}%`]
+        })
+      } else if (courseData.averageScore < 70) {
+        insights.push({
+          id: 'below_target_performance',
+          title: 'Below-Target Performance',
+          description: `Course average of ${courseData.averageScore}% indicates students need additional support.`,
+          type: 'warning',
+          action: 'Consider supplementary materials or adjusted teaching methods',
+          confidence: 0.85,
+          priority: 2,
+          supportingData: [`Average score: ${courseData.averageScore}%`]
+        })
+      } else if (courseData.averageScore >= 85) {
+        insights.push({
+          id: 'excellent_performance',
+          title: 'Outstanding Student Performance',
+          description: `Excellent course average of ${courseData.averageScore}% shows effective teaching methods.`,
+          type: 'success',
+          action: 'Maintain current approach and consider advanced content for top performers',
+          confidence: 0.9,
+          priority: 4,
+          supportingData: [`Average score: ${courseData.averageScore}%`]
+        })
+      }
     }
 
-    // Study technique insight
-    const mostEffectiveTechnique = courseData.studySessionsData
-      .sort((a, b) => b.averageEffectiveness - a.averageEffectiveness)[0]
+    // Study technique insights
+    const activeTechniques = courseData.studySessionsData.filter(t => t.totalSessions > 0)
     
-    if (mostEffectiveTechnique) {
+    if (activeTechniques.length === 0) {
       insights.push({
-        id: 'fallback_technique',
-        title: 'High-Performing Study Technique',
-        description: `${mostEffectiveTechnique.technique} shows ${mostEffectiveTechnique.averageEffectiveness}% effectiveness with students.`,
-        type: 'success',
-        action: 'Promote this technique to more students',
-        confidence: 0.7,
+        id: 'no_study_techniques',
+        title: 'No Study Technique Usage',
+        description: 'Students have not yet started using any study techniques. Introduction and guidance may be needed.',
+        type: 'info',
+        action: 'Introduce students to available study techniques and their benefits',
+        confidence: 0.8,
         priority: 2,
-        supportingData: [`${mostEffectiveTechnique.totalSessions} sessions completed`]
+        supportingData: ['No study technique sessions recorded']
       })
+    } else {
+      const mostUsedTechnique = activeTechniques
+        .sort((a, b) => b.totalSessions - a.totalSessions)[0]
+      
+      const mostEffectiveTechnique = activeTechniques
+        .filter(t => t.averageEffectiveness > 0)
+        .sort((a, b) => b.averageEffectiveness - a.averageEffectiveness)[0]
+      
+      if (mostUsedTechnique) {
+        insights.push({
+          id: 'popular_technique',
+          title: 'Popular Study Technique Identified',
+          description: `${mostUsedTechnique.technique} is the most used technique with ${mostUsedTechnique.totalSessions} sessions.`,
+          type: 'info',
+          action: 'Monitor effectiveness and consider promoting successful techniques',
+          confidence: 0.7,
+          priority: 3,
+          supportingData: [`${mostUsedTechnique.totalSessions} sessions completed`]
+        })
+      }
+      
+      if (mostEffectiveTechnique && mostEffectiveTechnique.averageEffectiveness >= 70) {
+        insights.push({
+          id: 'effective_technique',
+          title: 'High-Performing Study Technique',
+          description: `${mostEffectiveTechnique.technique} shows ${mostEffectiveTechnique.averageEffectiveness}% effectiveness.`,
+          type: 'success',
+          action: 'Promote this technique to more students',
+          confidence: 0.75,
+          priority: 2,
+          supportingData: [`${mostEffectiveTechnique.averageEffectiveness}% effectiveness`]
+        })
+      }
     }
 
+    // Module performance insights
+    if (hasModules) {
+      const strugglingModules = courseData.modulePerformance.filter(m => m.averageScore < 60)
+      const excellentModules = courseData.modulePerformance.filter(m => m.averageScore >= 85)
+      
+      if (strugglingModules.length > 0) {
+        insights.push({
+          id: 'struggling_modules',
+          title: 'Modules Need Attention',
+          description: `${strugglingModules.length} module(s) showing low performance: ${strugglingModules.map(m => m.moduleName).join(', ')}.`,
+          type: 'warning',
+          action: 'Review and enhance content for underperforming modules',
+          confidence: 0.85,
+          priority: 2,
+          supportingData: strugglingModules.map(m => `${m.moduleName}: ${m.averageScore}%`)
+        })
+      }
+      
+      if (excellentModules.length > 0) {
+        insights.push({
+          id: 'excellent_modules',
+          title: 'High-Performing Modules',
+          description: `${excellentModules.length} module(s) showing excellent performance: ${excellentModules.map(m => m.moduleName).join(', ')}.`,
+          type: 'success',
+          action: 'Analyze successful modules for best practices to apply elsewhere',
+          confidence: 0.8,
+          priority: 3,
+          supportingData: excellentModules.map(m => `${m.moduleName}: ${m.averageScore}%`)
+        })
+      }
+    }
+
+    console.log('✅ [TEACHING AI] Generated', insights.length, 'fallback insights')
     return insights
   }
 
