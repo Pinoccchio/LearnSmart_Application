@@ -17,6 +17,9 @@ class PreAssessmentResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('🔍 [PRE-ASSESSMENT RESULTS] Displaying results...');
+    print('🔍 [PRE-ASSESSMENT RESULTS] Total: ${result.totalQuestions}, Correct: ${result.correctAnswers}, Score: ${result.scorePercentage}%');
+
     return Scaffold(
       backgroundColor: AppColors.bgSecondary,
       appBar: AppBar(

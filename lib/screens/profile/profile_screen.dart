@@ -32,11 +32,16 @@ class ProfileScreen extends StatelessWidget {
         builder: (context, authProvider, appProvider, child) {
           final user = authProvider.currentUser;
           final userInfo = appProvider.userInfo;
-          
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              await appProvider.refreshProfileData();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
                 // Profile header
                 Container(
                   width: double.infinity,
@@ -126,7 +131,8 @@ class ProfileScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           );
         },

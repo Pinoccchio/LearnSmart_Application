@@ -15,13 +15,6 @@ class ActivitiesScreen extends StatelessWidget {
         backgroundColor: AppColors.bgSecondary,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
-        actions: [
-          IconButton(
-            onPressed: () => context.read<AppProvider>().refreshActivities(),
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Activities',
-          ),
-        ],
       ),
       body: Consumer<AppProvider>(
         builder: (context, appProvider, child) {

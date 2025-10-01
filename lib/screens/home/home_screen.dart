@@ -14,16 +14,24 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header with greeting
-              Consumer<AuthProvider>(
-                builder: (context, authProvider, child) {
-                  return Row(
-                    children: [
+        child: Consumer<AppProvider>(
+          builder: (context, appProvider, child) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                print('🔄 [HOME SCREEN] User triggered refresh');
+                await appProvider.refreshHomeScreenData();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header with greeting
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        return Row(
+                          children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,94 +69,89 @@ class HomeScreen extends StatelessWidget {
                         ),
                       ),
                     ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
 
-              // Today's Study Plan
-              Consumer<AppProvider>(
-                builder: (context, appProvider, child) {
-                  return _buildTodaysStudyPlan(context, appProvider);
-                },
-              ),
-              const SizedBox(height: 24),
+                    // Today's Study Plan
+                    _buildTodaysStudyPlan(context, appProvider),
+                    const SizedBox(height: 24),
 
-              // Quick Stats
-              const Text(
-                'Quick Stats',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
+                    // Quick Stats
+                    const Text(
+                      'Quick Stats',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Builder(
+                      builder: (context) {
+                        final stats = appProvider.studyStats;
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: StatCard(
+                                title: 'Consistency',
+                                value: '${stats.consistency}%',
+                                subtitle: 'this week',
+                                icon: LucideIcons.calendar,
+                                color: AppColors.success,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StatCard(
+                                title: 'Total Time',
+                                value: stats.totalTime,
+                                subtitle: 'of study',
+                                icon: LucideIcons.clock,
+                                color: AppColors.bgPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: StatCard(
+                                title: 'Top Technique',
+                                value: stats.topTechnique,
+                                subtitle: 'most used',
+                                icon: LucideIcons.brain,
+                                color: AppColors.warning,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Learning Path
+                    const Text(
+                      'Learning Path',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Continue from where left off',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildLearningPath(context, appProvider),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Consumer<AppProvider>(
-                builder: (context, appProvider, child) {
-                  final stats = appProvider.studyStats;
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: StatCard(
-                          title: 'Consistency',
-                          value: '${stats.consistency}%',
-                          subtitle: 'this week',
-                          icon: LucideIcons.calendar,
-                          color: AppColors.success,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: StatCard(
-                          title: 'Total Time',
-                          value: stats.totalTime,
-                          subtitle: 'of study',
-                          icon: LucideIcons.clock,
-                          color: AppColors.bgPrimary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: StatCard(
-                          title: 'Top Technique',
-                          value: stats.topTechnique,
-                          subtitle: 'most used',
-                          icon: LucideIcons.brain,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // Learning Path
-              const Text(
-                'Learning Path',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Continue from where left off',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Consumer<AppProvider>(
-                builder: (context, appProvider, child) {
-                  return _buildLearningPath(context, appProvider);
-                },
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -178,39 +181,62 @@ class HomeScreen extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.bgPrimary,
+          color: Colors.red.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Today's Study Plan",
-              style: TextStyle(
-                color: AppColors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.red, size: 24),
+                const SizedBox(width: 12),
+                const Text(
+                  "Unable to Load Data",
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              appProvider.homeScreenError ?? 'Unknown error occurred',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
               ),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Unable to load study recommendations',
+              'Check console logs for detailed debugging information.',
               style: TextStyle(
-                color: AppColors.white,
-                fontSize: 14,
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => appProvider.refreshHomeScreenData(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.white,
-                  foregroundColor: AppColors.bgPrimary,
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      print('🔄 [HOME SCREEN] Retry button pressed');
+                      appProvider.refreshHomeScreenData();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.bgPrimary,
+                      foregroundColor: AppColors.white,
+                    ),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Try Again'),
+                  ),
                 ),
-                child: const Text('Try Again'),
-              ),
+              ],
             ),
           ],
         ),
@@ -321,8 +347,9 @@ class HomeScreen extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.white,
+          color: Colors.red.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
@@ -333,17 +360,37 @@ class HomeScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
+            Icon(Icons.error_outline, color: Colors.red, size: 40),
+            const SizedBox(height: 12),
             const Text(
               'Unable to load learning path',
               style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 14,
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => appProvider.refreshHomeScreenData(),
-              child: const Text('Retry'),
+            Text(
+              appProvider.homeScreenError ?? 'Unknown error',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () {
+                print('🔄 [HOME SCREEN] Retry button pressed from Learning Path');
+                appProvider.refreshHomeScreenData();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.bgPrimary,
+                foregroundColor: AppColors.white,
+              ),
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
             ),
           ],
         ),

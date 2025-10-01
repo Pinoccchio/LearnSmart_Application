@@ -36,6 +36,9 @@ class _PreAssessmentQuizScreenState extends State<PreAssessmentQuizScreen> {
   @override
   void initState() {
     super.initState();
+    print('🔍 [PRE-ASSESSMENT QUIZ] Initializing quiz...');
+    print('🔍 [PRE-ASSESSMENT QUIZ] Total questions passed: ${widget.questions.length}');
+    print('🔍 [PRE-ASSESSMENT QUIZ] Attempt ID: ${widget.attemptId}');
     _loadAttempt();
     _startQuestionTimer();
   }
@@ -44,6 +47,7 @@ class _PreAssessmentQuizScreenState extends State<PreAssessmentQuizScreen> {
     try {
       final attempt = await _service.getAttempt(widget.attemptId);
       if (attempt != null) {
+        print('🔍 [PRE-ASSESSMENT QUIZ] Loaded attempt - totalQuestions: ${attempt.totalQuestions}, answered: ${attempt.questionsAnswered}');
         setState(() {
           _currentAttempt = attempt;
           // Load existing answers
@@ -53,7 +57,7 @@ class _PreAssessmentQuizScreenState extends State<PreAssessmentQuizScreen> {
         });
       }
     } catch (e) {
-      print('Error loading attempt: $e');
+      print('❌ [PRE-ASSESSMENT QUIZ] Error loading attempt: $e');
     }
   }
 
@@ -135,11 +139,16 @@ class _PreAssessmentQuizScreenState extends State<PreAssessmentQuizScreen> {
   Future<void> _completeAssessment() async {
     if (_currentAttempt == null) return;
 
+    print('🔍 [PRE-ASSESSMENT QUIZ] Completing assessment...');
+    print('🔍 [PRE-ASSESSMENT QUIZ] Final attempt - totalQuestions: ${_currentAttempt!.totalQuestions}, correctAnswers: ${_currentAttempt!.correctAnswers}');
+
     try {
       final result = await _service.completeAttempt(
         attemptId: widget.attemptId,
         attempt: _currentAttempt!,
       );
+
+      print('🔍 [PRE-ASSESSMENT QUIZ] Assessment completed - Score: ${result.scorePercentage}%');
 
       if (!mounted) return;
 
@@ -153,6 +162,7 @@ class _PreAssessmentQuizScreenState extends State<PreAssessmentQuizScreen> {
         ),
       );
     } catch (e) {
+      print('❌ [PRE-ASSESSMENT QUIZ] Error completing assessment: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -341,76 +351,79 @@ class _PreAssessmentQuizScreenState extends State<PreAssessmentQuizScreen> {
               ),
             ),
 
-            // Navigation buttons
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  if (_currentQuestionIndex > 0)
+            // Navigation buttons with SafeArea
+            SafeArea(
+              minimum: const EdgeInsets.only(bottom: 16),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    if (_currentQuestionIndex > 0)
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _previousQuestion,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.bgPrimary,
+                            side: const BorderSide(color: AppColors.bgPrimary),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Previous',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_currentQuestionIndex > 0) const SizedBox(width: 12),
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: _previousQuestion,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.bgPrimary,
-                          side: const BorderSide(color: AppColors.bgPrimary),
+                      flex: 2,
+                      child: ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submitAnswer,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.bgPrimary,
+                          foregroundColor: AppColors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          'Previous',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                                ),
+                              )
+                            : Text(
+                                _currentQuestionIndex < widget.questions.length - 1
+                                    ? 'Next'
+                                    : 'Complete',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
-                  if (_currentQuestionIndex > 0) const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _isSubmitting ? null : _submitAnswer,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.bgPrimary,
-                        foregroundColor: AppColors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _isSubmitting
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                              ),
-                            )
-                          : Text(
-                              _currentQuestionIndex < widget.questions.length - 1
-                                  ? 'Next'
-                                  : 'Complete',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

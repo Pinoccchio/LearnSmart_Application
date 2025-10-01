@@ -115,7 +115,10 @@ class TrackerScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () => Navigator.of(context).pushReplacementNamed('/main'),
+                    onPressed: () {
+                      // Navigate to My Courses tab
+                      context.read<AppProvider>().setCurrentIndex(1);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.bgPrimary,
                       foregroundColor: AppColors.white,

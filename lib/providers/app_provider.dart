@@ -247,8 +247,9 @@ class AppProvider with ChangeNotifier {
 
   // Load home screen data from database
   Future<void> loadHomeScreenData({String? userId}) async {
+    print('🏠 [APP PROVIDER] ========================================');
     print('🏠 [APP PROVIDER] Loading home screen data...');
-    
+
     try {
       // Set loading state
       _homeScreenLoading = true;
@@ -261,32 +262,47 @@ class AppProvider with ChangeNotifier {
         final currentUser = SupabaseService.currentAuthUser;
         if (currentUser == null) {
           print('⚠️ [APP PROVIDER] No authenticated user found for home screen');
+          print('⚠️ [APP PROVIDER] User needs to sign in first');
           _realCourses = [];
           _homeScreenData = null;
           _homeScreenLoading = false;
+          _homeScreenError = 'Not authenticated. Please sign in again.';
           notifyListeners();
           return;
         }
         currentUserId = currentUser.id;
+        print('🏠 [APP PROVIDER] Using authenticated user: $currentUserId');
+        print('🏠 [APP PROVIDER] User email: ${currentUser.email}');
       }
 
-      print('🏠 [APP PROVIDER] Loading home screen data for user: $currentUserId');
+      print('🏠 [APP PROVIDER] Calling StudyAnalyticsService.getHomeScreenData()...');
 
       // Load real home screen data from service
       final data = await _analyticsService.getHomeScreenData(currentUserId);
-      
+
+      print('🏠 [APP PROVIDER] Received data from service');
+      print('🏠 [APP PROVIDER] Data keys: ${data.keys.join(", ")}');
+
       // Convert courses data to Course objects
       final coursesData = data['courses'] as List<Map<String, dynamic>>? ?? [];
+      print('🏠 [APP PROVIDER] Processing ${coursesData.length} courses...');
+
       _realCourses = coursesData.map((courseData) => Course.fromDatabaseData(courseData)).toList();
       _homeScreenData = data;
-      
-      print('✅ [APP PROVIDER] Home screen data loaded successfully: ${_realCourses.length} courses');
+
+      print('✅ [APP PROVIDER] Home screen data loaded successfully');
+      print('✅ [APP PROVIDER] Courses: ${_realCourses.map((c) => c.title).join(", ")}');
+      print('✅ [APP PROVIDER] Total courses: ${_realCourses.length}');
       _homeScreenLoading = false;
       notifyListeners();
-      
-    } catch (e) {
-      print('❌ [APP PROVIDER] Error loading home screen data: $e');
-      _homeScreenError = 'Failed to load home screen data. Please try again.';
+
+    } catch (e, stackTrace) {
+      print('❌ [APP PROVIDER] ========================================');
+      print('❌ [APP PROVIDER] ERROR loading home screen data');
+      print('❌ [APP PROVIDER] Error: $e');
+      print('❌ [APP PROVIDER] Error type: ${e.runtimeType}');
+      print('❌ [APP PROVIDER] Stack trace: $stackTrace');
+      _homeScreenError = 'Failed to load home screen data: ${e.toString()}';
       _homeScreenLoading = false;
       notifyListeners();
     }

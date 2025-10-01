@@ -24,14 +24,18 @@ class PreAssessmentService {
           .order('question_number', ascending: true);
 
       if (response.isEmpty) {
+        print('🔍 [PRE-ASSESSMENT SERVICE] getQuestionsForCourse() returned: 0 questions');
         return [];
       }
 
-      return (response as List)
+      final questions = (response as List)
           .map((questionData) => PreAssessmentQuestion.fromSupabase(questionData))
           .toList();
+
+      print('🔍 [PRE-ASSESSMENT SERVICE] getQuestionsForCourse() returned: ${questions.length} questions');
+      return questions;
     } catch (e) {
-      print('Error fetching pre-assessment questions: $e');
+      print('❌ [PRE-ASSESSMENT SERVICE] Error fetching pre-assessment questions: $e');
       rethrow;
     }
   }
@@ -46,9 +50,10 @@ class PreAssessmentService {
           .eq('is_active', true)
           .count();
 
+      print('🔍 [PRE-ASSESSMENT SERVICE] getQuestionCount() returned: ${response.count}');
       return response.count;
     } catch (e) {
-      print('Error fetching question count: $e');
+      print('❌ [PRE-ASSESSMENT SERVICE] Error fetching question count: $e');
       return 0;
     }
   }
@@ -86,6 +91,8 @@ class PreAssessmentService {
     required String courseId,
     required int totalQuestions,
   }) async {
+    print('🔍 [PRE-ASSESSMENT SERVICE] startAttempt() - Creating attempt with totalQuestions: $totalQuestions');
+
     final attempt = PreAssessmentAttempt(
       userId: userId,
       courseId: courseId,
@@ -99,7 +106,10 @@ class PreAssessmentService {
         .select()
         .single();
 
-    return PreAssessmentAttempt.fromSupabase(response);
+    final createdAttempt = PreAssessmentAttempt.fromSupabase(response);
+    print('🔍 [PRE-ASSESSMENT SERVICE] startAttempt() - Created attempt ID: ${createdAttempt.id}, totalQuestions: ${createdAttempt.totalQuestions}');
+
+    return createdAttempt;
   }
 
   /// Save an answer and update attempt
@@ -125,11 +135,18 @@ class PreAssessmentService {
     required String attemptId,
     required PreAssessmentAttempt attempt,
   }) async {
+    print('🔍 [PRE-ASSESSMENT SERVICE] completeAttempt() - Starting completion...');
+    print('🔍 [PRE-ASSESSMENT SERVICE] Attempt totalQuestions: ${attempt.totalQuestions}');
+    print('🔍 [PRE-ASSESSMENT SERVICE] Attempt correctAnswers: ${attempt.correctAnswers}');
+    print('🔍 [PRE-ASSESSMENT SERVICE] Attempt questionsAnswered: ${attempt.questionsAnswered}');
+
     // Calculate final score
     final totalTime = DateTime.now().difference(attempt.startedAt).inSeconds;
     final scorePercentage = attempt.totalQuestions > 0
         ? (attempt.correctAnswers / attempt.totalQuestions) * 100
         : 0.0;
+
+    print('🔍 [PRE-ASSESSMENT SERVICE] Calculated scorePercentage: $scorePercentage% (${attempt.correctAnswers}/${attempt.totalQuestions})');
 
     // Update attempt status
     await _supabase.from('user_pre_assessment_attempts').update({
@@ -265,5 +282,28 @@ class PreAssessmentService {
         .from('user_pre_assessment_attempts')
         .update({'status': 'abandoned'})
         .eq('id', attemptId);
+  }
+
+  /// Delete an attempt by ID
+  Future<void> deleteAttempt(String attemptId) async {
+    await _supabase
+        .from('user_pre_assessment_attempts')
+        .delete()
+        .eq('id', attemptId);
+  }
+
+  /// Delete all attempts for a user+course combination
+  /// This ensures no duplicate key errors when starting a new attempt
+  Future<void> deleteAttemptsByUserAndCourse({
+    required String userId,
+    required String courseId,
+  }) async {
+    print('🔍 [PRE-ASSESSMENT SERVICE] Deleting all attempts for user+course...');
+    await _supabase
+        .from('user_pre_assessment_attempts')
+        .delete()
+        .eq('user_id', userId)
+        .eq('course_id', courseId);
+    print('🔍 [PRE-ASSESSMENT SERVICE] All attempts deleted successfully');
   }
 }

@@ -3919,10 +3919,18 @@ class StudyAnalyticsService {
   /// Get comprehensive home screen data including courses, progress, and study recommendations
   Future<Map<String, dynamic>> getHomeScreenData(String userId) async {
     try {
+      print('🏠 [HOME SCREEN] ========================================');
       print('🏠 [HOME SCREEN] Fetching home screen data for user: $userId');
+      print('🏠 [HOME SCREEN] Timestamp: ${DateTime.now().toIso8601String()}');
       final startTime = DateTime.now();
 
+      // Verify authentication
+      final currentAuthUser = SupabaseService.currentAuthUser;
+      print('🏠 [HOME SCREEN] Current auth user: ${currentAuthUser?.id ?? "NOT AUTHENTICATED"}');
+      print('🏠 [HOME SCREEN] Auth user email: ${currentAuthUser?.email ?? "N/A"}');
+
       // Get user's enrolled courses with progress
+      print('🏠 [HOME SCREEN] Querying course_enrollments table...');
       final enrolledCoursesResponse = await SupabaseService.client
           .from('course_enrollments')
           .select('''
@@ -3939,6 +3947,13 @@ class StudyAnalyticsService {
           .eq('user_id', userId)
           .eq('status', 'active')
           .order('enrolled_at', ascending: false);
+
+      print('🏠 [HOME SCREEN] Enrollments query returned: ${enrolledCoursesResponse.length} rows');
+      if (enrolledCoursesResponse.isEmpty) {
+        print('⚠️ [HOME SCREEN] No active enrollments found for user $userId');
+      } else {
+        print('🏠 [HOME SCREEN] Found courses: ${enrolledCoursesResponse.map((e) => e['courses']['title']).join(", ")}');
+      }
 
       final List<Map<String, dynamic>> coursesWithProgress = [];
       
@@ -4012,8 +4027,13 @@ class StudyAnalyticsService {
         'lastUpdated': DateTime.now().toIso8601String(),
       };
 
-    } catch (e) {
-      print('❌ [HOME SCREEN] Error fetching home screen data: $e');
+    } catch (e, stackTrace) {
+      print('❌ [HOME SCREEN] ========================================');
+      print('❌ [HOME SCREEN] ERROR fetching home screen data');
+      print('❌ [HOME SCREEN] Error: $e');
+      print('❌ [HOME SCREEN] Error type: ${e.runtimeType}');
+      print('❌ [HOME SCREEN] Stack trace: $stackTrace');
+      print('❌ [HOME SCREEN] ========================================');
       rethrow;
     }
   }

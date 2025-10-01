@@ -49,6 +49,8 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> {
         throw Exception('User not authenticated');
       }
 
+      print('🔍 [PRE-ASSESSMENT INTRO] Fetching question count for course: ${widget.course.id}');
+
       // Fetch question count and module breakdown in parallel
       final results = await Future.wait([
         _service.getQuestionCount(widget.course.id),
@@ -67,6 +69,10 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> {
         _inProgressAttemptId = inProgressAttempt?.id;
       });
 
+      print('🔍 [PRE-ASSESSMENT INTRO] Question count from DB: $_questionCount');
+      print('🔍 [PRE-ASSESSMENT INTRO] Module breakdown: $_moduleBreakdown');
+      print('🔍 [PRE-ASSESSMENT INTRO] Has in-progress attempt: $_hasInProgressAttempt');
+
       // Check if no questions available
       if (_questionCount == 0) {
         setState(() {
@@ -74,6 +80,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> {
         });
       }
     } catch (e) {
+      print('❌ [PRE-ASSESSMENT INTRO] Error: $e');
       if (!mounted) return;
       setState(() {
         _errorMessage = 'Error loading assessment: ${e.toString()}';
@@ -98,21 +105,37 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> {
         throw Exception('User not authenticated');
       }
 
+      print('🔍 [PRE-ASSESSMENT INTRO] Starting new attempt...');
+
+      // ALWAYS delete any existing attempts for this user+course to avoid duplicate key error
+      // This handles cases where app was restarted or state was lost
+      print('🔍 [PRE-ASSESSMENT INTRO] Deleting all existing attempts for this user+course...');
+      await _service.deleteAttemptsByUserAndCourse(
+        userId: userId,
+        courseId: widget.course.id,
+      );
+
       // Fetch questions from API
       final questions = await _service.getQuestionsForCourse(
         widget.course.id,
       );
+
+      print('🔍 [PRE-ASSESSMENT INTRO] Fetched ${questions.length} questions from DB');
 
       if (questions.isEmpty) {
         throw Exception(
             'No pre-assessment questions available for this course');
       }
 
+      // Now create new attempt (no conflict!)
       final attempt = await _service.startAttempt(
         userId: userId,
         courseId: widget.course.id,
         totalQuestions: questions.length,
       );
+
+      print('🔍 [PRE-ASSESSMENT INTRO] Created attempt with totalQuestions: ${questions.length}');
+      print('🔍 [PRE-ASSESSMENT INTRO] Attempt ID: ${attempt.id}');
 
       if (!mounted) return;
 
@@ -126,6 +149,7 @@ class _PreAssessmentIntroScreenState extends State<PreAssessmentIntroScreen> {
         ),
       );
     } catch (e) {
+      print('❌ [PRE-ASSESSMENT INTRO] Error starting attempt: $e');
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(

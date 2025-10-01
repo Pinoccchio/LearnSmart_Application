@@ -40,11 +40,29 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _initializeAppProvider() async {
     if (!_isInitialized) {
-      final appProvider = Provider.of<AppProvider>(context, listen: false);
-      await appProvider.initialize();
-      setState(() {
-        _isInitialized = true;
-      });
+      print('🚀 [MAIN SCREEN] ========================================');
+      print('🚀 [MAIN SCREEN] Starting AppProvider initialization...');
+      print('🚀 [MAIN SCREEN] Timestamp: ${DateTime.now().toIso8601String()}');
+
+      try {
+        final appProvider = Provider.of<AppProvider>(context, listen: false);
+        await appProvider.initialize();
+
+        print('✅ [MAIN SCREEN] AppProvider initialized successfully');
+        setState(() {
+          _isInitialized = true;
+        });
+      } catch (e, stackTrace) {
+        print('❌ [MAIN SCREEN] ========================================');
+        print('❌ [MAIN SCREEN] ERROR during initialization');
+        print('❌ [MAIN SCREEN] Error: $e');
+        print('❌ [MAIN SCREEN] Stack trace: $stackTrace');
+
+        // Still mark as initialized to show error state instead of loading forever
+        setState(() {
+          _isInitialized = true;
+        });
+      }
     }
   }
 
@@ -52,6 +70,42 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, appProvider, child) {
+        // Show loading screen during initialization
+        if (!_isInitialized) {
+          return Scaffold(
+            body: SafeArea(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(
+                      color: AppColors.bgPrimary,
+                      strokeWidth: 3,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Loading your learning experience...',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please wait while we fetch your data',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         return Scaffold(
           body: IndexedStack(
             index: appProvider.currentIndex,
