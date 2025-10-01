@@ -10,7 +10,7 @@ import '../models/remedial_models.dart';
 import 'pdf_extraction_service.dart';
 
 class GeminiAIService {
-  static const String _apiKey = 'AIzaSyDyFbfNS8XwzcBtnpYY-5lovrTKH5-NXLM';
+  static const String _apiKey = 'AIzaSyDezpYbzSmo041EbnxGvlCtKuEm14gCCJk';
   late final GenerativeModel _model;
   late final PdfExtractionService _pdfExtractor;
   

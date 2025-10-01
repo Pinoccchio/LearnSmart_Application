@@ -84,6 +84,7 @@ class SupabaseService {
           'email': email,
           'role': role,
           'profile_picture': profilePicture,
+          'onboarding_completed': false,
         })
         .select()
         .single();

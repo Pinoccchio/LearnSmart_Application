@@ -6,8 +6,10 @@ import '../../models/course_models.dart';
 import '../../models/user_progress_models.dart';
 import '../../services/supabase_service.dart';
 import '../../services/user_progress_service.dart';
+import '../../services/pre_assessment_service.dart';
 import '../../providers/auth_provider.dart';
 import 'module_details_screen.dart';
+import '../pre_assessment/pre_assessment_intro_screen.dart';
 
 class CourseOverviewScreen extends StatefulWidget {
   final Course course;
@@ -26,6 +28,12 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   CourseProgress? _courseProgress;
   bool _loading = true;
   String? _error;
+
+  // Pre-assessment state
+  final PreAssessmentService _preAssessmentService = PreAssessmentService();
+  bool _preAssessmentCompleted = false;
+  double? _preAssessmentScore;
+  bool _preAssessmentPassed = false;
 
   @override
   void initState() {
@@ -47,15 +55,34 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
       }
 
       print('📚 [COURSE OVERVIEW] Loading course details for: ${widget.course.id}');
-      
-      // Load course details and user progress in parallel
+
+      // Load course details, user progress, and pre-assessment status in parallel
       final results = await Future.wait([
         SupabaseService.getCourseWithModulesAndMaterials(widget.course.id),
         UserProgressService.getCourseProgress(currentUser.id, widget.course.id),
+        _preAssessmentService.isPreAssessmentCompleted(
+          userId: currentUser.id,
+          courseId: widget.course.id,
+        ),
       ]);
 
       final courseDetails = results[0] as Course?;
       final courseProgress = results[1] as CourseProgress;
+      final preAssessmentCompleted = results[2] as bool;
+
+      // If pre-assessment is completed, get the result details
+      if (preAssessmentCompleted) {
+        final result = await _preAssessmentService.getResult(
+          userId: currentUser.id,
+          courseId: widget.course.id,
+        );
+        if (result != null) {
+          setState(() {
+            _preAssessmentScore = result.scorePercentage;
+            _preAssessmentPassed = result.passed;
+          });
+        }
+      }
 
       // If no progress records exist, initialize them
       if (courseProgress.moduleProgresses.isEmpty && courseDetails != null) {
@@ -71,12 +98,14 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
         setState(() {
           _courseWithDetails = courseDetails;
           _courseProgress = initializedProgress;
+          _preAssessmentCompleted = preAssessmentCompleted;
           _loading = false;
         });
       } else {
         setState(() {
           _courseWithDetails = courseDetails ?? widget.course;
           _courseProgress = courseProgress;
+          _preAssessmentCompleted = preAssessmentCompleted;
           _loading = false;
         });
       }
@@ -116,11 +145,22 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
                       // Course Header
                       _buildCourseHeader(course),
                       const SizedBox(height: 24),
-                      
+
+                      // Pre-Assessment Banner
+                      if (!_preAssessmentCompleted)
+                        _buildPreAssessmentBanner(),
+                      if (!_preAssessmentCompleted) const SizedBox(height: 24),
+
+                      // Pre-Assessment Result (if completed)
+                      if (_preAssessmentCompleted && _preAssessmentScore != null)
+                        _buildPreAssessmentResult(),
+                      if (_preAssessmentCompleted && _preAssessmentScore != null)
+                        const SizedBox(height: 24),
+
                       // Progress Section
                       _buildProgressSection(course),
                       const SizedBox(height: 24),
-                      
+
                       // Modules Section
                       _buildModulesSection(course),
                     ],
@@ -411,11 +451,14 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   }
 
   bool _isModuleLocked(Module module, int index) {
+    // Modules are locked if pre-assessment is not completed
+    if (!_preAssessmentCompleted) return true;
+
     if (module.isLocked) return true;
-    
-    // First module is never locked
+
+    // First module is never locked (once pre-assessment is done)
     if (index == 0) return false;
-    
+
     // Use the progress service to check if module is locked
     return _courseProgress?.isModuleLocked(module.id) ?? true;
   }
@@ -429,6 +472,181 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildPreAssessmentBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.withValues(alpha: 0.1),
+            Colors.deepOrange.withValues(alpha: 0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.orange.withValues(alpha: 0.3),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  LucideIcons.clipboardCheck,
+                  color: Colors.orange,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pre-Assessment Required',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Complete to unlock course modules',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Before starting this course, you need to complete a pre-assessment to evaluate your current knowledge and identify areas that need focus.',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _navigateToPreAssessment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: AppColors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(LucideIcons.playCircle, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Take Pre-Assessment',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreAssessmentResult() {
+    final scoreColor = _preAssessmentPassed ? Colors.green : Colors.orange;
+    final statusIcon = _preAssessmentPassed ? LucideIcons.checkCircle : LucideIcons.alertCircle;
+    final statusText = _preAssessmentPassed ? 'Passed' : 'Review Recommended';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scoreColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: scoreColor.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: scoreColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              statusIcon,
+              color: scoreColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pre-Assessment: $statusText',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Score: ${_preAssessmentScore!.toStringAsFixed(1)}%',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: scoreColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateToPreAssessment() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PreAssessmentIntroScreen(
+          course: _courseWithDetails ?? widget.course,
+        ),
+      ),
+    ).then((_) {
+      // Reload course details when returning from pre-assessment
+      _loadCourseDetails();
+    });
   }
 
   Widget _buildErrorState() {

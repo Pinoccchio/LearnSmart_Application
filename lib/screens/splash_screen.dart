@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import '../providers/auth_provider.dart';
 import 'auth/login_screen.dart';
 import 'main_screen.dart';
+import 'onboarding/onboarding_welcome_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -50,26 +51,50 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _checkAuthAndNavigate() async {
     // Wait for animation to complete
     await Future.delayed(const Duration(seconds: 4));
-    
+
     if (!mounted) return;
-    
+
     final authProvider = context.read<AuthProvider>();
-    
+
     // Wait for auth provider to initialize
     while (!authProvider.isInitialized && mounted) {
       await Future.delayed(const Duration(milliseconds: 100));
     }
-    
+
     if (!mounted) return;
-    
+
     // Check if user is authenticated
     final isAuthenticated = authProvider.isAuthenticated && authProvider.currentUser != null;
-    
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (context) => isAuthenticated ? const MainScreen() : const LoginScreen(),
-      ),
-    );
+
+    if (!isAuthenticated) {
+      // Not authenticated, go to login
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const LoginScreen(),
+        ),
+      );
+      return;
+    }
+
+    // User is authenticated, check onboarding status
+    final user = authProvider.currentUser;
+    final hasCompletedOnboarding = user?.onboardingCompleted ?? false;
+
+    if (!hasCompletedOnboarding) {
+      // Redirect to onboarding
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const OnboardingWelcomeScreen(),
+        ),
+      );
+    } else {
+      // Onboarding completed, go to main screen
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => const MainScreen(),
+        ),
+      );
+    }
   }
 
   @override
