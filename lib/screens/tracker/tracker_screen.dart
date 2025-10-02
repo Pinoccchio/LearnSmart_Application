@@ -5,8 +5,24 @@ import '../../constants/app_colors.dart';
 import '../../providers/app_provider.dart';
 import '../../models/activity.dart';
 
-class TrackerScreen extends StatelessWidget {
+class TrackerScreen extends StatefulWidget {
   const TrackerScreen({super.key});
+
+  @override
+  State<TrackerScreen> createState() => _TrackerScreenState();
+}
+
+class _TrackerScreenState extends State<TrackerScreen> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Auto-refresh when tab is switched to (deferred until after build)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppProvider>().refreshStudyStats();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,31 +147,24 @@ class TrackerScreen extends StatelessWidget {
           }
           
           // Handle data state - show the actual tracker content
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with refresh button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Time spent by technique',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
+          return RefreshIndicator(
+            onRefresh: () => appProvider.refreshStudyStats(),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  const Text(
+                    'Time spent by technique',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
-                    IconButton(
-                      onPressed: () => appProvider.refreshStudyStats(),
-                      icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
-                      tooltip: 'Refresh Stats',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
+                  ),
+                  const SizedBox(height: 8),
                 
                 // Quick stats row
                 Row(
@@ -265,6 +274,7 @@ class TrackerScreen extends StatelessWidget {
                   }),
                 ],
               ],
+            ),
             ),
           );
         },

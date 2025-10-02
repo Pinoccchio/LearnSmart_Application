@@ -4,8 +4,24 @@ import '../../constants/app_colors.dart';
 import '../../providers/app_provider.dart';
 import '../../models/activity.dart';
 
-class ActivitiesScreen extends StatelessWidget {
+class ActivitiesScreen extends StatefulWidget {
   const ActivitiesScreen({super.key});
+
+  @override
+  State<ActivitiesScreen> createState() => _ActivitiesScreenState();
+}
+
+class _ActivitiesScreenState extends State<ActivitiesScreen> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Auto-refresh when tab is switched to (deferred until after build)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<AppProvider>().refreshActivities();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -245,11 +245,18 @@ class OnboardingService {
       );
 
       // Save result to database
+      print('💾 [ONBOARDING] Saving onboarding results to database for user: $userId');
+      print('📊 [ONBOARDING] Scores - Active Recall: $activeRecallScore, Pomodoro: $pomodoroScore, Feynman: $feynmanScore, Retrieval: $retrievalPracticeScore');
+      print('🏆 [ONBOARDING] Top technique: $topTechnique');
+
       await _supabase
           .from('user_onboarding_results')
           .upsert(result.toJson());
 
+      print('✅ [ONBOARDING] Results saved successfully');
+
       // Update user's onboarding_completed flag
+      print('🔄 [ONBOARDING] Updating user onboarding_completed flag to true...');
       await _supabase
           .from('users')
           .update({
@@ -258,8 +265,12 @@ class OnboardingService {
           })
           .eq('id', userId);
 
+      print('✅ [ONBOARDING] User onboarding status updated successfully');
+      print('🎉 [ONBOARDING] Onboarding flow completed for user: $userId');
+
       return result;
     } catch (e) {
+      print('❌ [ONBOARDING] Failed to calculate onboarding results: $e');
       throw Exception('Failed to calculate onboarding results: $e');
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../constants/app_colors.dart';
 import '../../models/course_models.dart';
 import '../../models/pre_assessment_models.dart';
+import '../modules/course_overview_screen.dart';
 
 class PreAssessmentResultsScreen extends StatelessWidget {
   final Course course;
@@ -429,7 +430,7 @@ class PreAssessmentResultsScreen extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                // Navigate back to course detail
+                // Navigate back to My Courses
                 Navigator.of(context).popUntil((route) => route.isFirst);
               },
               style: ElevatedButton.styleFrom(
@@ -449,34 +450,6 @@ class PreAssessmentResultsScreen extends StatelessWidget {
               ),
             ),
           ),
-
-          if (result.weakModules.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () {
-                  // TODO: Navigate to course content filtered by weak modules
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.bgPrimary,
-                  side: const BorderSide(color: AppColors.bgPrimary),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  'Review Weak Areas',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

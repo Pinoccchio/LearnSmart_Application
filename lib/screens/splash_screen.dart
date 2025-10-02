@@ -68,6 +68,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!isAuthenticated) {
       // Not authenticated, go to login
+      print('🔍 [SPLASH] User not authenticated, navigating to login');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const LoginScreen(),
@@ -76,12 +77,22 @@ class _SplashScreenState extends State<SplashScreen>
       return;
     }
 
-    // User is authenticated, check onboarding status
+    // CRITICAL FIX: Force refresh user profile to get the latest onboarding status
+    // This prevents stale cached data from causing incorrect navigation
+    print('🔄 [SPLASH] User authenticated, refreshing profile to get latest onboarding status...');
+    await authProvider.refreshUserProfile();
+
+    if (!mounted) return;
+
+    // User is authenticated, check onboarding status (now with fresh data!)
     final user = authProvider.currentUser;
     final hasCompletedOnboarding = user?.onboardingCompleted ?? false;
 
+    print('🔍 [SPLASH] Onboarding status check - User: ${user?.email}, Completed: $hasCompletedOnboarding');
+
     if (!hasCompletedOnboarding) {
       // Redirect to onboarding
+      print('➡️ [SPLASH] Onboarding not completed, navigating to onboarding welcome screen');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const OnboardingWelcomeScreen(),
@@ -89,6 +100,7 @@ class _SplashScreenState extends State<SplashScreen>
       );
     } else {
       // Onboarding completed, go to main screen
+      print('➡️ [SPLASH] Onboarding completed, navigating to main screen');
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => const MainScreen(),

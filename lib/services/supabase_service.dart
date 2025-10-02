@@ -93,6 +93,9 @@ class SupabaseService {
   }
 
   static Future<app_user.User?> getUserProfile(String userId) async {
+    print('🔍 [SUPABASE] Fetching user profile for: $userId');
+    final startTime = DateTime.now();
+
     try {
       final response = await client
           .from('users')
@@ -100,8 +103,22 @@ class SupabaseService {
           .eq('id', userId)
           .single();
 
-      return app_user.User.fromSupabase(response);
-    } catch (e) {
+      final duration = DateTime.now().difference(startTime);
+      final user = app_user.User.fromSupabase(response);
+      print('✅ [SUPABASE] User profile loaded in ${duration.inMilliseconds}ms - ${user.email}, onboarding: ${user.onboardingCompleted}');
+      return user;
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [SUPABASE] Failed to fetch user profile after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+
+      // Better error handling: distinguish between "not found" vs "database error"
+      if (e.toString().contains('Not found') || e.toString().contains('No rows')) {
+        print('⚠️ [SUPABASE] User profile does not exist for ID: $userId');
+      } else {
+        print('⚠️ [SUPABASE] Database error while fetching user profile - may be temporary');
+      }
+
       return null;
     }
   }

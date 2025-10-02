@@ -54,23 +54,39 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _loadUserProfile(String userId) async {
     try {
+      print('🔍 [AUTH PROVIDER] Loading user profile for: $userId');
       final userProfile = await SupabaseService.getUserProfile(userId);
       if (userProfile != null) {
+        print('✅ [AUTH PROVIDER] User profile loaded: ${userProfile.email}, onboarding: ${userProfile.onboardingCompleted}');
         _currentUser = userProfile;
         _isAuthenticated = true;
         _lastError = null;
       } else {
+        print('❌ [AUTH PROVIDER] User profile not found');
         _currentUser = null;
         _isAuthenticated = false;
         _lastError = 'User profile not found';
       }
     } catch (e) {
+      print('❌ [AUTH PROVIDER] Failed to load user profile: $e');
       _currentUser = null;
       _isAuthenticated = false;
       _lastError = 'Failed to load user profile: $e';
     }
     _setInitialized();
     notifyListeners();
+  }
+
+  /// Force refresh the current user's profile from the database
+  /// This ensures we have the latest data, including onboarding status
+  Future<void> refreshUserProfile() async {
+    final currentAuthUser = SupabaseService.currentAuthUser;
+    if (currentAuthUser != null) {
+      print('🔄 [AUTH PROVIDER] Force refreshing user profile...');
+      await _loadUserProfile(currentAuthUser.id);
+    } else {
+      print('⚠️ [AUTH PROVIDER] Cannot refresh profile - no authenticated user');
+    }
   }
 
   // Real signup with Supabase

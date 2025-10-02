@@ -4,19 +4,23 @@ import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../models/course_models.dart';
 import '../../models/user_progress_models.dart';
+import '../../models/pre_assessment_models.dart';
 import '../../services/supabase_service.dart';
 import '../../services/user_progress_service.dart';
 import '../../services/pre_assessment_service.dart';
 import '../../providers/auth_provider.dart';
 import 'module_details_screen.dart';
 import '../pre_assessment/pre_assessment_intro_screen.dart';
+import '../pre_assessment/pre_assessment_results_screen.dart';
 
 class CourseOverviewScreen extends StatefulWidget {
   final Course course;
+  final List<String>? weakModulesToHighlight;
 
   const CourseOverviewScreen({
     super.key,
     required this.course,
+    this.weakModulesToHighlight,
   });
 
   @override
@@ -34,6 +38,8 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   bool _preAssessmentCompleted = false;
   double? _preAssessmentScore;
   bool _preAssessmentPassed = false;
+  PreAssessmentResult? _preAssessmentResult;
+  PreAssessmentAttempt? _preAssessmentAttempt;
 
   @override
   void initState() {
@@ -77,9 +83,17 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
           courseId: widget.course.id,
         );
         if (result != null) {
+          // Also get the attempt for navigation (if attemptId exists)
+          PreAssessmentAttempt? attempt;
+          if (result.attemptId != null) {
+            attempt = await _preAssessmentService.getAttempt(result.attemptId!);
+          }
+
           setState(() {
             _preAssessmentScore = result.scorePercentage;
             _preAssessmentPassed = result.passed;
+            _preAssessmentResult = result;
+            _preAssessmentAttempt = attempt;
           });
         }
       }
@@ -338,7 +352,25 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
   Widget _buildModuleCard(Module module, int index) {
     final isCompleted = _isModuleCompleted(module);
     final isLocked = _isModuleLocked(module, index);
+    final isWeak = _isWeakModule(module);
     final canAccess = !isLocked;
+
+    // Determine colors based on module state
+    Color borderColor;
+    Color backgroundColor;
+    if (isCompleted) {
+      borderColor = Colors.green;
+      backgroundColor = AppColors.white;
+    } else if (isLocked) {
+      borderColor = AppColors.grey300;
+      backgroundColor = AppColors.grey100;
+    } else if (isWeak) {
+      borderColor = Colors.orange;
+      backgroundColor = Colors.orange.withValues(alpha: 0.05);
+    } else {
+      borderColor = AppColors.grey200;
+      backgroundColor = AppColors.white;
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -348,17 +380,11 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isLocked 
-                ? AppColors.grey100 
-                : AppColors.white,
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isCompleted 
-                  ? Colors.green 
-                  : isLocked 
-                      ? AppColors.grey300 
-                      : AppColors.grey200,
-              width: 1,
+              color: borderColor,
+              width: isWeak ? 2 : 1,
             ),
             boxShadow: canAccess ? [
               BoxShadow(
@@ -421,12 +447,37 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
                       ),
                     ],
                     const SizedBox(height: 4),
-                    Text(
-                      '${module.materials.length} materials',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isLocked ? AppColors.grey400 : AppColors.textSecondary,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          '${module.materials.length} materials',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isLocked ? AppColors.grey400 : AppColors.textSecondary,
+                          ),
+                        ),
+                        if (isWeak && !isLocked) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: const Text(
+                              'Review Recommended',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -461,6 +512,14 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
 
     // Use the progress service to check if module is locked
     return _courseProgress?.isModuleLocked(module.id) ?? true;
+  }
+
+  bool _isWeakModule(Module module) {
+    if (widget.weakModulesToHighlight == null) return false;
+    return widget.weakModulesToHighlight!.any((weakModule) =>
+      module.title.toLowerCase().contains(weakModule.toLowerCase()) ||
+      weakModule.toLowerCase().contains(module.title.toLowerCase())
+    );
   }
 
   void _navigateToModule(Module module) {
@@ -582,56 +641,90 @@ class _CourseOverviewScreenState extends State<CourseOverviewScreen> {
     final statusIcon = _preAssessmentPassed ? LucideIcons.checkCircle : LucideIcons.alertCircle;
     final statusText = _preAssessmentPassed ? 'Passed' : 'Review Recommended';
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: scoreColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: scoreColor.withValues(alpha: 0.3),
+    return InkWell(
+      onTap: (_preAssessmentResult != null && _preAssessmentAttempt != null)
+          ? () {
+              // Navigate to detailed results screen
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => PreAssessmentResultsScreen(
+                    course: _courseWithDetails ?? widget.course,
+                    result: _preAssessmentResult!,
+                    attempt: _preAssessmentAttempt!,
+                  ),
+                ),
+              );
+            }
+          : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: scoreColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: scoreColor.withValues(alpha: 0.3),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: scoreColor.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scoreColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                statusIcon,
+                color: scoreColor,
+                size: 24,
+              ),
             ),
-            child: Icon(
-              statusIcon,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pre-Assessment: $statusText',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Score: ${_preAssessmentScore!.toStringAsFixed(1)}%',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: scoreColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (!_preAssessmentPassed && _preAssessmentResult != null && _preAssessmentResult!.weakModules.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap to review ${_preAssessmentResult!.weakModules.length} weak area${_preAssessmentResult!.weakModules.length > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              LucideIcons.chevronRight,
               color: scoreColor,
-              size: 24,
+              size: 20,
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pre-Assessment: $statusText',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Score: ${_preAssessmentScore!.toStringAsFixed(1)}%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: scoreColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
