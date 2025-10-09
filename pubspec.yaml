@@ -71,6 +71,12 @@ dependencies:
   # UUID generation
   uuid: ^4.5.1
 
+  # Local storage for Remember Me
+  shared_preferences: ^2.2.2
+
+  # Deep link handling for password reset
+  app_links: ^6.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

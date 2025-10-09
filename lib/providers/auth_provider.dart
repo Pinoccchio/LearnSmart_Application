@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 import '../models/user.dart';
 import '../services/supabase_service.dart';
+import '../services/local_storage_service.dart';
 
 class AuthProvider with ChangeNotifier {
   User? _currentUser;
@@ -164,6 +165,8 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     try {
       await SupabaseService.signOut();
+      // DON'T clear remembered email - let user's "Remember me" preference persist across logout
+      // Only clear when user unchecks "Remember me" or changes password
       _currentUser = null;
       _isAuthenticated = false;
       _lastError = null;
@@ -172,6 +175,80 @@ class AuthProvider with ChangeNotifier {
     } catch (e) {
       _lastError = 'Failed to sign out: $e';
       notifyListeners();
+    }
+  }
+
+  // Remember Me functionality
+  Future<String?> getRememberedEmail() async {
+    try {
+      return await LocalStorageService.getRememberedEmail();
+    } catch (e) {
+      print('❌ [AUTH PROVIDER] Failed to get remembered email: $e');
+      return null;
+    }
+  }
+
+  Future<bool> isRememberMeEnabled() async {
+    try {
+      return await LocalStorageService.isRememberMeEnabled();
+    } catch (e) {
+      print('❌ [AUTH PROVIDER] Failed to check remember me status: $e');
+      return false;
+    }
+  }
+
+  Future<void> saveRememberedEmail(String email) async {
+    try {
+      await LocalStorageService.saveRememberedEmail(email);
+    } catch (e) {
+      print('❌ [AUTH PROVIDER] Failed to save remembered email: $e');
+    }
+  }
+
+  Future<void> clearRememberedEmail() async {
+    try {
+      await LocalStorageService.clearRememberedEmail();
+    } catch (e) {
+      print('❌ [AUTH PROVIDER] Failed to clear remembered email: $e');
+    }
+  }
+
+  // Password reset functionality
+  Future<bool> requestPasswordReset(String email) async {
+    try {
+      _lastError = null;
+      notifyListeners();
+
+      await SupabaseService.resetPasswordForEmail(email);
+      return true;
+    } on supabase.AuthException catch (e) {
+      _lastError = _getReadableAuthError(e.message);
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _lastError = 'Failed to send reset email: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updatePassword(String newPassword) async {
+    try {
+      _lastError = null;
+      notifyListeners();
+
+      await SupabaseService.updateUserPassword(newPassword);
+      // Clear remembered credentials after password change
+      await LocalStorageService.clearRememberedEmail();
+      return true;
+    } on supabase.AuthException catch (e) {
+      _lastError = _getReadableAuthError(e.message);
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _lastError = 'Failed to update password: $e';
+      notifyListeners();
+      return false;
     }
   }
 

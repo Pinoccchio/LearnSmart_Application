@@ -4,6 +4,7 @@ import '../../constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../main_screen.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,10 +22,32 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   @override
+  void initState() {
+    super.initState();
+    // Load remembered email after widget tree is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadRememberedEmail();
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    final authProvider = context.read<AuthProvider>();
+    final rememberedEmail = await authProvider.getRememberedEmail();
+    final isRememberMeEnabled = await authProvider.isRememberMeEnabled();
+
+    if (rememberedEmail != null && rememberedEmail.isNotEmpty && mounted) {
+      setState(() {
+        _emailController.text = rememberedEmail;
+        _rememberMe = isRememberMeEnabled;
+      });
+    }
   }
 
   Future<void> _login() async {
@@ -40,6 +63,13 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (success && mounted) {
+        // Handle Remember Me
+        if (_rememberMe) {
+          await authProvider.saveRememberedEmail(_emailController.text.trim());
+        } else {
+          await authProvider.clearRememberedEmail();
+        }
+
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const MainScreen()),
         );
@@ -197,7 +227,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Spacer(),
                     TextButton(
                       onPressed: () {
-                        // TODO: Implement forgot password
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ForgotPasswordScreen(),
+                          ),
+                        );
                       },
                       child: const Text(
                         'Forgot Password?',

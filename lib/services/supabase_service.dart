@@ -68,6 +68,51 @@ class SupabaseService {
     await client.auth.signOut();
   }
 
+  /// Request password reset email
+  /// This sends an email with a deep link to reset the password
+  static Future<void> resetPasswordForEmail(String email) async {
+    print('🔍 [AUTH] Requesting password reset for email: $email');
+    final startTime = DateTime.now();
+
+    try {
+      await client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'io.supabase.learnsmart://reset-password',
+      );
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [AUTH SUCCESS] Password reset email sent in ${duration.inMilliseconds}ms');
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [AUTH ERROR] Password reset request failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// Update user password after reset
+  /// This should be called after the user receives the reset email
+  static Future<void> updateUserPassword(String newPassword) async {
+    print('🔍 [AUTH] Updating user password');
+    final startTime = DateTime.now();
+
+    try {
+      await client.auth.updateUser(
+        UserAttributes(
+          password: newPassword,
+        ),
+      );
+
+      final duration = DateTime.now().difference(startTime);
+      print('✅ [AUTH SUCCESS] Password updated in ${duration.inMilliseconds}ms');
+    } catch (e, stackTrace) {
+      final duration = DateTime.now().difference(startTime);
+      print('❌ [AUTH ERROR] Password update failed after ${duration.inMilliseconds}ms: $e');
+      print('📍 [STACK TRACE] $stackTrace');
+      rethrow;
+    }
+  }
+
   // Profile methods
   static Future<app_user.User> createUserProfile({
     required String authUserId,

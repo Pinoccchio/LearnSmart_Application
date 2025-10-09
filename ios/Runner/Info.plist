@@ -49,5 +49,16 @@
 	<string>This app uses speech recognition to help you explain concepts using voice input in the Feynman technique learning method.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs access to your microphone to convert your voice explanations into text for the Feynman learning technique.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.supabase.learnsmart</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
